@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "packingcubes"
+version = "0.0.1a1"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "ruff",
+    "coverage",
+    "pytest-cov",
+    "pre-commit",
+]
+
+[tool.ruff.lint]
+extend-select = ["I"]
+ignore = ["F841"]
+
+[tool.coverage.run]
+source = [
+    "packingcubes",
+]
