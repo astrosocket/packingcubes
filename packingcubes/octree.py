@@ -264,7 +264,39 @@ class OctreeNode:
         Main recursive call of octree construction. This is where the particles
         get partitioned and child nodes created
         """
-        pass
+        # sort everything, even if we have fewer than 8 leaves
+        # this step also generates child_list
+        self.child_list = _partition_data(
+            self.data, self.box, self.node_start, self.node_end
+        )
+        # Loop through children sections. If any section has more than
+        # _particle_threshold child, recurse.
+        # Note this step could be easily converted into a while loop with a
+        # stack of subsections instead of recursion
+        # Note also child_list[0] is the offset to child[1]
+        # child[0] starts at node_start and ends at
+        # node_start+child_list[0] -> child_list only
+        # Note also that there are currently no checks to
+        # ensure that everything is not just being dumped
+        # into one child, causing infinite recursion
+        for i in range(8):
+            child1 = self.child_list[i - 1] if i > 0 else self.node_start
+            child2 = self.child_list[i] if i < 7 else self.node_end
+            if child2 - child1 > self._particle_threshold:
+                # recursing on child i not i-1!
+                child_box = _get_child_box(self.box, i)
+                LOGGER.debug(
+                    f"Making child box{i + 1} for {child2}-{child1}={child2 - child1} particles in box {child_box}"
+                )
+                node = OctreeNode(
+                    data=self.data,
+                    node_start=child1,
+                    node_end=child2 - 1,
+                    box=child_box,
+                    tag=self.tag + [i + 1],  # e.g. i=1 corresponds to subtree 3
+                    parent=self,
+                )
+                self.children.append(node)
 
     def __repr__(self):
         return (
