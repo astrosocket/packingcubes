@@ -259,6 +259,30 @@ def test_get_child_box_valid(
 
 
 #############################
+# Test _in_box
+#############################
+@pytest.mark.skip(reason="Not implemented yet")
+def test_in_box():
+    pass
+
+
+#############################
+# Test _box_neighbors_in_node
+#############################
+@pytest.mark.skip(reason="Not implemented yet")
+def test_box_neighbors_in_node():
+    pass
+
+
+#############################
+# Test project_point_on_box
+#############################
+@pytest.mark.skip(reason="Not implemented yet")
+def test_project_point_on_box():
+    pass
+
+
+#############################
 # Test morton
 #############################
 @pytest.mark.skip(reason="Not implemented yet")
