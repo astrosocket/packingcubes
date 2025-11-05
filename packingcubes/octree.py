@@ -132,7 +132,17 @@ def morton(positions: ArrayLike, box: ArrayLike) -> ArrayLike:
     the box
     Note that returned morton encoding is 1-indexed
     """
-    pass
+    # Map positions to box s.t. [0,0,0] and [1,1,1] are left-front-bottom and
+    # right-back-top
+    boxed_pos = (positions - box[:3]) / box[3:]
+    # note that np.round rounds 0.5 to 0 (due to round-to-even choice)
+    morton = (
+        1
+        + np.round(boxed_pos[:, 0]) * 2
+        + np.round(boxed_pos[:, 1]) * 1
+        + np.round(boxed_pos[:, 2]) * 4
+    )
+    return morton
 
 
 # This will be an in-place octree, so each node has a
