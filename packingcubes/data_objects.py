@@ -1,8 +1,11 @@
+import logging
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 from numpy.typing import ArrayLike
+
+LOGGER = logging.get_logger(__name__)
 
 
 class Dataset:
@@ -28,7 +31,10 @@ class Dataset:
         return self._data.positions
 
     def _swap(self, first: int, second: int) -> None:
-        pass
+        LOGGER.debug(f"Swapping {first} and {second}")
+        temp = self._data.positions[first, :].copy()
+        self._data.positions[first, :] = self._data.positions[second, :]
+        self._data.positions[second, :] = temp
 
     def __len__(self) -> int:
         return len(self._data.positions)
