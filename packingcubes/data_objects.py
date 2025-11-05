@@ -5,7 +5,7 @@ from typing import Any
 import numpy as np
 from numpy.typing import ArrayLike
 
-LOGGER = logging.get_logger(__name__)
+LOGGER = logging.getLogger(__name__)
 
 
 class Dataset:
