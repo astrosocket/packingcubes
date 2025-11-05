@@ -2,7 +2,7 @@ import logging
 
 import numpy as np
 import pytest
-from hypothesis import example, given, note
+from hypothesis import assume, example, given, note
 from hypothesis import strategies as st
 from hypothesis.extra import numpy as hypnp
 from numpy.typing import ArrayLike
@@ -74,14 +74,100 @@ def test_partition_midplane(make_basic_data, midplane: float):
 #############################
 # Test _partition_data
 #############################
-@pytest.mark.skip(reason="Not implemented yet")
 def test_partition_data_full_box(make_basic_data):
-    pass
+    basic_data = make_basic_data(num_particles=10, seed=0xDEADBEEF)
+    positions_copy = basic_data.positions.copy()
+    # With the current random seed (DEADBEEF), basic_data looks like the
+    # following: [6,6,6,3,3,6,7,3,4,3], where the numbers are the 1-based
+    # top-level z-order indices. So we'd expect the final positions list to
+    # look like [3,3,3,3,4,6,6,6,6,7] corresponding to original indices
+    #           [9,4,7,3,8,5,0,2,1,6] and the list of children to be
+    # [0,0,4,5,5,9,10] #TODO: double check manual indices
+    LOGGER.debug("Original order")
+    morton_copy = octree.morton(positions_copy, basic_data.bounding_box)
+    for pos, mort in zip(positions_copy, morton_copy):
+        LOGGER.debug(pos, mort)
+    child_list = octree._partition_data(
+        basic_data,
+        basic_data.bounding_box,
+        0,
+        9,
+    )
+    expected_child_list = [0, 0, 4, 5, 5, 9, 10]
+    LOGGER.debug(f"{expected_child_list=}")
+    LOGGER.debug(f"         {child_list=}")
+    assert np.all(expected_child_list == child_list)
+    expected_positions_order = np.array([9, 4, 7, 3, 8, 5, 0, 2, 1, 6])
+    morton = octree.morton(basic_data.positions, basic_data.bounding_box)
+    for i in range(len(positions_copy)):
+        LOGGER.debug(f"{i}")
+        LOGGER.debug(
+            positions_copy[expected_positions_order[i], :],
+            morton_copy[expected_positions_order[i]],
+        )
+        LOGGER.debug(" =?= ")
+        LOGGER.debug(basic_data.positions[i, :], morton[i])
+    assert np.all(positions_copy[expected_positions_order, :] == basic_data.positions)
 
 
-@pytest.mark.skip(reason="Not implemented yet")
+@given(st.integers(min_value=1, max_value=8))
 def test_partition_data_sub_box(make_basic_data, child_ind: int):
-    pass
+    basic_data = make_basic_data(num_particles=10)
+    # Only want to look at particles in sub-box of full
+    # do original partitioning first
+    lvl1_child_list = octree._partition_data(
+        basic_data,
+        basic_data.bounding_box,
+        0,
+        9,
+    )
+    root_morton = octree.morton(basic_data.positions, basic_data.bounding_box)
+    # Ensure we only test cases where we actually would have a sub_box, ie
+    # the number of particles with (morton code == child_ind) > 1
+    assume(np.count_nonzero(root_morton == child_ind) > 1)
+    note(f"{basic_data.bounding_box=}")
+    note(f"{root_morton=}")
+    # e.g. for the DEADBEEF data we're interested in the child_ind=3 particles,
+    # i.e. child_list[1]:child_list[2]
+    note(f"For child box {child_ind}")
+    child_ind = child_ind - 1  # convert to 0-index
+    lvl1_child_box = octree._get_child_box(basic_data.bounding_box, child_ind)
+    note(f"{lvl1_child_box=}")
+    lvl1_child_start = lvl1_child_list[child_ind - 1] if child_ind else 0
+    lvl1_child_end = (
+        max(lvl1_child_list[child_ind] - 1, 0) if child_ind < 7 else len(basic_data) - 1
+    )
+    note(f"lvl1_child_indices={lvl1_child_start}-{lvl1_child_end}")
+    lvl1_child_pos = basic_data.positions[lvl1_child_start : lvl1_child_end + 1].copy()
+    normalized_pos = (lvl1_child_pos - lvl1_child_box[:3]) / lvl1_child_box[3:]
+    lvl1_morton = octree.morton(lvl1_child_pos, lvl1_child_box)
+    note("Prior to partition:")
+    for i, (pos, norm, mort) in enumerate(
+        zip(lvl1_child_pos, normalized_pos, lvl1_morton)
+    ):
+        note(f"{i=} {pos}->{norm} = {mort}")
+    expected_order = np.sort(lvl1_morton)
+    note(f"{expected_order=}")
+    child_list = octree._partition_data(
+        basic_data,
+        lvl1_child_box,
+        lvl1_child_start,
+        lvl1_child_end,
+    )
+    lvl1_child_pos = basic_data.positions[lvl1_child_start : lvl1_child_end + 1].copy()
+    normalized_pos = (lvl1_child_pos - lvl1_child_box[:3]) / lvl1_child_box[3:]
+    lvl1_morton = octree.morton(lvl1_child_pos, lvl1_child_box)
+    note("After partition:")
+    for i, (pos, norm, mort) in enumerate(
+        zip(lvl1_child_pos, normalized_pos, lvl1_morton)
+    ):
+        note(f"{i=} {pos}->{norm} = {mort}")
+    note(
+        f"{child_list=} -> {[c - lvl1_child_list[1] for c in child_list]} (normalized)"
+    )
+    note(f"actual order{lvl1_morton}")
+    note("")
+    assert np.all(expected_order == lvl1_morton)
 
 
 #############################

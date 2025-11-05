@@ -63,7 +63,46 @@ def _partition_data(
     than hi. This means all data was contained in octants
     [lo,*child_list[0:i-1]]
     """
-    pass
+    midplane = [box[i] + box[i + 3] / 2 for i in range(3)]
+    child_list = [-1, -1, -1, -1, -1, -1, -1]
+    # child_list is defined such that data in c0 (child node 1) is prior to
+    # child_list[0], c1 data is between child_list[0] and child_list[1], etc.
+    # i.e. c0 < 0 < c1 < 1 < c2 < 2 < c3 < 3 < c4 < 4 < c5 < 5 < c6 < 6 < c7
+    # z-index ordering, so box is
+    #    /6-----/8
+    #  5/-+---7/ |
+    #  | /2---+-/4
+    #  1/-----3/
+    # z-partition
+    child_list[3] = _partition(data, lo, hi, 2, midplane[2])
+    # x-partition and y-partition - note that these combine to be only two
+    # passes through the list. Also, only perform partition if we actually
+    # have data available
+    if lo < child_list[3]:
+        child_list[1] = _partition(data, lo, child_list[3] - 1, 0, midplane[0])
+        if lo < child_list[1]:
+            child_list[0] = _partition(data, lo, child_list[1] - 1, 1, midplane[1])
+        if child_list[1] < hi:
+            child_list[2] = _partition(
+                data, child_list[1], child_list[3] - 1, 1, midplane[1]
+            )
+    if child_list[3] < hi:
+        child_list[5] = _partition(data, child_list[3], hi, 0, midplane[0])
+        if 0 < child_list[5]:
+            child_list[4] = _partition(
+                data, child_list[3], child_list[5] - 1, 1, midplane[1]
+            )
+        if child_list[5] < hi:
+            child_list[6] = _partition(data, child_list[5], hi, 1, midplane[1])
+    # fix any empty values
+    # There's probably a cleverer way to do this...
+    fill_value = lo
+    for i in range(7):
+        if child_list[i] < 0:
+            child_list[i] = fill_value
+        else:
+            fill_value = hi + 1
+    return child_list
 
 
 def _get_child_box(box: ArrayLike, ind: int) -> ArrayLike:
