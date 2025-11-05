@@ -73,7 +73,26 @@ def _get_child_box(box: ArrayLike, ind: int) -> ArrayLike:
     New child box is defined as the suboctant described by position ind
     with size (box[3]/2, box[4]/2, box[5]/2)
     """
-    pass
+    # Use z-index order for now, but other possibilities
+    # like Hilbert curves exist - and see
+    # https://math.stackexchange.com/questions/2411867/3d-hilbert-curve-without-double-length-edges
+    # for a possible "Hilbert" curve that may be better?
+    # Raising errors for invalid boxes coming from data
+    if np.any(np.isinf(box) | np.isnan(box)):
+        raise ValueError("Box values must be finite numbers")
+    if np.any(box[3:] <= 0):
+        raise ValueError("box dimensions must be >0")
+    # using assert because octree members know better
+    assert isinstance(ind, int) and 0 <= ind and ind < 8, (
+        f"Octree code passed an invalid index: {ind}!"
+    )
+    child_box = box.copy()
+    child_box[3:] /= 2.0
+    x, y, z = ((ind & 2) / 2, ind & 1, (ind & 4) / 4)
+    child_box[0] = child_box[0] + child_box[3] * x
+    child_box[1] = child_box[1] + child_box[4] * y
+    child_box[2] = child_box[2] + child_box[5] * z
+    return child_box
 
 
 def _in_box(box: ArrayLike, x: float, y: float, z: float) -> bool:

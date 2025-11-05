@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 from hypothesis import example, given, note
 from hypothesis import strategies as st
+from hypothesis.extra import numpy as hypnp
 from numpy.typing import ArrayLike
 
 import packingcubes.octree as octree
@@ -91,16 +92,84 @@ def test_get_child_box_shape():
     pass
 
 
-@pytest.mark.skip(reason="Not implemented yet")
+def valid_box():
+    box = hypnp.arrays(
+        float, 6, elements=st.floats(allow_infinity=False, allow_nan=False)
+    ).filter(lambda a: np.all(a[3:] > 0))
+    return box
+
+
+@st.composite
+def invalid_box(draw):
+    box = draw(valid_box())
+
+    @st.composite
+    def error_list(draw):
+        nan_inf_errors = draw(
+            st.lists(st.integers(min_value=0, max_value=2), min_size=6, max_size=6)
+        )
+        neg_zero_errors = np.array(
+            draw(st.lists(st.sampled_from([0, 3, 4]), min_size=6, max_size=6))
+        )
+        neg_zero_errors[:3] = 0
+        return np.maximum(nan_inf_errors, neg_zero_errors)
+
+    errors = draw(error_list().filter(lambda list_: sum(list_) > 0))
+    for i, error in enumerate(errors):
+        match error:
+            case 1:
+                box[i] = np.nan
+            case 2:
+                box[i] = np.inf
+            case 3:
+                box[i] = -box[i]
+            case 4:
+                box[i] = 0
+    return box
+
+
+@given(invalid_box())
 def test_get_child_box_invalid(box: ArrayLike):
-    pass
+    with pytest.raises(ValueError) as excinfo:
+        child_box = octree._get_child_box(box, 0)
+    assert "finite numbers" in str(excinfo.value) or "box dimensions" in str(
+        excinfo.value
+    )
 
 
-@pytest.mark.skip(reason="Not implemented yet")
+@given(
+    x=st.integers() | st.floats(allow_infinity=False, allow_nan=False),
+    y=st.integers() | st.floats(allow_infinity=False, allow_nan=False),
+    z=st.integers() | st.floats(allow_infinity=False, allow_nan=False),
+    dx=st.integers(min_value=1)
+    | st.floats(allow_infinity=False, allow_nan=False, min_value=0, exclude_min=True),
+    dy=st.integers(min_value=1)
+    | st.floats(allow_infinity=False, allow_nan=False, min_value=0, exclude_min=True),
+    dz=st.integers(min_value=1)
+    | st.floats(allow_infinity=False, allow_nan=False, min_value=0, exclude_min=True),
+)
+@pytest.mark.filterwarnings("ignore: overflow encountered")
 def test_get_child_box_valid(
     x: float, y: float, z: float, dx: float, dy: float, dz: float
 ):
-    pass
+    # box should be of the form [x, y, z, dx, dy, dz]
+    box = np.array([x, y, z, dx, dy, dz], dtype=float)  # default
+    dx2, dy2, dz2 = dx / 2.0, dy / 2.0, dz / 2.0
+    child_boxes = [
+        [x, y, z],  # 1
+        [x, y + dy2, z],  # 2
+        [x + dx2, y, z],  # 3
+        [x + dx2, y + dy2, z],  # 4
+        [x, y, z + dz2],  # 5
+        [x, y + dy2, z + dz2],  # 6
+        [x + dx2, y, z + dz2],  # 7
+        [x + dx2, y + dy2, z + dz2],  # 8
+    ]
+    dxbox = [dx2, dy2, dz2]
+    for i in range(8):
+        child_box = octree._get_child_box(box, i)
+        assert child_box[:3] == pytest.approx(child_boxes[i])
+        assert child_box[3:] == pytest.approx(dxbox)
 
 
 #############################
