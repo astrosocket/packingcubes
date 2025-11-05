@@ -22,7 +22,29 @@ def _partition(data: Dataset, lo: int, hi: int, ax: int, pivot: float) -> int:
     elements are greater than pivot) or hi+1 (if all elements are less than
     the pivot)
     """
-    pass
+    assert 0 <= lo, f"Low index out of bounds {lo=}"
+    assert hi < len(data), f"High index out of bounds {hi=}"
+    if lo > hi:
+        # nothing to do
+        return lo
+    r = hi  # right edge (won't change)
+    while lo < hi:
+        # pivot is not likely to be in data
+        # need additional check to guard against out-of-bounds
+        # access
+        while lo < r and data.positions[lo, ax] < pivot:
+            lo += 1
+        # Don't want hi<=lo anyway, so don't need equivalent left edge constant
+        while hi > lo and data.positions[hi, ax] >= pivot:
+            hi -= 1
+        data._swap(lo, hi)
+    if lo >= hi:
+        # undo extraneous last swap if lo>=hi
+        data._swap(lo, hi)
+    # we may be in a position where all elements are less then the pivot
+    if lo == r and data.positions[lo, ax] < pivot:
+        return r + 1
+    return lo
 
 
 def _partition_data(
