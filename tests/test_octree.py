@@ -324,6 +324,28 @@ def test_box_neighbors_in_node():
 
 
 #############################
+# Test _get_neighbor_boxes
+#############################
+@given(valid_boxes())
+@pytest.mark.filterwarnings("ignore: overflow encountered")
+def test_get_neighbor_boxes(box: ArrayLike):
+    expected_neighbors = np.zeros((6, 6))
+    # initialize to 6 copies of box
+    for i in range(6):
+        expected_neighbors[i, :] = box
+    expected_neighbors[0, 0] -= box[3]  # box 0 is shifted by -dx
+    expected_neighbors[1, 0] += box[3]  # box 1 is shifted by +dx
+    expected_neighbors[2, 1] -= box[4]  # box 2 is shifted by -dy
+    expected_neighbors[3, 1] += box[4]  # box 3 is shifted by +dy
+    expected_neighbors[4, 2] -= box[5]  # box 4 is shifted by -dz
+    expected_neighbors[5, 2] += box[5]  # box 5 is shifted by +dz
+
+    neighbors = octree._get_neighbor_boxes(box)
+
+    assert expected_neighbors == pytest.approx(neighbors)
+
+
+#############################
 # Test project_point_on_box
 #############################
 @pytest.mark.skip(reason="Not implemented yet")

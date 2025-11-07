@@ -170,6 +170,26 @@ def _box_neighbors_in_node(
             return [3, 5, 6]  # [4,6,7]
 
 
+def _get_neighbor_boxes(box: ArrayLike) -> ArrayLike:
+    """
+    Return the six boxes that would be the neighbors of this box in a uniform grid
+
+    We are currently not considering any diagonal boxes. This may be something
+    to consider in the future.
+
+    Boxes are returned as a 6x6 array, where each row is a box
+    """
+    neighbors = np.zeros((6, 6))
+    for i in range(3):
+        for j in range(2):
+            neighbor_ind = 2 * i + j
+            neighbors[neighbor_ind, :] = box
+            neighbors[neighbor_ind, i] += (2 * j - 1) * neighbors[
+                neighbor_ind, i + 3
+            ]  # x ±= dx
+    return neighbors
+
+
 def project_point_on_box(box: ArrayLike, x: float, y: float, z: float) -> tuple[float]:
     """
     Return coordinates of projection of (x, y, z) on box face.
