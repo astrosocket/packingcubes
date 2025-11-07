@@ -150,7 +150,24 @@ def _box_neighbors_in_node(
     """
     Return the neighbor boxes that are in the same node. Assuming 0-based indexing
     """
-    pass
+    # TODO: look into a case/control-flow free formula
+    match box_ind:
+        case 0:  # 1
+            return [1, 2, 4]  # [2,3,5]
+        case 1:  # 2
+            return [0, 3, 5]  # [1,4,6]
+        case 2:  # 3
+            return [0, 3, 6]  # [1,4,7]
+        case 3:  # 4
+            return [1, 2, 7]  # [2,3,8]
+        case 4:  # 5
+            return [0, 5, 6]  # [1,6,7]
+        case 5:  # 6
+            return [1, 4, 7]  # [2,5,8]
+        case 6:  # 7
+            return [2, 5, 7]  # [3,6,8]
+        case _:  # 8
+            return [3, 5, 6]  # [4,6,7]
 
 
 def project_point_on_box(box: ArrayLike, x: float, y: float, z: float) -> tuple[float]:
