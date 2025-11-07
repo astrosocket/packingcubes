@@ -13,6 +13,71 @@ LOGGER = logging.getLogger(__name__)
 
 
 #############################
+# Hypothesis strategies
+#############################
+def valid_boxes():
+    box = hypnp.arrays(
+        float, 6, elements=st.floats(allow_infinity=False, allow_nan=False)
+    ).filter(lambda a: np.all(a[3:] > 0))
+    return box
+
+
+@st.composite
+def invalid_boxes(draw):
+    box = draw(valid_boxes())
+
+    @st.composite
+    def error_list(draw):
+        nan_inf_errors = draw(
+            st.lists(st.integers(min_value=0, max_value=2), min_size=6, max_size=6)
+        )
+        neg_zero_errors = np.array(
+            draw(st.lists(st.sampled_from([0, 3, 4]), min_size=6, max_size=6))
+        )
+        neg_zero_errors[:3] = 0
+        return np.maximum(nan_inf_errors, neg_zero_errors)
+
+    errors = draw(error_list().filter(lambda list_: sum(list_) > 0))
+    for i, error in enumerate(errors):
+        match error:
+            case 1:
+                box[i] = np.nan
+            case 2:
+                box[i] = np.inf
+            case 3:
+                box[i] = -box[i]
+            case 4:
+                box[i] = 0
+    return box
+
+
+def points():
+    return st.tuples(st.floats(), st.floats(), st.floats())
+
+
+def valid_points():
+    return points().filter(lambda xyz: np.all(~np.isnan(xyz) & ~np.isinf(xyz)))
+
+
+@st.composite
+def invalid_points(draw):
+    points = list(draw(valid_points()))
+    bad_inds = draw(
+        st.lists(st.integers(min_value=0, max_value=2), min_size=1, max_size=6)
+    )
+    bad_values = draw(
+        st.lists(
+            st.just(np.nan) | st.just(np.inf),
+            min_size=len(bad_inds),
+            max_size=len(bad_inds),
+        )
+    )
+    for bi, bv in zip(bad_inds, bad_values):
+        points[bi] = bv
+    return tuple(points)
+
+
+#############################
 # Test _partition
 #############################
 @example(-3, 9).xfail(reason="Out-of-bounds below")
@@ -178,43 +243,7 @@ def test_get_child_box_shape():
     pass
 
 
-def valid_box():
-    box = hypnp.arrays(
-        float, 6, elements=st.floats(allow_infinity=False, allow_nan=False)
-    ).filter(lambda a: np.all(a[3:] > 0))
-    return box
-
-
-@st.composite
-def invalid_box(draw):
-    box = draw(valid_box())
-
-    @st.composite
-    def error_list(draw):
-        nan_inf_errors = draw(
-            st.lists(st.integers(min_value=0, max_value=2), min_size=6, max_size=6)
-        )
-        neg_zero_errors = np.array(
-            draw(st.lists(st.sampled_from([0, 3, 4]), min_size=6, max_size=6))
-        )
-        neg_zero_errors[:3] = 0
-        return np.maximum(nan_inf_errors, neg_zero_errors)
-
-    errors = draw(error_list().filter(lambda list_: sum(list_) > 0))
-    for i, error in enumerate(errors):
-        match error:
-            case 1:
-                box[i] = np.nan
-            case 2:
-                box[i] = np.inf
-            case 3:
-                box[i] = -box[i]
-            case 4:
-                box[i] = 0
-    return box
-
-
-@given(invalid_box())
+@given(invalid_boxes())
 def test_get_child_box_invalid(box: ArrayLike):
     with pytest.raises(ValueError) as excinfo:
         child_box = octree._get_child_box(box, 0)
