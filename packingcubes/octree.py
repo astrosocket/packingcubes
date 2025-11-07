@@ -135,12 +135,12 @@ def _get_child_box(box: ArrayLike, ind: int) -> ArrayLike:
 
 def _in_box(box: ArrayLike, x: float, y: float, z: float) -> bool:
     """
-    Check if point inside box
+    Check if point is inside box
     """
     return (
-        ((box[0] <= x) & (x <= box[0] + box[3]))
-        & ((box[1] <= y) & (y <= box[1] + box[4]))
-        & ((box[2] <= z) & (z <= box[2] + box[5]))
+        (box[0] <= x <= box[0] + box[3])
+        & (box[1] <= y <= box[1] + box[4])
+        & (box[2] <= z <= box[2] + box[5])
     )
 
 
