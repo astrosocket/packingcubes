@@ -190,14 +190,31 @@ def _get_neighbor_boxes(box: ArrayLike) -> ArrayLike:
     return neighbors
 
 
-def project_point_on_box(box: ArrayLike, x: float, y: float, z: float) -> tuple[float]:
+def project_point_on_box(
+    box: ArrayLike, x: float, y: float, z: float, jitter: float = 0
+) -> tuple[float]:
     """
-    Return coordinates of projection of (x, y, z) on box face.
+    Return coordinates of projection of (x, y, z) on nearest box face.
 
-    This is the closest point on the box to (x, y, z). Possibly will be
-    jittered *into* the box for determining sub-boxes.
+    This is the closest point on the box to (x, y, z). Can provide jitter to
+    place point into/out of the box for determining sub-boxes.
+
+    Inputs:
+        box: ArrayLike
+        Box to project on
+
+        x, y, z: float
+        Point to project onto nearest box face
+
+        jitter: float
+        Amount to move projected point into(positive values) or out of
+        (negative values) the box. Default is 0
+
+    Returns:
+        px, py, pz: float
+        Projected coordinates
     """
-    pass
+    raise NotImplementedError()
 
 
 def morton(positions: ArrayLike, box: ArrayLike) -> ArrayLike:
