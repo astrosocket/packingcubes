@@ -334,15 +334,79 @@ def test_project_point_on_box():
 #############################
 # Test morton
 #############################
-@pytest.mark.skip(reason="Not implemented yet")
-def test_morton():
-    # I don't know how to implement this without repeating the same logic from
-    # the function...
-    pass
+
+
+@example(np.array([np.nan, 0, 0]), np.array([0, 0, 0, 1, 1, 1])).xfail(
+    reason="NaNs/Infs propagate into indices"
+)
+@example(np.array([0, 0, np.inf]), np.array([0, 0, 0, 1, 1, 1])).xfail(
+    reason="NaNs/Infs propagate into indices"
+)
+@example(np.array([0, 0, 0]), np.array([0, 0, 0, 1, -1, 1])).xfail(
+    reason="Invalid boxes fail"
+)
+@given(
+    hypnp.arrays(
+        float, st.tuples(st.integers(min_value=0, max_value=1e3), st.just(3))
+    ).filter(lambda a: np.all(~np.isnan(a) & ~np.isinf(a))),
+    valid_boxes(),
+)
+@pytest.mark.filterwarnings("ignore: overflow encountered")
+def test_morton(positions: ArrayLike, box: ArrayLike):
+    midplane = np.array([box[i] + box[i + 3] / 2 for i in range(3)])
+    note(f"Midplane for this test is {midplane}")
+
+    mortons = octree.morton(positions, box)
+
+    for morton, pos in zip(mortons, positions):
+        assert 1 <= morton <= 8
+        match morton:
+            case 1:
+                assert np.all(pos <= midplane)
+            case 2:
+                assert (
+                    pos[0] <= midplane[0]
+                    and pos[1] > midplane[1]
+                    and pos[2] <= midplane[2]
+                )
+            case 3:
+                assert (
+                    pos[0] > midplane[0]
+                    and pos[1] <= midplane[1]
+                    and pos[2] <= midplane[2]
+                )
+            case 4:
+                assert (
+                    pos[0] > midplane[0]
+                    and pos[1] > midplane[1]
+                    and pos[2] <= midplane[2]
+                )
+            case 5:
+                assert (
+                    pos[0] <= midplane[0]
+                    and pos[1] <= midplane[1]
+                    and pos[2] > midplane[2]
+                )
+            case 6:
+                assert (
+                    pos[0] <= midplane[0]
+                    and pos[1] > midplane[1]
+                    and pos[2] > midplane[2]
+                )
+            case 7:
+                assert (
+                    pos[0] > midplane[0]
+                    and pos[1] <= midplane[1]
+                    and pos[2] > midplane[2]
+                )
+            case 8:
+                assert np.all(pos > midplane)
 
 
 #############################
+#############################
 # Test OctreeNode
+#############################
 #############################
 # Since _construct is used in the constructor, we won't test it separately
 @pytest.mark.skip(reason="Not implemented yet")
@@ -351,7 +415,9 @@ def test_OctreeNode(make_basic_data):
 
 
 #############################
+#############################
 # Test Octree
+#############################
 #############################
 @pytest.mark.skip("Not implemented yet")
 def test_Octree(make_basic_data):
