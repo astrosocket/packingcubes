@@ -290,9 +290,29 @@ def test_get_child_box_valid(
 #############################
 # Test _in_box
 #############################
-@pytest.mark.skip(reason="Not implemented yet")
-def test_in_box():
-    pass
+
+
+@given(invalid_boxes(), valid_points())
+@pytest.mark.filterwarnings("ignore: overflow encountered")
+def test_in_box_invalid_box(box: ArrayLike, xyz: tuple[float]):
+    # need to account for the cases where e.g. dx=x=0 s.t. xyz may be
+    # *technically* inside the box...
+    assert not octree._in_box(box, *xyz) or np.any(
+        [(box[3 + i] == 0) & (xyz[i] - box[i] == 0) for i in range(3)]
+    )
+
+
+@given(valid_boxes(), invalid_points())
+@pytest.mark.filterwarnings("ignore: overflow encountered")
+def test_in_box_invalid_point(box: ArrayLike, xyz: tuple[float]):
+    assert not octree._in_box(box, *xyz)
+
+
+@given(valid_boxes(), valid_points())
+@pytest.mark.filterwarnings("ignore: overflow encountered")
+def test_in_box_valid(box: ArrayLike, xyz: tuple[float]):
+    inside_box = np.all([box[i] <= xyz[i] <= box[i] + box[i + 3] for i in range(3)])
+    assert inside_box == octree._in_box(box, *xyz)
 
 
 #############################
