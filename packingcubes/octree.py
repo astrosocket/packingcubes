@@ -364,17 +364,28 @@ class OctreeNode:
         return self.node_end - self.node_start + 1
 
     @property
-    def slice(self):
+    def slice(self, *, leaf_ind: None | int = None):
         """
         Return slice of data corresponding to this node
         """
-        return slice(self.node_start, self.node_end + 1)
+        if leaf_ind is None:
+            return slice(self.node_start, self.node_end + 1)
+        if not isinstance(leaf_ind, int):
+            raise TypeError("leaf_ind must be an int")
+        child_start = self.child_list[leaf_ind] if leaf_ind > 0 else self.node_start
+        child_end = self.child_list[leaf_ind + 1] if leaf_ind < 6 else self.node_end
+        return slice(child_start, child_end)
 
-    def distance(self, x: float, y: float, z: float) -> ArrayLike:
+    def distance(
+        self, x: float, y: float, z: float, *, leaf_ind: None | int = None
+    ) -> ArrayLike:
         """
         Return array of particle distances from given point
         """
-        pass
+        slice_ = self.slice(leaf_ind=leaf_ind)
+        pos = self.data.positions
+        point = np.array(x, y, z)
+        return np.sqrt(np.sum((pos[slice_, 0] - point) ** 2, axis=1))
 
 
 class Octree:
