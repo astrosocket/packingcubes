@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
 from typing import List
 
 import numpy as np
@@ -188,7 +187,6 @@ def morton(positions: ArrayLike, box: ArrayLike) -> ArrayLike:
 # view of the backing array, indices to the start of
 # each subnode/leaf, box size, and node start/end
 # Note that node_ind+part_num=next_sibling_ind
-@dataclass
 class OctreeNode:
     """
     Internal representation of a node in the octree
