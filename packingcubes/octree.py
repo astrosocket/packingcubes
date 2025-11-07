@@ -226,7 +226,7 @@ def morton(positions: ArrayLike, box: ArrayLike) -> ArrayLike:
     """
     # Map positions to box s.t. [0,0,0] and [1,1,1] are left-front-bottom and
     # right-back-top
-    boxed_pos = (positions - box[:3]) / box[3:]
+    boxed_pos = np.clip((positions - box[:3]) / box[3:], a_min=0, a_max=1)
     # note that np.round rounds 0.5 to 0 (due to round-to-even choice)
     morton = (
         1
