@@ -217,7 +217,7 @@ def project_point_on_box(
     raise NotImplementedError()
 
 
-def morton(positions: ArrayLike, box: ArrayLike) -> ArrayLike:
+def morton(positions: ArrayLike, box: ArrayLike) -> ArrayLike[int]:
     """
     Given array of positions and box to look at, compute morton encoding
     Note that there are no checks on whether positions are actually inside
@@ -233,7 +233,7 @@ def morton(positions: ArrayLike, box: ArrayLike) -> ArrayLike:
         + np.round(boxed_pos[:, 0]) * 2
         + np.round(boxed_pos[:, 1]) * 1
         + np.round(boxed_pos[:, 2]) * 4
-    )
+    ).astype(int)
     return morton
 
 
