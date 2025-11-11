@@ -6,6 +6,7 @@ from typing import List
 import numpy as np
 from numpy.typing import ArrayLike
 
+import packingcubes.bounding_box as bbox
 from packingcubes.data_objects import Dataset
 
 LOGGER = logging.getLogger(__name__)
@@ -62,7 +63,7 @@ def _partition_data(
     than hi. This means all data was contained in octants
     [lo,*child_list[0:i-1]]
     """
-    midplane = [box[i] + box[i + 3] / 2 for i in range(3)]
+    midplane = bbox.midplane(box)
     child_list = [-1, -1, -1, -1, -1, -1, -1]
     # child_list is defined such that data in c0 (child node 1) is prior to
     # child_list[0], c1 data is between child_list[0] and child_list[1], etc.
@@ -116,7 +117,7 @@ def _get_child_box(box: ArrayLike, ind: int) -> ArrayLike:
     # https://math.stackexchange.com/questions/2411867/3d-hilbert-curve-without-double-length-edges
     # for a possible "Hilbert" curve that may be better?
     # Raising errors for invalid boxes coming from data
-    if np.any(np.isinf(box) | np.isnan(box)):
+    if np.any(~np.isfinite(box)):
         raise ValueError("Box values must be finite numbers")
     if np.any(box[3:] <= 0):
         raise ValueError("box dimensions must be >0")
@@ -126,22 +127,11 @@ def _get_child_box(box: ArrayLike, ind: int) -> ArrayLike:
     )
     child_box = box.copy()
     child_box[3:] /= 2.0
-    x, y, z = ((ind & 2) / 2, ind & 1, (ind & 4) / 4)
+    x, y, z = ((ind & 1) / 1, (ind & 2) / 2, (ind & 4) / 4)
     child_box[0] = child_box[0] + child_box[3] * x
     child_box[1] = child_box[1] + child_box[4] * y
     child_box[2] = child_box[2] + child_box[5] * z
     return child_box
-
-
-def _in_box(box: ArrayLike, x: float, y: float, z: float) -> bool:
-    """
-    Check if point is inside box
-    """
-    return (
-        (box[0] <= x <= box[0] + box[3])
-        & (box[1] <= y <= box[1] + box[4])
-        & (box[2] <= z <= box[2] + box[5])
-    )
 
 
 def _box_neighbors_in_node(
@@ -170,53 +160,6 @@ def _box_neighbors_in_node(
             return [3, 5, 6]  # [4,6,7]
 
 
-def _get_neighbor_boxes(box: ArrayLike) -> ArrayLike:
-    """
-    Return the six boxes that would be the neighbors of this box in a uniform grid
-
-    We are currently not considering any diagonal boxes. This may be something
-    to consider in the future.
-
-    Boxes are returned as a 6x6 array, where each row is a box
-    """
-    neighbors = np.zeros((6, 6))
-    for i in range(3):
-        for j in range(2):
-            neighbor_ind = 2 * i + j
-            neighbors[neighbor_ind, :] = box
-            neighbors[neighbor_ind, i] += (2 * j - 1) * neighbors[
-                neighbor_ind, i + 3
-            ]  # x ±= dx
-    return neighbors
-
-
-def project_point_on_box(
-    box: ArrayLike, x: float, y: float, z: float, jitter: float = 0
-) -> tuple[float]:
-    """
-    Return coordinates of projection of (x, y, z) on nearest box face.
-
-    This is the closest point on the box to (x, y, z). Can provide jitter to
-    place point into/out of the box for determining sub-boxes.
-
-    Inputs:
-        box: ArrayLike
-        Box to project on
-
-        x, y, z: float
-        Point to project onto nearest box face
-
-        jitter: float
-        Amount to move projected point into(positive values) or out of
-        (negative values) the box. Default is 0
-
-    Returns:
-        px, py, pz: float
-        Projected coordinates
-    """
-    raise NotImplementedError()
-
-
 def morton(positions: ArrayLike, box: ArrayLike) -> ArrayLike[int]:
     """
     Given array of positions and box to look at, compute morton encoding
@@ -226,14 +169,11 @@ def morton(positions: ArrayLike, box: ArrayLike) -> ArrayLike[int]:
     """
     # Map positions to box s.t. [0,0,0] and [1,1,1] are left-front-bottom and
     # right-back-top
-    boxed_pos = np.clip((positions - box[:3]) / box[3:], a_min=0, a_max=1)
-    # note that np.round rounds 0.5 to 0 (due to round-to-even choice)
-    morton = (
-        1
-        + np.round(boxed_pos[:, 0]) * 2
-        + np.round(boxed_pos[:, 1]) * 1
-        + np.round(boxed_pos[:, 2]) * 4
-    ).astype(int)
+    # Note that np.round/rint rounds 0.5 to 0 (due to round-to-even choice)
+    # to match _partition method, we need to round 0.5 to 1. The following is
+    # from https://stackoverflow.com/a/34219827
+    boxed_pos = np.trunc(bbox.normalize_to_box(positions, box) + 0.5).astype(int)
+    morton = 1 + boxed_pos[:, 0] * 1 + boxed_pos[:, 1] * 2 + boxed_pos[:, 2] * 4
     return morton
 
 
