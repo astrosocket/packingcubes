@@ -1,80 +1,16 @@
 import logging
 
+import conftest as ct
 import numpy as np
 import pytest
 from hypothesis import assume, example, given, note
 from hypothesis import strategies as st
-from hypothesis.extra import numpy as hypnp
 from numpy.typing import ArrayLike
 
+import packingcubes.bounding_box as bbox
 import packingcubes.octree as octree
 
 LOGGER = logging.getLogger(__name__)
-
-
-#############################
-# Hypothesis strategies
-#############################
-def valid_boxes():
-    box = hypnp.arrays(
-        float, 6, elements=st.floats(allow_infinity=False, allow_nan=False)
-    ).filter(lambda a: np.all(a[3:] > 0))
-    return box
-
-
-@st.composite
-def invalid_boxes(draw):
-    box = draw(valid_boxes())
-
-    @st.composite
-    def error_list(draw):
-        nan_inf_errors = draw(
-            st.lists(st.integers(min_value=0, max_value=2), min_size=6, max_size=6)
-        )
-        neg_zero_errors = np.array(
-            draw(st.lists(st.sampled_from([0, 3, 4]), min_size=6, max_size=6))
-        )
-        neg_zero_errors[:3] = 0
-        return np.maximum(nan_inf_errors, neg_zero_errors)
-
-    errors = draw(error_list().filter(lambda list_: sum(list_) > 0))
-    for i, error in enumerate(errors):
-        match error:
-            case 1:
-                box[i] = np.nan
-            case 2:
-                box[i] = np.inf
-            case 3:
-                box[i] = -box[i]
-            case 4:
-                box[i] = 0
-    return box
-
-
-def points():
-    return st.tuples(st.floats(), st.floats(), st.floats())
-
-
-def valid_points():
-    return points().filter(lambda xyz: np.all(~np.isnan(xyz) & ~np.isinf(xyz)))
-
-
-@st.composite
-def invalid_points(draw):
-    points = list(draw(valid_points()))
-    bad_inds = draw(
-        st.lists(st.integers(min_value=0, max_value=2), min_size=1, max_size=6)
-    )
-    bad_values = draw(
-        st.lists(
-            st.just(np.nan) | st.just(np.inf),
-            min_size=len(bad_inds),
-            max_size=len(bad_inds),
-        )
-    )
-    for bi, bv in zip(bad_inds, bad_values):
-        points[bi] = bv
-    return tuple(points)
 
 
 #############################
@@ -243,7 +179,7 @@ def test_get_child_box_shape():
     pass
 
 
-@given(invalid_boxes())
+@given(ct.invalid_boxes())
 def test_get_child_box_invalid(box: ArrayLike):
     with pytest.raises(ValueError) as excinfo:
         child_box = octree._get_child_box(box, 0)
@@ -272,12 +208,12 @@ def test_get_child_box_valid(
     dx2, dy2, dz2 = dx / 2.0, dy / 2.0, dz / 2.0
     child_boxes = [
         [x, y, z],  # 1
-        [x, y + dy2, z],  # 2
-        [x + dx2, y, z],  # 3
+        [x + dx2, y, z],  # 2
+        [x, y + dy2, z],  # 3
         [x + dx2, y + dy2, z],  # 4
         [x, y, z + dz2],  # 5
-        [x, y + dy2, z + dz2],  # 6
-        [x + dx2, y, z + dz2],  # 7
+        [x + dx2, y, z + dz2],  # 6
+        [x, y + dy2, z + dz2],  # 7
         [x + dx2, y + dy2, z + dz2],  # 8
     ]
     dxbox = [dx2, dy2, dz2]
@@ -288,68 +224,10 @@ def test_get_child_box_valid(
 
 
 #############################
-# Test _in_box
-#############################
-
-
-@given(invalid_boxes(), valid_points())
-@pytest.mark.filterwarnings("ignore: overflow encountered")
-def test_in_box_invalid_box(box: ArrayLike, xyz: tuple[float]):
-    # need to account for the cases where e.g. dx=x=0 s.t. xyz may be
-    # *technically* inside the box...
-    assert not octree._in_box(box, *xyz) or np.any(
-        [(box[3 + i] == 0) & (xyz[i] - box[i] == 0) for i in range(3)]
-    )
-
-
-@given(valid_boxes(), invalid_points())
-@pytest.mark.filterwarnings("ignore: overflow encountered")
-def test_in_box_invalid_point(box: ArrayLike, xyz: tuple[float]):
-    assert not octree._in_box(box, *xyz)
-
-
-@given(valid_boxes(), valid_points())
-@pytest.mark.filterwarnings("ignore: overflow encountered")
-def test_in_box_valid(box: ArrayLike, xyz: tuple[float]):
-    inside_box = np.all([box[i] <= xyz[i] <= box[i] + box[i + 3] for i in range(3)])
-    assert inside_box == octree._in_box(box, *xyz)
-
-
-#############################
 # Test _box_neighbors_in_node
 #############################
 @pytest.mark.skip(reason="Not implemented yet")
 def test_box_neighbors_in_node():
-    pass
-
-
-#############################
-# Test _get_neighbor_boxes
-#############################
-@given(valid_boxes())
-@pytest.mark.filterwarnings("ignore: overflow encountered")
-def test_get_neighbor_boxes(box: ArrayLike):
-    expected_neighbors = np.zeros((6, 6))
-    # initialize to 6 copies of box
-    for i in range(6):
-        expected_neighbors[i, :] = box
-    expected_neighbors[0, 0] -= box[3]  # box 0 is shifted by -dx
-    expected_neighbors[1, 0] += box[3]  # box 1 is shifted by +dx
-    expected_neighbors[2, 1] -= box[4]  # box 2 is shifted by -dy
-    expected_neighbors[3, 1] += box[4]  # box 3 is shifted by +dy
-    expected_neighbors[4, 2] -= box[5]  # box 4 is shifted by -dz
-    expected_neighbors[5, 2] += box[5]  # box 5 is shifted by +dz
-
-    neighbors = octree._get_neighbor_boxes(box)
-
-    assert expected_neighbors == pytest.approx(neighbors)
-
-
-#############################
-# Test project_point_on_box
-#############################
-@pytest.mark.skip(reason="Not implemented yet")
-def test_project_point_on_box():
     pass
 
 
@@ -368,14 +246,12 @@ def test_project_point_on_box():
     reason="Invalid boxes fail"
 )
 @given(
-    hypnp.arrays(
-        float, st.tuples(st.integers(min_value=0, max_value=1e3), st.just(3))
-    ).filter(lambda a: np.all(~np.isnan(a) & ~np.isinf(a))),
-    valid_boxes(),
+    ct.valid_positions(),
+    ct.valid_boxes(),
 )
 @pytest.mark.filterwarnings("ignore: overflow encountered")
 def test_morton(positions: ArrayLike, box: ArrayLike):
-    midplane = np.array([box[i] + box[i + 3] / 2 for i in range(3)])
+    midplane = bbox.midplane(box)
     note(f"Midplane for this test is {midplane}")
 
     mortons = octree.morton(positions, box)
@@ -387,15 +263,15 @@ def test_morton(positions: ArrayLike, box: ArrayLike):
                 assert np.all(pos <= midplane)
             case 2:
                 assert (
-                    pos[0] <= midplane[0]
-                    and pos[1] > midplane[1]
-                    and pos[2] <= midplane[2]
+                    pos[0] >= midplane[0]
+                    and pos[1] < midplane[1]
+                    and pos[2] < midplane[2]
                 )
             case 3:
                 assert (
-                    pos[0] > midplane[0]
-                    and pos[1] <= midplane[1]
-                    and pos[2] <= midplane[2]
+                    pos[0] < midplane[0]
+                    and pos[1] >= midplane[1]
+                    and pos[2] < midplane[2]
                 )
             case 4:
                 assert (
@@ -411,15 +287,15 @@ def test_morton(positions: ArrayLike, box: ArrayLike):
                 )
             case 6:
                 assert (
-                    pos[0] <= midplane[0]
-                    and pos[1] > midplane[1]
-                    and pos[2] > midplane[2]
+                    pos[0] >= midplane[0]
+                    and pos[1] < midplane[1]
+                    and pos[2] >= midplane[2]
                 )
             case 7:
                 assert (
-                    pos[0] > midplane[0]
-                    and pos[1] <= midplane[1]
-                    and pos[2] > midplane[2]
+                    pos[0] < midplane[0]
+                    and pos[1] >= midplane[1]
+                    and pos[2] >= midplane[2]
                 )
             case 8:
                 assert np.all(pos > midplane)

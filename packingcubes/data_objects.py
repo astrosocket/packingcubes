@@ -39,6 +39,9 @@ class Dataset:
     def __len__(self) -> int:
         return len(self._data.positions)
 
+    def __repr__(self) -> str:
+        return f"Dataset with {len(self)} particles and box {self.box}"
+
     @property
     def bounding_box(self):
         return self.box
