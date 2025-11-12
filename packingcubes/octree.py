@@ -375,6 +375,37 @@ class OctreeNode:
         return np.sqrt(np.sum((pos[slice_, 0] - point) ** 2, axis=1))
 
 
+def _top_down_containing_node(
+    node: OctreeNode,
+    x: float,
+    y: float,
+    z: float,
+):
+    """
+    For a given point, return the smallest child node that contains point or None if none do
+    """
+    while len(node) > 1:
+        # find leaf or smallest subtree containing point
+        for child in node.children:
+            if bbox.in_box(child.box, x, y, z):
+                node = child
+                break  # for child loop
+        else:
+            break  # while loop
+    return node if bbox.in_box(node.box, x, y, z) else None
+
+
+def _bottom_up_containing_node(node: OctreeNode, x: float, y: float, z: float):
+    """
+    For a given point, return the smallest parent node that contains point or None if none do
+    """
+    while node.parent is not None:
+        if bbox.in_box(node.box, x, y, z):
+            return node
+        node = node.parent
+    return node if bbox.in_box(node.box, x, y, z) else None
+
+
 class Octree:
     """
     Public octree class
@@ -398,6 +429,34 @@ class Octree:
         self.root = OctreeNode(
             data=data, box=data.bounding_box, _particle_threshold=_particle_threshold
         )
+
+    def get_containing_node(
+        self,
+        x: float,
+        y: float,
+        z: float,
+        *,
+        start_node: None | OctreeNode = None,
+        top_down: bool = True,
+    ) -> OctreeNode:
+        """
+        Return smallest node containing point
+
+        Defaults to a top-down approach from root. Can provide a start_node to
+        short-cut search. Can also go bottom-up; requires start_node.
+        """
+        if not top_down and start_node is None:
+            raise ValueError("start_node **must** be provided for bottom-up traversal!")
+        node = self.root if start_node is None else start_node
+        if top_down:
+            return _top_down_containing_node(node, x, y, z)
+        else:
+            # find first parent that contains point, then see if parent
+            # can be refined
+            node = _bottom_up_containing_node(node, x, y, z)
+            if node is not None:
+                return _top_down_containing_node(node, x, y, z)
+            return None
 
     def get_closest_particle(self, x: float, y: float, z: float) -> None:
         """
