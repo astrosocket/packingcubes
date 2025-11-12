@@ -223,20 +223,18 @@ def test_box_neighbors_in_node():
 #############################
 
 
-@example(np.array([np.nan, 0, 0]), np.array([0, 0, 0, 1, 1, 1])).xfail(
+@example(np.array([[np.nan, 0, 0]]), np.array([0, 0, 0, 1, 1, 1])).xfail(
     reason="NaNs/Infs propagate into indices"
 )
-@example(np.array([0, 0, np.inf]), np.array([0, 0, 0, 1, 1, 1])).xfail(
-    reason="NaNs/Infs propagate into indices"
-)
-@example(np.array([0, 0, 0]), np.array([0, 0, 0, 1, -1, 1])).xfail(
-    reason="Invalid boxes fail"
-)
+# The following examples no longer "fail". It's unclear whether the morton
+# indices make _sense_, but morton() will happily compute them...
+@example(np.array([[0, 0, np.inf]]), np.array([0, 0, 0, 1, 1, 1]))
+@example(np.array([[0, 0, 0]]), np.array([0, 0, 0, 1, -1, 1]))
+@example(np.array([[-1, -2e-60, -1]]), np.array([-1, -1, -1, 2, 2, 2]))
 @given(
     ct.valid_positions(),
     ct.valid_boxes(),
 )
-@pytest.mark.filterwarnings("ignore: overflow encountered")
 def test_morton(positions: ArrayLike, box: ArrayLike):
     midplane = bbox.midplane(box)
     note(f"Midplane for this test is {midplane}")
