@@ -430,7 +430,7 @@ class Octree:
             data=data, box=data.bounding_box, _particle_threshold=_particle_threshold
         )
 
-    def get_containing_node(
+    def get_containing_node_of_point(
         self,
         x: float,
         y: float,
