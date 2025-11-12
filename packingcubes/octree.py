@@ -167,13 +167,29 @@ def morton(positions: ArrayLike, box: ArrayLike) -> ArrayLike[int]:
     the box
     Note that returned morton encoding is 1-indexed
     """
+    # old approach:
     # Map positions to box s.t. [0,0,0] and [1,1,1] are left-front-bottom and
     # right-back-top
     # Note that np.round/rint rounds 0.5 to 0 (due to round-to-even choice)
     # to match _partition method, we need to round 0.5 to 1. The following is
     # from https://stackoverflow.com/a/34219827
-    boxed_pos = np.trunc(bbox.normalize_to_box(positions, box) + 0.5).astype(int)
-    morton = 1 + boxed_pos[:, 0] * 1 + boxed_pos[:, 1] * 2 + boxed_pos[:, 2] * 4
+    # boxed_pos = np.trunc(bbox.normalize_to_box(positions, box) + 0.5).astype(int)
+    # morton = 1 + boxed_pos[:, 0] * 1 + boxed_pos[:, 1] * 2 + boxed_pos[:, 2] * 4
+    # This and similar approaches don't handle subnormal values and similar edge
+    # cases well (due to the normalization step), so we've changed the approach
+    # new approach
+    # This could technically still fail, since e.g. a box with x=1e10, dx=1e-8,
+    # would have a midplane of 1.000000000000000001e10=1e10 to within floating
+    # point, putting anything in subbox 1 in subbox 2. But it'll match the
+    # behavior of _partition, and if your data looks like that, there's not
+    # much we can do...
+    midplane = bbox.midplane(box)
+    morton = (
+        1
+        + (positions[:, 0] >= midplane[0])
+        + 2 * (positions[:, 1] >= midplane[1])
+        + 4 * (positions[:, 2] >= midplane[2])
+    ).astype(int)
     return morton
 
 
