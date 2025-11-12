@@ -188,23 +188,10 @@ def test_get_child_box_invalid(box: ArrayLike):
     )
 
 
-@given(
-    x=st.integers() | st.floats(allow_infinity=False, allow_nan=False),
-    y=st.integers() | st.floats(allow_infinity=False, allow_nan=False),
-    z=st.integers() | st.floats(allow_infinity=False, allow_nan=False),
-    dx=st.integers(min_value=1)
-    | st.floats(allow_infinity=False, allow_nan=False, min_value=0, exclude_min=True),
-    dy=st.integers(min_value=1)
-    | st.floats(allow_infinity=False, allow_nan=False, min_value=0, exclude_min=True),
-    dz=st.integers(min_value=1)
-    | st.floats(allow_infinity=False, allow_nan=False, min_value=0, exclude_min=True),
-)
-@pytest.mark.filterwarnings("ignore: overflow encountered")
-def test_get_child_box_valid(
-    x: float, y: float, z: float, dx: float, dy: float, dz: float
-):
+@given(ct.valid_boxes())
+def test_get_child_box_valid(box: ArrayLike):
     # box should be of the form [x, y, z, dx, dy, dz]
-    box = np.array([x, y, z, dx, dy, dz], dtype=float)  # default
+    x, y, z, dx, dy, dz = box
     dx2, dy2, dz2 = dx / 2.0, dy / 2.0, dz / 2.0
     child_boxes = [
         [x, y, z],  # 1
