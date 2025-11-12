@@ -260,7 +260,7 @@ def test_morton(positions: ArrayLike, box: ArrayLike):
         assert 1 <= morton <= 8
         match morton:
             case 1:
-                assert np.all(pos <= midplane)
+                assert np.all(pos < midplane)
             case 2:
                 assert (
                     pos[0] >= midplane[0]
@@ -275,15 +275,15 @@ def test_morton(positions: ArrayLike, box: ArrayLike):
                 )
             case 4:
                 assert (
-                    pos[0] > midplane[0]
-                    and pos[1] > midplane[1]
-                    and pos[2] <= midplane[2]
+                    pos[0] >= midplane[0]
+                    and pos[1] >= midplane[1]
+                    and pos[2] < midplane[2]
                 )
             case 5:
                 assert (
-                    pos[0] <= midplane[0]
-                    and pos[1] <= midplane[1]
-                    and pos[2] > midplane[2]
+                    pos[0] < midplane[0]
+                    and pos[1] < midplane[1]
+                    and pos[2] >= midplane[2]
                 )
             case 6:
                 assert (
@@ -298,7 +298,7 @@ def test_morton(positions: ArrayLike, box: ArrayLike):
                     and pos[2] >= midplane[2]
                 )
             case 8:
-                assert np.all(pos > midplane)
+                assert np.all(pos >= midplane)
 
 
 #############################
