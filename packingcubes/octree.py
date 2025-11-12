@@ -75,41 +75,64 @@ def _partition_data(
     child_list = [-1, -1, -1, -1, -1, -1, -1]
     # child_list is defined such that data in c0 (child node 1) is prior to
     # child_list[0], c1 data is between child_list[0] and child_list[1], etc.
-    # i.e. c0 < 0 < c1 < 1 < c2 < 2 < c3 < 3 < c4 < 4 < c5 < 5 < c6 < 6 < c7
+    # i.e.
+    # lo <= c0 < 0 <= c1 < 1 <= c2 < 2 <= c3 < 3 and
+    #  3 <= c4 < 4 <= c5 < 5 <= c6 < 6 <= c7 <= hi
+    # HOWEVER not all child nodes will have data.
+    # That means child_list[i] is the _minimum possible_ index that could
+    # contain data for that child. Thus, e.g. if data has morton coding [1,6,8]
+    # child_list should be (note c0 starts at 0) [1,1,1,1,1,1,2,2]
     # z-index ordering, so box is
-    #    /6-----/8
-    #  5/-+---7/ |
-    #  | /2---+-/4
-    #  1/-----3/
+    #    /7-----/8
+    #  5/-+---6/ |
+    #  | /3---+-/4
+    #  1/-----2/
+
     # z-partition
-    child_list[3] = _partition(data, lo, hi, 2, midplane[2])
+    LOGGER.debug(f"Partitioning 1-8: s:{lo} e:{hi}")
+    LOGGER.debug(f"{morton(data.positions[lo : hi + 1], box)}")
+    zsplit = _partition(data, lo, hi, 2, midplane[2])
+
     # x-partition and y-partition - note that these combine to be only two
-    # passes through the list. Also, only perform partition if we actually
-    # have data available
-    if lo < child_list[3]:
-        child_list[1] = _partition(data, lo, child_list[3] - 1, 0, midplane[0])
-        if lo < child_list[1]:
-            child_list[0] = _partition(data, lo, child_list[1] - 1, 1, midplane[1])
-        if child_list[1] < hi:
-            child_list[2] = _partition(
-                data, child_list[1], child_list[3] - 1, 1, midplane[1]
-            )
-    if child_list[3] < hi:
-        child_list[5] = _partition(data, child_list[3], hi, 0, midplane[0])
-        if 0 < child_list[5]:
-            child_list[4] = _partition(
-                data, child_list[3], child_list[5] - 1, 1, midplane[1]
-            )
-        if child_list[5] < hi:
-            child_list[6] = _partition(data, child_list[5], hi, 1, midplane[1])
-    # fix any empty values
-    # There's probably a cleverer way to do this...
-    fill_value = lo
-    for i in range(7):
-        if child_list[i] < 0:
-            child_list[i] = fill_value
-        else:
-            fill_value = hi + 1
+    # passes through the list.
+    LOGGER.debug(f"Partitioning 1-4: s:{lo} e:{zsplit - 1}")
+    LOGGER.debug(f"{morton(data.positions[lo:zsplit], box)}")
+    ysplit1 = _partition(data, lo, zsplit - 1, 1, midplane[1])
+
+    LOGGER.debug(f"Partitioning 1-2: s:{lo} e:{ysplit1 - 1}")
+    LOGGER.debug(f"{morton(data.positions[lo:ysplit1], box)}")
+    xsplit1 = _partition(data, lo, ysplit1 - 1, 0, midplane[0])
+
+    LOGGER.debug(f"Partitioning 3-4: s:{ysplit1} e:{zsplit - 1}")
+    LOGGER.debug(f"{morton(data.positions[ysplit1:zsplit], box)}")
+    xsplit2 = _partition(data, ysplit1, zsplit - 1, 0, midplane[0])
+
+    LOGGER.debug(f"Partitioning 5-8: s:{zsplit} e:{hi}")
+    LOGGER.debug(f"{morton(data.positions[zsplit : hi + 1], box)}")
+    ysplit2 = _partition(data, zsplit, hi, 1, midplane[1])
+
+    LOGGER.debug(f"Partitioning 5-6: s:{zsplit} e:{ysplit2 - 1}")
+    LOGGER.debug(f"{morton(data.positions[zsplit:ysplit2], box)}")
+    xsplit3 = _partition(data, zsplit, ysplit2 - 1, 0, midplane[0])
+
+    LOGGER.debug(f"Partitioning 7-8: s:{ysplit2} e:{hi}")
+    LOGGER.debug(f"{morton(data.positions[ysplit2 : hi + 1], box)}")
+    xsplit4 = _partition(data, ysplit2, hi, 0, midplane[0])
+
+    LOGGER.debug(
+        f"y1:{xsplit1} x1:{ysplit1} y2:{xsplit2} z:{zsplit} y3:{xsplit3} x2:{ysplit2} y4:{xsplit4}"
+    )
+
+    # child_list[-1] = lo #    indices of child_0 (morton=1): lo, xsplit1-1
+    child_list[0] = xsplit1  # indices of child_1 (morton=2): xsplit1, ysplit1-1
+    child_list[1] = ysplit1  # indices of child_2 (morton=3): ysplit1, xsplit2-1
+    child_list[2] = xsplit2  # indices of child_3 (morton=4): xsplit2, zsplit-1
+    child_list[3] = zsplit  #  indices of child_4 (morton=5): zsplit, ysplit3-1
+    child_list[4] = xsplit3  # indices of child_5 (morton=6): xsplit3, ysplit2-1
+    child_list[5] = ysplit2  # indices of child_6 (morton=7): ysplit2, xsplit4-1
+    child_list[6] = xsplit4  # indices of child_7 (morton=8): xsplit4, hi
+
+    LOGGER.debug(f"{lo=} {hi=} {child_list}")
     return child_list
 
 

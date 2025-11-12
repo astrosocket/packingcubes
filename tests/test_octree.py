@@ -3,7 +3,7 @@ import logging
 import conftest as ct
 import numpy as np
 import pytest
-from hypothesis import assume, example, given, note
+from hypothesis import assume, example, given, note, settings
 from hypothesis import strategies as st
 from numpy.typing import ArrayLike
 
@@ -89,40 +89,53 @@ def test_partition_valid(
 #############################
 # Test _partition_data
 #############################
-def test_partition_data_full_box(make_basic_data):
-    basic_data = make_basic_data(num_particles=10, seed=0xDEADBEEF)
-    positions_copy = basic_data.positions.copy()
-    # With the current random seed (DEADBEEF), basic_data looks like the
-    # following: [6,6,6,3,3,6,7,3,4,3], where the numbers are the 1-based
-    # top-level z-order indices. So we'd expect the final positions list to
-    # look like [3,3,3,3,4,6,6,6,6,7] corresponding to original indices
-    #           [9,4,7,3,8,5,0,2,1,6] and the list of children to be
-    # [0,0,4,5,5,9,10] #TODO: double check manual indices
-    LOGGER.debug("Original order")
-    morton_copy = octree.morton(positions_copy, basic_data.bounding_box)
-    for pos, mort in zip(positions_copy, morton_copy):
-        LOGGER.debug(pos, mort)
+def is_sorted(a: ArrayLike) -> bool:
+    # Note that this is fastest for most cases according to
+    # https://stackoverflow.com/a/59589142
+    return np.all(a[:-1] <= a[1:])
+
+
+@given(ct.basic_data_strategy())
+@settings(print_blob=True)
+def test_partition_data_full_box(
+    basic_data,
+):
+    note("Before partition")
+    note(basic_data.bounding_box)
+    # note(bbox.normalize_to_box(basic_data.positions, basic_data.bounding_box))
+    note(basic_data.positions)
+    morton_inds = octree.morton(basic_data.positions, basic_data.bounding_box)
+    note(morton_inds)
+    note(f"Positions :{basic_data.positions[1:2, :]}")
+    note(
+        f"Normalized: {bbox.normalize_to_box(basic_data.positions[1:2, :], basic_data.bounding_box)}"
+    )
+    note(
+        f"Morton: {octree.morton(basic_data.positions[1:2, :], basic_data.bounding_box)}"
+    )
+
     child_list = octree._partition_data(
         basic_data,
         basic_data.bounding_box,
         0,
-        9,
+        len(basic_data) - 1,
     )
-    expected_child_list = [0, 0, 4, 5, 5, 9, 10]
-    LOGGER.debug(f"{expected_child_list=}")
-    LOGGER.debug(f"         {child_list=}")
+
+    note("After partition")
+    note(basic_data.bounding_box)
+    note(bbox.normalize_to_box(basic_data.positions, basic_data.bounding_box))
+    morton_inds = octree.morton(basic_data.positions, basic_data.bounding_box)
+    note(morton_inds)
+
+    bin_count = np.bincount(morton_inds, minlength=8)
+    # morton inds are 1-8, so bin 0 is always 0. Even though anything
+    # in bin 1 should _start_ at index=0 (since we're doing the top-level
+    # partition), child_list doesn't contain an explicit index for bin 1
+    expected_child_list = np.cumsum(bin_count)[1:8]
+    note(f"{bin_count=} e:{expected_child_list} g:{child_list}")
+
+    assert is_sorted(morton_inds)
     assert np.all(expected_child_list == child_list)
-    expected_positions_order = np.array([9, 4, 7, 3, 8, 5, 0, 2, 1, 6])
-    morton = octree.morton(basic_data.positions, basic_data.bounding_box)
-    for i in range(len(positions_copy)):
-        LOGGER.debug(f"{i}")
-        LOGGER.debug(
-            positions_copy[expected_positions_order[i], :],
-            morton_copy[expected_positions_order[i]],
-        )
-        LOGGER.debug(" =?= ")
-        LOGGER.debug(basic_data.positions[i, :], morton[i])
-    assert np.all(positions_copy[expected_positions_order, :] == basic_data.positions)
 
 
 @given(st.integers(min_value=1, max_value=8))
