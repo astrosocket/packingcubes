@@ -9,6 +9,7 @@ from numpy.typing import ArrayLike
 
 import packingcubes.bounding_box as bbox
 import packingcubes.octree as octree
+from packingcubes.data_objects import Dataset
 
 LOGGER = logging.getLogger(__name__)
 
@@ -16,60 +17,73 @@ LOGGER = logging.getLogger(__name__)
 #############################
 # Test _partition
 #############################
-@example(-3, 9).xfail(reason="Out-of-bounds below")
-@example(0, 11).xfail(reason="Out-of-bounds above")
-@given(st.integers(min_value=0, max_value=9), st.integers(min_value=0, max_value=9))
-def test_partition_bounds(make_basic_data, start: int, end: int):
-    basic_data = make_basic_data(num_particles=10)
+@st.composite
+def basic_data_with_invalid_bounds(draw):
+    basic_data = draw(ct.basic_data_strategy())
+    lower = draw(st.integers(min_value=-10, max_value=0))
+    upper = draw(
+        st.integers(min_value=len(basic_data) - 1, max_value=len(basic_data) + 10)
+    )
+    assume(lower < 0 or upper >= len(basic_data))
+    return basic_data, lower, upper
+
+
+@st.composite
+def basic_data_with_valid_bounds(draw):
+    basic_data = draw(ct.basic_data_strategy())
+    lower = draw(st.integers(min_value=0, max_value=len(basic_data) - 1))
+    upper = draw(st.integers(min_value=0, max_value=len(basic_data) - 1))
+    return basic_data, lower, upper
+
+
+@given(basic_data_with_invalid_bounds())
+def test_partition_invalid_bounds(basic_data_with_bounds: tuple[Dataset, int, int]):
+    basic_data, lower, upper = basic_data_with_bounds
+    midplane = bbox.midplane(basic_data.bounding_box)
+
+    with pytest.raises(ValueError):
+        partition = octree._partition(basic_data, lower, upper, 0, midplane[0])
+
+
+@given(ct.basic_data_strategy(), st.integers().filter(lambda i: i < -3 or i >= 3))
+def test_partition_axis_invalid(basic_data: Dataset, ax: int):
     positions = basic_data.positions
-    # only test x-axis
-    note(f"x-values: {positions[start : (end + 1), 0]}")
-    num_below = np.sum(positions[start : (end + 1), 0] < 0.5)
-    num_above = np.sum(positions[start : (end + 1), 0] >= 0.5)
-    note(f"{num_below=:} {num_above=:}")
-    partition = octree._partition(basic_data, start, end, 0, 0.5)
-    note(f"part x-v: {positions[start : (end + 1), 0]}")
-    note(f"{partition=:}")
-    assert partition == num_below + start
-    assert np.all(positions[start:partition, 0] < 0.5)
-    assert np.all(positions[partition : (end + 1), 0] >= 0.5)
+    midplane = bbox.midplane(basic_data.bounding_box)
+
+    with pytest.raises(IndexError):
+        partition = octree._partition(
+            basic_data, 0, len(basic_data) - 1, ax, midplane[ax]
+        )
 
 
-@example(4).xfail(reason="invalid axis")
-@example(-5).xfail(reason="invalid axis")
-@given(st.integers(min_value=0, max_value=2))
-def test_partition_axis(make_basic_data, ax: int):
-    basic_data = make_basic_data()
+@given(
+    basic_data_with_valid_bounds(),
+    st.integers(min_value=0, max_value=2),
+    st.floats(-1, 2),
+)
+def test_partition_valid(
+    basic_data_with_bounds: tuple[Dataset, int, int], ax: int, midplane_scale: float
+):
+    basic_data, lower, upper = basic_data_with_bounds
+    midplane = bbox.midplane(basic_data.bounding_box)
+
     positions = basic_data.positions
-    axl = "xyz"[ax]
-    note(f"{axl}-values: {positions[:, ax]}")
-    num_below = np.sum(positions[:, ax] < 0.5)
-    num_above = np.sum(positions[:, ax] >= 0.5)
-    note(f"{num_below=:} {num_above=:}")
-    partition = octree._partition(basic_data, 0, len(basic_data) - 1, ax, 0.5)
-    note(f"part {axl}-v: {positions[:, ax]}")
-    note(f"{partition=:}")
-    assert partition == num_below
-    assert np.all(positions[:partition, ax] < 0.5)
-    assert np.all(positions[partition:, ax] >= 0.5)
+    note(f"x-values: {positions[lower : (upper + 1), ax]}")
 
+    midplane = midplane[ax] * midplane_scale
 
-@given(midplane=st.floats(-1, 2))
-def test_partition_midplane(make_basic_data, midplane: float):
-    basic_data = make_basic_data()
-    positions = basic_data.positions
-    # only test x-axis
-    note(f"Testing midplane: {midplane}")
-    note(f"x-values: {positions[:, 0]}")
-    num_below = np.sum(positions[:, 0] < midplane)
-    num_above = np.sum(positions[:, 0] >= midplane)
+    num_below = np.sum(positions[lower : (upper + 1), ax] < midplane)
+    num_above = np.sum(positions[lower : (upper + 1), ax] >= midplane)
     note(f"{num_below=:} {num_above=:}")
-    partition = octree._partition(basic_data, 0, len(basic_data) - 1, 0, midplane)
-    note(f"part x-v: {positions[:, 0]}")
+
+    partition = octree._partition(basic_data, lower, upper, ax, midplane)
+
+    note(f"part x-v: {positions[lower : (upper + 1), ax]}")
     note(f"{partition=:}")
-    assert partition == num_below
-    assert np.all(positions[:partition, 0] < midplane)
-    assert np.all(positions[partition:, 0] >= midplane)
+
+    assert partition == num_below + lower
+    assert np.all(positions[lower:partition, ax] < midplane)
+    assert np.all(positions[partition : (upper + 1), ax] >= midplane)
 
 
 #############################

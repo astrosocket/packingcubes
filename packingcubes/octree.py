@@ -22,14 +22,20 @@ def _partition(data: Dataset, lo: int, hi: int, ax: int, pivot: float) -> int:
     elements are greater than pivot) or hi+1 (if all elements are less than
     the pivot)
     """
-    assert 0 <= lo, f"Low index out of bounds {lo=}"
-    assert hi < len(data), f"High index out of bounds {hi=}"
+    if lo < 0:
+        raise ValueError(f"Low index out of bounds {lo=}")
+    if len(data) <= hi:
+        raise ValueError(f"High index out of bounds {hi=}")
     if lo > hi:
         # nothing to do
         return lo
-    r = hi  # right edge (won't change)
+    if lo == hi:
+        # return early to avoid unnecessary swap
+        # ternary to avoid data cast
+        return lo + (1 if data.positions[lo, ax] < pivot else 0)
+    r = hi  # right edge (constant)
     while lo < hi:
-        # pivot is not likely to be in data
+        # pivot is not guaranteed to be in data
         # need additional check to guard against out-of-bounds
         # access
         while lo < r and data.positions[lo, ax] < pivot:
@@ -39,12 +45,14 @@ def _partition(data: Dataset, lo: int, hi: int, ax: int, pivot: float) -> int:
             hi -= 1
         data._swap(lo, hi)
     if lo >= hi:
-        # undo extraneous last swap if lo>=hi
+        # undo extraneous last swap if lo>hi. If lo==hi, swapping does nothing
+        # but is expensive, so avoid if possible
         data._swap(lo, hi)
     # we may be in a position where all elements are less then the pivot
-    if lo == r and data.positions[lo, ax] < pivot:
-        return r + 1
-    return lo
+    # this is equivalent to the single element case
+    # if lo == r:
+    #     return r + (1 if data.positions[lo, ax] < pivot else 0)
+    return lo + (1 if data.positions[lo, ax] < pivot else 0)
 
 
 def _partition_data(
