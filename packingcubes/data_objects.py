@@ -31,7 +31,6 @@ class Dataset:
         return self._data.positions
 
     def _swap(self, first: int, second: int) -> None:
-        LOGGER.debug(f"Swapping {first} and {second}")
         temp = self._data.positions[first, :].copy()
         self._data.positions[first, :] = self._data.positions[second, :]
         self._data.positions[second, :] = temp
