@@ -57,7 +57,10 @@ def valid_boxes(draw):
     box_pos = draw(st.tuples(coord, coord, coord))
 
     def dx(x):
-        return st.floats(min_value=2 * np.nextafter(x, x + 1) - x, allow_infinity=False)
+        return st.floats(
+            min_value=2 * np.nextafter(np.abs(x), np.abs(x) + 1) - x,
+            allow_infinity=False,
+        )
 
     box_dx = draw(st.tuples(dx(box_pos[0]), dx(box_pos[1]), dx(box_pos[2])))
     box = np.array(box_pos + box_dx)
