@@ -3,7 +3,8 @@ import logging
 import conftest as ct
 import numpy as np
 import pytest
-from hypothesis import given
+from hypothesis import example, given, note
+from hypothesis import strategies as st
 from numpy.typing import ArrayLike
 
 import packingcubes.bounding_box as bbox
@@ -93,6 +94,59 @@ def test_get_neighbor_boxes(box: ArrayLike):
     neighbors = bbox.get_neighbor_boxes(box)
 
     assert expected_neighbors == pytest.approx(neighbors)
+
+
+#############################
+# Test get_box_vertices
+#############################
+@given(ct.invalid_boxes())
+@pytest.mark.skip(reason="Not implemented yet")
+def test_get_box_vertices(box: ArrayLike):
+    pass
+
+
+@example(np.array([0, 0, 0, 1, 1, 1]), np.nan).xfail(
+    reason="NaNs/Infs not valid jitters", raises=ValueError
+)
+@example(np.array([0, 0, 0, 1, 1, 1]), np.inf).xfail(
+    reason="NaNs/Infs not valid jitters", raises=ValueError
+)
+@example(np.array([0, 0, 0, 1, 1, 1]), -np.inf).xfail(
+    reason="NaNs/Infs not valid jitters", raises=ValueError
+)
+@given(
+    ct.valid_boxes(),
+    st.floats(allow_infinity=False, allow_nan=False),
+)
+def test_get_box_vertices_valid(box: ArrayLike, jitter: float):
+    expected_vertices = np.zeros((8, 3))
+    x, y, z, dx, dy, dz = box
+
+    expected_vertices[0, :] = [x, y, z]
+    expected_vertices[1, :] = [x + dx, y, z]
+    expected_vertices[2, :] = [x, y + dy, z]
+    expected_vertices[3, :] = [x + dx, y + dy, z]
+    expected_vertices[4, :] = [x, y, z + dz]
+    expected_vertices[5, :] = [x + dx, y, z + dz]
+    expected_vertices[6, :] = [x, y + dy, z + dz]
+    expected_vertices[7, :] = [x + dx, y + dy, z + dz]
+
+    vertices = bbox.get_box_vertices(box=box, jitter=0)
+    vertices_w_jitter = bbox.get_box_vertices(box=box, jitter=jitter)
+
+    # check without jitter
+    assert expected_vertices == pytest.approx(vertices)
+
+    # check with jitter
+    if jitter != 0:
+        for i, (v, vj) in enumerate(zip(vertices, vertices_w_jitter)):
+            # need a better test here
+            note(
+                f"{i=} w/o jitter: {v} w/ jitter:{vj} {'inside' if jitter > 0 else 'outside'}?:{bbox.in_box(box, *vj)}"
+            )
+            assert (jitter > 0 and bbox.in_box(box, *vj)) or (
+                jitter < 0 and not bbox.in_box(box, *vj)
+            )
 
 
 #############################

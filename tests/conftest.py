@@ -1,5 +1,6 @@
 # File for fixtures that should be shared across the test files
 
+import logging
 from collections import namedtuple
 
 import numpy as np
@@ -10,6 +11,8 @@ from hypothesis.extra import numpy as hypnp
 from numpy.random import RandomState
 
 from packingcubes.data_objects import Dataset
+
+LOGGER = logging.getLogger(__name__)
 
 
 def fake_basic_dataset(num_particles: int = 10, seed: int = 0xDEADBEEF) -> Dataset:
@@ -51,18 +54,33 @@ def make_basic_data():
 #############################
 # Hypothesis strategies
 #############################
+def valid_coord():
+    return st.floats(min_value=-1e10, max_value=1e10, allow_subnormal=False)
+
+
+@st.composite
+def valid_dx(draw, x: float):
+    x = np.maximum(1, np.abs(x))
+    min_value = x * np.finfo(float).eps * 100
+    max_value = x / (10 * np.finfo(float).eps)
+    if max_value / min_value < 10:
+        raise ValueError(f"min and max values are too close! {min_value=} {max_value=}")
+    return draw(
+        st.floats(
+            min_value=min_value,
+            max_value=max_value,
+        )
+    )
+
+
 @st.composite
 def valid_boxes(draw):
-    coord = st.floats(min_value=-1e10, max_value=1e10, allow_subnormal=False)
-    box_pos = draw(st.tuples(coord, coord, coord))
-
-    def dx(x):
-        return st.floats(
-            min_value=2 * np.nextafter(np.abs(x), np.abs(x) + 1) - x,
-            allow_infinity=False,
+    box_pos = draw(st.tuples(valid_coord(), valid_coord(), valid_coord()))
+    box_dx = draw(
+        st.tuples(
+            valid_dx(x=box_pos[0]), valid_dx(x=box_pos[1]), valid_dx(x=box_pos[2])
         )
-
-    box_dx = draw(st.tuples(dx(box_pos[0]), dx(box_pos[1]), dx(box_pos[2])))
+    )
     box = np.array(box_pos + box_dx)
     return box
 

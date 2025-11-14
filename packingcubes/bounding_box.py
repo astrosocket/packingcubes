@@ -60,6 +60,36 @@ def get_neighbor_boxes(box: ArrayLike) -> ArrayLike:
     return np.vstack((neighbors[:13], neighbors[14:]))
 
 
+def get_box_vertices(box: ArrayLike, *, jitter: float = 0) -> ArrayLike:
+    """
+    Return the coordinates of the 8 box vertices in z-order
+
+    Note that a jitter can be applied. If so the coordinates will be the
+    vertices of the box slightly (1%) smaller (larger) if jitter is positive
+    (negative)
+    """
+    if not np.isfinite(jitter):
+        raise ValueError("Jitter must be a finite value")
+    if not isinstance(box, ArrayLike):
+        raise TypeError("Box must be a valid box!")
+
+    vertices = np.zeros((8, 3))
+
+    jitter_amount = np.sign(jitter) * box[3:] / 100
+
+    for k in range(2):
+        for j in range(2):
+            for i in range(2):
+                ind = i + 2 * j + 4 * k
+                vertices[ind, :] = [
+                    box[0] + i * box[3] + jitter_amount[0] * (-1) ** i,
+                    box[1] + j * box[4] + jitter_amount[1] * (-1) ** j,
+                    box[2] + k * box[5] + jitter_amount[2] * (-1) ** k,
+                ]
+
+    return vertices
+
+
 def project_point_on_box(
     box: ArrayLike, x: float, y: float, z: float, jitter: float = 0
 ) -> tuple[float]:
