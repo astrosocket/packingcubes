@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from enum import IntEnum
 from typing import List
 
 import numpy as np
@@ -10,6 +11,18 @@ import packingcubes.bounding_box as bbox
 from packingcubes.data_objects import Dataset
 
 LOGGER = logging.getLogger(__name__)
+
+
+# Octants
+class Octants(IntEnum):
+    LEFTFRONTBOTTOM = 1
+    RIGHTFRONTBOTTOM = 2
+    LEFTBACKBOTTOM = 3
+    RIGHTBACKBOTTOM = 4
+    LEFTFRONTTOP = 5
+    RIGHTFRONTTOP = 6
+    LEFTBACKTOP = 7
+    RIGHTBACKTOP = 8
 
 
 # Convenience functions
@@ -167,28 +180,64 @@ def _get_child_box(box: ArrayLike, ind: int) -> ArrayLike:
 
 def _box_neighbors_in_node(
     box_ind: int,
-) -> ArrayLike[int]:
+) -> ArrayLike[Octants]:
     """
     Return the neighbor boxes that are in the same node. Assuming 0-based indexing
     """
     # TODO: look into a case/control-flow free formula
     match box_ind:
-        case 0:  # 1
-            return [1, 2, 4]  # [2,3,5]
-        case 1:  # 2
-            return [0, 3, 5]  # [1,4,6]
-        case 2:  # 3
-            return [0, 3, 6]  # [1,4,7]
-        case 3:  # 4
-            return [1, 2, 7]  # [2,3,8]
-        case 4:  # 5
-            return [0, 5, 6]  # [1,6,7]
-        case 5:  # 6
-            return [1, 4, 7]  # [2,5,8]
-        case 6:  # 7
-            return [2, 5, 7]  # [3,6,8]
-        case _:  # 8
-            return [3, 5, 6]  # [4,6,7]
+        case Octants.LEFTFRONTBOTTOM:  # 1
+            return [
+                Octants.RIGHTFRONTBOTTOM,
+                Octants.LEFTBACKBOTTOM,
+                Octants.LEFTFRONTTOP,
+            ]  # [2,3,5]
+        case Octants.RIGHTFRONTBOTTOM:  # 2
+            return [
+                Octants.LEFTFRONTBOTTOM,
+                Octants.RIGHTBACKBOTTOM,
+                Octants.RIGHTFRONTTOP,
+            ]  # [1,4,6]
+        case Octants.LEFTBACKBOTTOM:  # 3
+            return [
+                Octants.LEFTFRONTBOTTOM,
+                Octants.RIGHTBACKBOTTOM,
+                Octants.LEFTBACKTOP,
+            ]  # [1,4,7]
+        case Octants.RIGHTBACKBOTTOM:  # 4
+            return [
+                Octants.RIGHTFRONTBOTTOM,
+                Octants.LEFTBACKBOTTOM,
+                Octants.RIGHTBACKTOP,
+            ]  # [2,3,8]
+        case Octants.LEFTFRONTTOP:  # 5
+            return [
+                Octants.LEFTFRONTBOTTOM,
+                Octants.LEFTBACKTOP,
+                Octants.RIGHTFRONTTOP,
+            ]  # [1,6,7]
+        case Octants.RIGHTFRONTTOP:  # 6
+            return [
+                Octants.RIGHTFRONTBOTTOM,
+                Octants.LEFTFRONTTOP,
+                Octants.RIGHTBACKTOP,
+            ]  # [2,5,8]
+        case Octants.LEFTBACKTOP:  # 7
+            return [
+                Octants.LEFTBACKBOTTOM,
+                Octants.LEFTFRONTTOP,
+                Octants.RIGHTBACKTOP,
+            ]  # [3,6,8]
+        case Octants.RIGHTBACKTOP:  # 8
+            return [
+                Octants.RIGHTBACKBOTTOM,
+                Octants.RIGHTFRONTTOP,
+                Octants.LEFTBACKTOP,
+            ]  # [4,6,7]
+        case _:
+            raise ValueError(
+                f"Invalid {box_ind=} specified! Valid options are in octree.Octants"
+            )
 
 
 def morton(positions: ArrayLike, box: ArrayLike) -> ArrayLike[int]:
@@ -221,6 +270,8 @@ def morton(positions: ArrayLike, box: ArrayLike) -> ArrayLike[int]:
         + 2 * (positions[:, 1] >= midplane[1])
         + 4 * (positions[:, 2] >= midplane[2])
     ).astype(int)
+    # We do not attempt to convert to Octants here because that would create a
+    # numpy *object* array. Just leave them as ints
     return morton
 
 
@@ -235,7 +286,7 @@ class OctreeNode:
     Class holding the octree information in a recursive substructure. Note that
     the octree is currently fully initialized on creation of the root (node
     creation contains a recursive node creation call). Each node forms the root
-    of it's own octree and can have children that are either a
+    of its own octree and can have children that are either a
 
     Inputs:
         data: Dataset
@@ -271,7 +322,7 @@ class OctreeNode:
     # empty for root node, otherwise list of morton indices s.t. [7,2,1] is the
     # tag for the left-front-bottom subnode of the left-back-bottom subnode of
     # right-front-top subnode of the root
-    tag: List[int]
+    tag: List[Octants]
     children: List[OctreeNode]
     parent: None | OctreeNode
 
@@ -282,7 +333,7 @@ class OctreeNode:
         node_start: int = 0,
         node_end: int = None,
         box: ArrayLike = np.array([0, 0, 0, 1, 1, 1], dtype=float),
-        tag: List[int] = None,
+        tag: List[Octants] = None,
         parent: None | OctreeNode = None,
         _particle_threshold=1,
     ) -> None:
@@ -305,7 +356,7 @@ class OctreeNode:
         """
         # sort everything, even if we have fewer than 8 leaves
         # this step also generates child_list
-        self.child_list = _partition_data(
+        child_list = _partition_data(
             self.data, self.box, self.node_start, self.node_end
         )
         # Loop through children sections. If any section has more than
@@ -318,24 +369,27 @@ class OctreeNode:
         # Note also that there are currently no checks to
         # ensure that everything is not just being dumped
         # into one child, causing infinite recursion
+        children = []
         for i in range(8):
-            child1 = self.child_list[i - 1] if i > 0 else self.node_start
-            child2 = self.child_list[i] if i < 7 else self.node_end
-            if child2 - child1 > self._particle_threshold:
-                # recursing on child i not i-1!
-                child_box = _get_child_box(self.box, i)
-                LOGGER.debug(
-                    f"Making child box{i + 1} for {child2}-{child1}={child2 - child1} particles in box {child_box}"
-                )
-                node = OctreeNode(
-                    data=self.data,
-                    node_start=child1,
-                    node_end=child2 - 1,
-                    box=child_box,
-                    tag=self.tag + [i + 1],  # e.g. i=1 corresponds to subtree 3
-                    parent=self,
-                )
-                self.children.append(node)
+            child1 = child_list[i - 1] if i > 0 else self.node_start
+            child2 = child_list[i] if i < 7 else self.node_end
+            # recursing on child i not i-1!
+            child_box = _get_child_box(self.box, i)
+            LOGGER.debug(
+                f"Making child box{i + 1} for {child2}-{child1}={child2 - child1} particles in box {child_box}"
+            )
+            node = OctreeNode(
+                data=self.data,
+                node_start=child1,
+                node_end=child2 - 1,
+                box=child_box,
+                tag=self.tag + [Octants(i + 1)],  # e.g. i=1 corresponds to subtree 3
+                parent=self,
+            )
+            children.append(node)
+        # Only add children if current node is above threshold
+        if len(self) > self._particle_threshold:
+            self.children.append(node)
 
     def __repr__(self):
         return (
@@ -351,25 +405,22 @@ class OctreeNode:
         return self.node_end - self.node_start + 1
 
     @property
-    def slice(self, *, leaf_ind: None | int = None):
+    def slice(self):
         """
         Return slice of data corresponding to this node
         """
-        if leaf_ind is None:
-            return slice(self.node_start, self.node_end + 1)
-        if not isinstance(leaf_ind, int):
-            raise TypeError("leaf_ind must be an int")
-        child_start = self.child_list[leaf_ind] if leaf_ind > 0 else self.node_start
-        child_end = self.child_list[leaf_ind + 1] if leaf_ind < 6 else self.node_end
-        return slice(child_start, child_end)
+        return slice(self.node_start, self.node_end + 1)
 
     def distance(
-        self, x: float, y: float, z: float, *, leaf_ind: None | int = None
+        self,
+        x: float,
+        y: float,
+        z: float,
     ) -> ArrayLike:
         """
         Return array of particle distances from given point
         """
-        slice_ = self.slice(leaf_ind=leaf_ind)
+        slice_ = self.slice()
         pos = self.data.positions
         point = np.array(x, y, z)
         return np.sqrt(np.sum((pos[slice_, 0] - point) ** 2, axis=1))
