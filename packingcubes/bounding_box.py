@@ -41,22 +41,20 @@ def normalize_to_box(coordinates: ArrayLike, box: ArrayLike) -> ArrayLike:
 
 def get_neighbor_boxes(box: ArrayLike) -> ArrayLike:
     """
-    Return the six boxes that would be the neighbors of this box in a uniform grid
+    Return the twenty-six boxes that would be the neighbors of this box in a uniform grid
 
-    We are currently not considering any diagonal boxes. This may be something
-    to consider in the future.
-
-    Boxes are returned as a 6x6 array, where each row is a box
+    Boxes are returned as a 26x6 array, where each row is a box. Order is
+    z-order, so row 0 is the box at [x-dx,y-dy,z-dz], row 2 is [x+dx,y-dy,z-dz]
+    and row 25 is [x+dx,y+dy,z+dz]
     """
-    neighbors = np.zeros((6, 6))
-    for i in range(3):
-        for j in range(2):
-            neighbor_ind = 2 * i + j
-            neighbors[neighbor_ind, :] = box
-            neighbors[neighbor_ind, i] += (2 * j - 1) * neighbors[
-                neighbor_ind, i + 3
-            ]  # x ±= dx
-    return neighbors
+    neighbors = np.zeros((27, 6), dtype=box.dtype)
+    dxv = np.zeros(6, dtype=box.dtype)
+    for i in range(27):
+        dxv[0] = ((i % 3) - 1) * box[3]  # dx
+        dxv[1] = ((int(i / 3) % 3) - 1) * box[4]  # dy
+        dxv[2] = ((int(i / 9) % 3) - 1) * box[5]  # dz
+        neighbors[i, :] = box + dxv
+    return np.vstack((neighbors[:13], neighbors[14:]))
 
 
 def project_point_on_box(

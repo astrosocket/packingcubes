@@ -68,19 +68,27 @@ def test_normalize_to_box(coordinates, box):
 #############################
 # Test _get_neighbor_boxes
 #############################
+@given(ct.invalid_boxes())
+@pytest.mark.skip("Not implemented yet")
+def test_get_neighbor_boxes_invalid(box: ArrayLike):
+    pass
+
+
 @given(ct.valid_boxes())
-@pytest.mark.filterwarnings("ignore: overflow encountered")
 def test_get_neighbor_boxes(box: ArrayLike):
-    expected_neighbors = np.zeros((6, 6))
-    # initialize to 6 copies of box
-    for i in range(6):
+    expected_neighbors = np.zeros((26, 6))
+    # initialize to 26 copies of box
+    for i in range(26):
         expected_neighbors[i, :] = box
-    expected_neighbors[0, 0] -= box[3]  # box 0 is shifted by -dx
-    expected_neighbors[1, 0] += box[3]  # box 1 is shifted by +dx
-    expected_neighbors[2, 1] -= box[4]  # box 2 is shifted by -dy
-    expected_neighbors[3, 1] += box[4]  # box 3 is shifted by +dy
-    expected_neighbors[4, 2] -= box[5]  # box 4 is shifted by -dz
-    expected_neighbors[5, 2] += box[5]  # box 5 is shifted by +dz
+
+    index = 0
+    for dz in [-box[5], 0, box[5]]:
+        for dy in [-box[4], 0, box[4]]:
+            for dx in [-box[3], 0, box[3]]:
+                if dz == 0 and dy == 0 and dx == 0:
+                    continue
+                expected_neighbors[index, :3] += [dx, dy, dz]
+                index += 1
 
     neighbors = bbox.get_neighbor_boxes(box)
 
