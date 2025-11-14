@@ -47,6 +47,9 @@ def get_neighbor_boxes(box: ArrayLike) -> ArrayLike:
     z-order, so row 0 is the box at [x-dx,y-dy,z-dz], row 2 is [x+dx,y-dy,z-dz]
     and row 25 is [x+dx,y+dy,z+dz]
     """
+    # We generate all 27 boxes (so including box) and then remove box because
+    # it makes the code logic *much* simpler and shouldn't significantly
+    # increase the number of resources used
     neighbors = np.zeros((27, 6), dtype=box.dtype)
     dxv = np.zeros(6, dtype=box.dtype)
     for i in range(27):
