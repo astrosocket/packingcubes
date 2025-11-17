@@ -8,21 +8,37 @@ from numpy.typing import ArrayLike
 LOGGER = logging.getLogger(__name__)
 
 
-def in_box(box: ArrayLike, x: float, y: float, z: float) -> bool:
+class BoundingBoxError(ValueError):
+    pass
+
+
+def _make_valid(box: ArrayLike):
+    box = np.asanyarray(box)
+    if len(box) != 6 and box.shape not in ((6,), (1, 6), (6, 1)):
+        raise BoundingBoxError(
+            f"Provided box has wrong dimensions: {box.shape} should be (1,6)!"
+        )
+    if np.any(box[3:] <= 0):
+        raise BoundingBoxError(f"Provided box has invalid size: ({box[3:]})")
+    if np.all(np.isfinite(box)):
+        return box
+    raise BoundingBoxError(f"Provided box is not finite: {box}")
+
+
+def in_box(box: ArrayLike, xyz: ArrayLike) -> np.ndarray:
     """
     Check if point is inside box
     """
-    return (
-        (box[0] <= x <= box[0] + box[3])
-        & (box[1] <= y <= box[1] + box[4])
-        & (box[2] <= z <= box[2] + box[5])
-    )
+    box = _make_valid(box)
+    xyz = np.atleast_2d(xyz)
+    return np.all((box[:3] <= xyz) & (xyz <= box[:3] + box[3:]), axis=1)
 
 
 def midplane(box: ArrayLike) -> ArrayLike:
     """
     Return the 3 coordinates specifying the midplane of the box
     """
+    box = _make_valid(box)
     return np.array([box[i] + box[i + 3] / 2 for i in range(3)])
 
 
@@ -30,6 +46,7 @@ def normalize_to_box(coordinates: ArrayLike, box: ArrayLike) -> ArrayLike:
     """
     Rescale and shift the coordinates such that they are bounded by the unit cube
     """
+    box = _make_valid(box)
     # Need to deal with subnormal values
     fixed_subnormal = np.sign(coordinates) * np.clip(
         np.abs(coordinates),
@@ -47,6 +64,7 @@ def get_neighbor_boxes(box: ArrayLike) -> ArrayLike:
     z-order, so row 0 is the box at [x-dx,y-dy,z-dz], row 2 is [x+dx,y-dy,z-dz]
     and row 25 is [x+dx,y+dy,z+dz]
     """
+    box = _make_valid(box)
     # We generate all 27 boxes (so including box) and then remove box because
     # it makes the code logic *much* simpler and shouldn't significantly
     # increase the number of resources used
@@ -70,8 +88,8 @@ def get_box_vertices(box: ArrayLike, *, jitter: float = 0) -> ArrayLike:
     """
     if not np.isfinite(jitter):
         raise ValueError("Jitter must be a finite value")
-    if not isinstance(box, ArrayLike):
-        raise TypeError("Box must be a valid box!")
+
+    box = _make_valid(box)
 
     vertices = np.zeros((8, 3))
 

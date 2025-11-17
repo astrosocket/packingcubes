@@ -17,28 +17,26 @@ LOGGER = logging.getLogger(__name__)
 #############################
 # filtering out invalid boxes with dx=inf, since they're not a useful test
 @given(
-    ct.invalid_boxes().filter(lambda b: not np.any(np.isinf(b[3:]))), ct.valid_points()
+    ct.invalid_boxes().filter(lambda b: not np.any(np.isinf(b[3:]))),
+    ct.valid_positions(),
 )
+def test_in_box_invalid_box(box: ArrayLike, xyz: ArrayLike):
+    with pytest.raises(bbox.BoundingBoxError):
+        bbox.in_box(box, xyz)
+
+
+@given(ct.valid_boxes(), ct.invalid_positions())
+def test_in_box_invalid_point(box: ArrayLike, xyz: ArrayLike):
+    assert not np.any(bbox.in_box(box, xyz))
+
+
+@given(ct.valid_boxes(), ct.valid_positions())
 @pytest.mark.filterwarnings("ignore: overflow encountered")
-def test_in_box_invalid_box(box: ArrayLike, xyz: tuple[float]):
-    # need to account for the cases where e.g. dx=x=0 or dx=inf s.t. xyz may be
-    # *technically* inside the box...
-    assert not bbox.in_box(box, *xyz) or np.any(
-        [(box[3 + i] == 0) & (xyz[i] - box[i] == 0) for i in range(3)]
-    )
-
-
-@given(ct.valid_boxes(), ct.invalid_points())
-@pytest.mark.filterwarnings("ignore: overflow encountered")
-def test_in_box_invalid_point(box: ArrayLike, xyz: tuple[float]):
-    assert not bbox.in_box(box, *xyz)
-
-
-@given(ct.valid_boxes(), ct.valid_points())
-@pytest.mark.filterwarnings("ignore: overflow encountered")
-def test_in_box_valid(box: ArrayLike, xyz: tuple[float]):
-    inside_box = np.all([box[i] <= xyz[i] <= box[i] + box[i + 3] for i in range(3)])
-    assert inside_box == bbox.in_box(box, *xyz)
+def test_in_box_valid(box: ArrayLike, xyz: ArrayLike):
+    inside_box = np.ones((1, len(xyz)), dtype=bool)
+    for i in range(3):
+        inside_box &= (box[i] <= xyz[:, i]) & (xyz[:, i] <= box[i] + box[i + 3])
+    assert np.all(inside_box == bbox.in_box(box, xyz))
 
 
 #############################
@@ -70,9 +68,9 @@ def test_normalize_to_box(coordinates, box):
 # Test _get_neighbor_boxes
 #############################
 @given(ct.invalid_boxes())
-@pytest.mark.skip("Not implemented yet")
 def test_get_neighbor_boxes_invalid(box: ArrayLike):
-    pass
+    with pytest.raises(bbox.BoundingBoxError):
+        bbox.get_box_vertices(box, jitter=0)
 
 
 @given(ct.valid_boxes())
@@ -100,9 +98,9 @@ def test_get_neighbor_boxes(box: ArrayLike):
 # Test get_box_vertices
 #############################
 @given(ct.invalid_boxes())
-@pytest.mark.skip(reason="Not implemented yet")
 def test_get_box_vertices(box: ArrayLike):
-    pass
+    with pytest.raises(bbox.BoundingBoxError):
+        bbox.get_box_vertices(box, jitter=0)
 
 
 @example(np.array([0, 0, 0, 1, 1, 1]), np.nan).xfail(
@@ -142,10 +140,10 @@ def test_get_box_vertices_valid(box: ArrayLike, jitter: float):
         for i, (v, vj) in enumerate(zip(vertices, vertices_w_jitter)):
             # need a better test here
             note(
-                f"{i=} w/o jitter: {v} w/ jitter:{vj} {'inside' if jitter > 0 else 'outside'}?:{bbox.in_box(box, *vj)}"
+                f"{i=} w/o jitter: {v} w/ jitter:{vj} {'inside' if jitter > 0 else 'outside'}?:{bbox.in_box(box, vj)}"
             )
-            assert (jitter > 0 and bbox.in_box(box, *vj)) or (
-                jitter < 0 and not bbox.in_box(box, *vj)
+            assert (jitter > 0 and bbox.in_box(box, vj)) or (
+                jitter < 0 and not bbox.in_box(box, vj)
             )
 
 

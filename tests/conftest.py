@@ -114,42 +114,38 @@ def invalid_boxes(draw):
     return box
 
 
-def points():
-    return st.tuples(
-        st.floats(min_value=-1e10, max_value=1e10, allow_subnormal=False),
-        st.floats(min_value=-1e10, max_value=1e10, allow_subnormal=False),
-        st.floats(min_value=-1e10, max_value=1e10, allow_subnormal=False),
-    )
-
-
-def valid_points():
-    return points().filter(lambda xyz: np.all(np.isfinite(xyz)))
-
-
-@st.composite
-def invalid_points(draw):
-    points = list(draw(valid_points()))
-    bad_inds = draw(
-        st.lists(st.integers(min_value=0, max_value=2), min_size=1, max_size=6)
-    )
-    bad_values = draw(
-        st.lists(
-            st.just(np.nan) | st.just(np.inf),
-            min_size=len(bad_inds),
-            max_size=len(bad_inds),
-        )
-    )
-    for bi, bv in zip(bad_inds, bad_values):
-        points[bi] = bv
-    return tuple(points)
-
-
 def valid_positions():
     return hypnp.arrays(
         float,
         st.tuples(st.integers(min_value=1, max_value=3e2), st.just(3)),
         elements=st.floats(min_value=-1e10, max_value=1e10),
     )
+
+
+@st.composite
+def invalid_positions(draw):
+    positions = draw(valid_positions())
+    # generate bad_inds as a array of flags corresponding to which indices are
+    # bad., i.e. 3 = 1*2**0 + 1*2**1 + 0*2**2 = [1,1,0]
+    bad_inds = draw(
+        hypnp.arrays(
+            int, (len(positions), 1), elements=st.integers(min_value=1, max_value=7)
+        )
+    )
+    # convert to masking array
+    mask = np.hstack((bad_inds & 1, (bad_inds & 2) >> 1, (bad_inds & 4) >> 2))
+    num_bad = int(np.sum(mask))
+
+    bad_values = draw(
+        st.lists(
+            st.just(np.nan) | st.just(np.inf),
+            min_size=num_bad,
+            max_size=num_bad,
+        )
+    )
+
+    positions[np.nonzero(mask)] = bad_values
+    return positions
 
 
 @st.composite
