@@ -109,27 +109,36 @@ def get_box_vertices(box: ArrayLike, *, jitter: float = 0) -> ArrayLike:
 
 
 def project_point_on_box(
-    box: ArrayLike, x: float, y: float, z: float, jitter: float = 0
-) -> tuple[float]:
+    box: ArrayLike, xyz: ArrayLike, *, jitter: float = 0
+) -> np.ndarray:
     """
     Return coordinates of projection of (x, y, z) on nearest box face.
 
     This is the closest point on the box to (x, y, z). Can provide jitter to
     place point into/out of the box for determining sub-boxes.
 
+    Note: There is no checking for whether points are already inside box
+    A point inside the box cannot be jittered (in or *out*).
+
     Inputs:
         box: ArrayLike
         Box to project on
 
-        x, y, z: float
+        xyz: ArrayLike
         Point to project onto nearest box face
 
         jitter: float
-        Amount to move projected point into(positive values) or out of
+        Flag to move projected point 1% into(positive values) or out of
         (negative values) the box. Default is 0
 
     Returns:
-        px, py, pz: float
+        pxyz: numpy.ndarray
         Projected coordinates
     """
-    raise NotImplementedError()
+    box = _make_valid(box)
+
+    clamped_xyz = np.clip(xyz, a_min=box[:3], a_max=box[:3] + box[3:])
+
+    clamped_xyz += np.sign(jitter) * np.sign(clamped_xyz - xyz) * box[:3] / 100
+
+    return clamped_xyz
