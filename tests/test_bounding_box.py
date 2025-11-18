@@ -13,6 +13,31 @@ LOGGER = logging.getLogger(__name__)
 
 
 #############################
+# Test _make_valid
+#############################
+@given(ct.invalid_boxes())
+def test_make_valid_invalid_boxes(box):
+    with pytest.raises(bbox.BoundingBoxError) as bberr:
+        bbox._make_valid(box)
+    box = np.atleast_1d(np.squeeze(np.asanyarray(box)))
+    if len(box) != 6 or box.shape != (6,):
+        assert "wrong dimensions" in str(bberr.value)
+    elif np.any(box[3:] <= 0):
+        assert "invalid size" in str(bberr.value)
+    elif not np.all(np.isfinite(box)):
+        assert "not finite" in str(bberr.value)
+    else:
+        raise Exception(f"Unknown exception: {bberr}!")
+
+
+@given(ct.valid_boxes())
+def test_make_valid_valid_boxes(box):
+    valid_box = bbox._make_valid(box)
+
+    assert np.all(valid_box == box)
+
+
+#############################
 # Test in_box
 #############################
 @given(
@@ -30,7 +55,6 @@ def test_in_box_invalid_point(box: ArrayLike, xyz: ArrayLike):
 
 
 @given(ct.valid_boxes(), ct.valid_positions())
-@pytest.mark.filterwarnings("ignore: overflow encountered")
 def test_in_box_valid(box: ArrayLike, xyz: ArrayLike):
     inside_box = np.ones((1, len(xyz)), dtype=bool)
     for i in range(3):

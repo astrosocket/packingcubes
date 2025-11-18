@@ -13,10 +13,10 @@ class BoundingBoxError(ValueError):
 
 
 def _make_valid(box: ArrayLike):
-    box = np.asanyarray(box)
-    if len(box) != 6 and box.shape not in ((6,), (1, 6), (6, 1)):
+    box = np.atleast_1d(np.squeeze(np.asanyarray(box)))
+    if len(box) != 6 or box.shape != (6,):
         raise BoundingBoxError(
-            f"Provided box has wrong dimensions: {box.shape} should be (1,6)!"
+            f"Provided box has wrong dimensions: {box.shape} should be (6,)!"
         )
     if np.any(box[3:] <= 0):
         raise BoundingBoxError(f"Provided box has invalid size: ({box[3:]})")
