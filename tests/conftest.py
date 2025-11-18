@@ -86,7 +86,7 @@ def valid_boxes(draw):
 
 
 @st.composite
-def invalid_boxes(draw):
+def invalid_boxes_correct_shape(draw):
     box = draw(valid_boxes())
 
     @st.composite
@@ -111,6 +111,15 @@ def invalid_boxes(draw):
                 box[i] = -box[i]
             case 4:
                 box[i] = 0
+    return box
+
+
+@st.composite
+def invalid_boxes(draw):
+    box = draw(
+        hypnp.arrays(float, hypnp.array_shapes().filter(lambda a: np.prod(a) != 6))
+        | invalid_boxes_correct_shape()
+    )
     return box
 
 
