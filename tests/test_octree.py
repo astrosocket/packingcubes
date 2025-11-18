@@ -201,18 +201,10 @@ def test_partition_data_sub_box(make_basic_data, child_ind: int):
 #############################
 # test _get_child_box
 #############################
-@pytest.mark.skip(reason="Not implemented yet")
-def test_get_child_box_shape():
-    pass
-
-
 @given(ct.invalid_boxes())
-def test_get_child_box_invalid(box: ArrayLike):
-    with pytest.raises(ValueError) as excinfo:
-        child_box = octree._get_child_box(box, 0)
-    assert "finite numbers" in str(excinfo.value) or "box dimensions" in str(
-        excinfo.value
-    )
+def test_get_child_box_invalid_box(box: ArrayLike):
+    with pytest.raises(bbox.BoundingBoxError):
+        octree._get_child_box(box, 0)
 
 
 @given(ct.valid_boxes())

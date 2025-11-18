@@ -161,10 +161,7 @@ def _get_child_box(box: ArrayLike, ind: int) -> ArrayLike:
     # https://math.stackexchange.com/questions/2411867/3d-hilbert-curve-without-double-length-edges
     # for a possible "Hilbert" curve that may be better?
     # Raising errors for invalid boxes coming from data
-    if np.any(~np.isfinite(box)):
-        raise ValueError("Box values must be finite numbers")
-    if np.any(box[3:] <= 0):
-        raise ValueError("box dimensions must be >0")
+    box = bbox._make_valid(box)
     # using assert because octree members know better
     assert isinstance(ind, int) and 0 <= ind and ind < 8, (
         f"Octree code passed an invalid index: {ind}!"
