@@ -149,7 +149,9 @@ def project_point_on_box(
     place point into/out of the box for determining sub-boxes.
 
     Note: There is no checking for whether points are already inside box
-    A point inside the box cannot be jittered (in or *out*).
+
+    Note: Jitter is not applied to points inside the box (so a point cannot
+        be jittered *out*).
 
     Inputs:
         box: ArrayLike
@@ -158,9 +160,9 @@ def project_point_on_box(
         xyz: ArrayLike
         Point to project onto nearest box face
 
-        jitter: float
-        Flag to move projected point 1% into(positive values) or out of
-        (negative values) the box. Default is 0
+        jitter: nonnegative float
+        Flag to move projected point 1% into the box. Negative values to move
+        the point out of the box are not yet supported. Default is 0
 
     Returns:
         pxyz: numpy.ndarray
@@ -168,8 +170,18 @@ def project_point_on_box(
     """
     box = _make_valid(box)
 
-    clamped_xyz = np.clip(xyz, a_min=box[:3], a_max=box[:3] + box[3:])
+    if np.any(np.isnan(xyz)):
+        raise ValueError("Point contains NaN!")
 
-    clamped_xyz += np.sign(jitter) * np.sign(clamped_xyz - xyz) * box[:3] / 100
+    if np.isnan(jitter):
+        raise ValueError("Jitter must be a number!")
+
+    if jitter < 0:
+        raise NotImplementedError()
+
+    jitter = np.sign(jitter) * box[3:] / 100
+    clamped_xyz = np.clip(
+        xyz, a_min=box[:3] + jitter, a_max=box[:3] + box[3:] - jitter
+    ).astype(float)
 
     return clamped_xyz

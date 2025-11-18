@@ -253,6 +253,48 @@ def test_get_box_vertices_valid(box: ArrayLike, jitter: float):
 #############################
 # Test project_point_on_box
 #############################
-@pytest.mark.skip(reason="Not implemented yet")
-def test_project_point_on_box():
-    pass
+@given(ct.invalid_boxes(), ct.valid_positions(), st.floats())
+def test_project_point_on_box_invalid_box(
+    box: ArrayLike, xyz: ArrayLike, jitter: float
+):
+    with pytest.raises(bbox.BoundingBoxError):
+        bbox.project_point_on_box(box, xyz, jitter=jitter)
+
+
+@given(
+    ct.valid_boxes(),
+    ct.invalid_positions().filter(lambda a: np.any(np.isnan(a))),
+    st.floats(),
+)
+def test_project_point_on_box_invalid_point_nan(
+    box: ArrayLike, xyz: ArrayLike, jitter: float
+):
+    with pytest.raises(ValueError):
+        bbox.project_point_on_box(box, xyz, jitter=jitter)
+
+
+@example(np.array([0, 0, 0, 1, 1, 1]), np.array([0, 0, 0]), np.nan).xfail(
+    reason="Jitter must be a number", raises=ValueError
+)
+@example(np.array([0, 0, 0, 1, 1, 1]), np.array([0, 0, 0]), -1).xfail(
+    reason="Negative jitter not supported yet", raises=NotImplementedError
+)
+# infinite points are allowed
+@example(np.array([0, 0, 0, 1, 1, 1]), np.array([np.inf, 0, 0]), 1)
+@given(ct.valid_boxes(), ct.valid_positions(), st.floats(min_value=0, allow_nan=False))
+def test_project_point_on_box_valid(box: ArrayLike, xyz: ArrayLike, jitter: float):
+    pxyz = bbox.project_point_on_box(box, xyz, jitter=0)
+    pxyz_w_jitter = bbox.project_point_on_box(box, xyz, jitter=jitter)
+
+    assert np.all(bbox.in_box(box, pxyz))
+
+    xyzs = np.atleast_2d(xyz)
+    pxyzs = np.atleast_2d(pxyz)
+    pxyz_w_jitters = np.atleast_2d(pxyz_w_jitter)
+    for txyz, tpxyz, tpxyz_w_jitter in zip(xyzs, pxyzs, pxyz_w_jitters):
+        # test we didn't mess up already contained points
+        if bbox.in_box(box, txyz):
+            assert txyz == pytest.approx(tpxyz)
+        elif jitter:  # if xyz in box then jitter is ignored
+            assert np.any((tpxyz != tpxyz_w_jitter) | np.isinf(txyz))
+            assert np.all(bbox.in_box(box, tpxyz_w_jitter)) != (jitter < 0)
