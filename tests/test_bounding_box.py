@@ -118,10 +118,91 @@ def test_get_neighbor_boxes(box: ArrayLike):
 
 
 #############################
+# Test get_box_center
+#############################
+@given(ct.invalid_boxes())
+def test_get_box_center_invalid(box: ArrayLike):
+    with pytest.raises(bbox.BoundingBoxError):
+        bbox.get_box_center(box)
+
+
+@given(ct.valid_boxes())
+def test_get_box_center_valid(box: ArrayLike):
+    center = bbox.get_box_center(box)
+
+    assert center == pytest.approx(box[:3] + box[3:] / 2)
+
+
+#############################
+# Test get_box_vertex
+#############################
+@given(ct.invalid_boxes())
+def test_get_box_vertex_invalid_boxes(box: ArrayLike):
+    for index in range(8):
+        with pytest.raises(bbox.BoundingBoxError):
+            bbox.get_box_vertex(box, index=index)
+
+
+@given(
+    ct.valid_boxes(),
+    st.floats() | st.integers().filter(lambda i: i < 1 or 8 < i),
+    st.floats(allow_infinity=False, allow_nan=False),
+)
+def test_get_box_vertex_invalid_indices(
+    box: ArrayLike, index: int | float, jitter: float
+):
+    with pytest.raises(ValueError):
+        bbox.get_box_vertex(box, index=index, jitter=jitter)
+
+
+@example(np.array([0, 0, 0, 1, 1, 1]), 1, np.nan).xfail(
+    reason="Jitter must be a number", raises=ValueError
+)
+@example(np.array([0, 0, 0, 1, 1, 1]), 1, np.inf).xfail(
+    reason="Jitter must be finite", raises=ValueError
+)
+@example(np.array([0, 0, 0, 1, 1, 1]), 1, -np.inf).xfail(
+    reason="Jitter must be finite", raises=ValueError
+)
+@given(
+    ct.valid_boxes(),
+    st.integers(min_value=1, max_value=8),
+    st.floats(allow_infinity=False, allow_nan=False),
+)
+def test_get_box_vertex_valid(box: ArrayLike, index: int, jitter: float):
+    vertex = bbox.get_box_vertex(box, index, jitter=0)
+    vertex_w_jitter = bbox.get_box_vertex(box, index, jitter=jitter)
+
+    x, y, z, dx, dy, dz = box
+
+    match index:
+        case 1:
+            assert vertex == pytest.approx(np.array([x, y, z]))
+        case 2:
+            assert vertex == pytest.approx(np.array([x + dx, y, z]))
+        case 3:
+            assert vertex == pytest.approx(np.array([x, y + dy, z]))
+        case 4:
+            assert vertex == pytest.approx(np.array([x + dx, y + dy, z]))
+        case 5:
+            assert vertex == pytest.approx(np.array([x, y, z + dz]))
+        case 6:
+            assert vertex == pytest.approx(np.array([x + dx, y, z + dz]))
+        case 7:
+            assert vertex == pytest.approx(np.array([x, y + dy, z + dz]))
+        case 8:
+            assert vertex == pytest.approx(np.array([x + dx, y + dy, z + dz]))
+
+    if jitter:
+        assert np.all(vertex_w_jitter != vertex)
+        assert bbox.in_box(box, vertex_w_jitter) != (jitter < 0)
+
+
+#############################
 # Test get_box_vertices
 #############################
 @given(ct.invalid_boxes())
-def test_get_box_vertices(box: ArrayLike):
+def test_get_box_vertices_invalid_boxes(box: ArrayLike):
     with pytest.raises(bbox.BoundingBoxError):
         bbox.get_box_vertices(box, jitter=0)
 
@@ -165,9 +246,8 @@ def test_get_box_vertices_valid(box: ArrayLike, jitter: float):
             note(
                 f"{i=} w/o jitter: {v} w/ jitter:{vj} {'inside' if jitter > 0 else 'outside'}?:{bbox.in_box(box, vj)}"
             )
-            assert (jitter > 0 and bbox.in_box(box, vj)) or (
-                jitter < 0 and not bbox.in_box(box, vj)
-            )
+            assert np.all(v != vj)
+            assert bbox.in_box(box, vj) != (jitter < 0)
 
 
 #############################

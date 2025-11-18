@@ -78,6 +78,37 @@ def get_neighbor_boxes(box: ArrayLike) -> ArrayLike:
     return np.vstack((neighbors[:13], neighbors[14:]))
 
 
+def get_box_center(box: ArrayLike) -> ArrayLike:
+    """
+    Return the coordinates of the center of the box
+    """
+    box = _make_valid(box)
+    return box[:3] + box[3:] / 2
+
+
+def get_box_vertex(box: ArrayLike, index: int, *, jitter: float = 0) -> ArrayLike:
+    """
+    Return the coordinates of the vertex at z-order index (1-based)
+
+    Note that a jitter can be applied. If so the coordinates will be the
+    vertex of the box slightly (1%) smaller (larger) if jitter is positive
+    (negative)
+    """
+    box = _make_valid(box)
+    if not isinstance(index, int):
+        raise ValueError("Index must be an int!")
+    if index < 1 or index > 8:
+        raise ValueError(f"Index {index} is out of bounds")
+    if not np.isfinite(jitter):
+        raise ValueError(f"Jitter ({jitter}) must be finite!")
+    index -= 1
+    coord = box[:3].copy()
+    for i in range(3):
+        offset = (index & (1 << i)) >> i
+        coord[i] += box[3 + i] * (offset + (1 - 2 * offset) * np.sign(jitter) / 100)
+    return coord
+
+
 def get_box_vertices(box: ArrayLike, *, jitter: float = 0) -> ArrayLike:
     """
     Return the coordinates of the 8 box vertices in z-order
