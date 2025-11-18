@@ -15,9 +15,8 @@ LOGGER = logging.getLogger(__name__)
 #############################
 # Test in_box
 #############################
-# filtering out invalid boxes with dx=inf, since they're not a useful test
 @given(
-    ct.invalid_boxes().filter(lambda b: not np.any(np.isinf(b[3:]))),
+    ct.invalid_boxes(),
     ct.valid_positions(),
 )
 def test_in_box_invalid_box(box: ArrayLike, xyz: ArrayLike):
