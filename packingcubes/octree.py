@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from collections import deque
 from enum import IntEnum
 from functools import partial
 from typing import List
@@ -279,8 +278,6 @@ def morton(positions: ArrayLike, box: ArrayLike) -> ArrayLike[int]:
     # We do not attempt to convert to Octants here because that would create a
     # numpy *object* array. Just leave them as ints
     return morton
-
-
 
 
 # This will be an in-place octree, so each node has a
@@ -608,7 +605,7 @@ class Octree:
 
     def _get_nodes_in_shape(
         self, *, bounding_box: ArrayLike[float], containment_test: callable = None
-    ) -> tuple[deque[OctreeNode], deque[OctreeNode]]:
+    ) -> tuple[List[OctreeNode], List[OctreeNode]]:
         """
         Return list of all nodes entirely inside shape and all nodes partially inside shape
 
@@ -631,14 +628,14 @@ class Octree:
             box
 
         Output:
-            entirely_in: collections.deque[OctreeNode]
+            entirely_in: List[OctreeNode]
             List of nodes that are entirely within shape. Nodes may be internal nodes
 
-            partial_leaves: collections.deque[OctreeNode]
+            partial_leaves: List[OctreeNode]
             List of leaf nodes that are only partially within shape.
 
         Raises:
-            ValueError IndexError:
+            IndexError:
             When there are unexpected issues with the queue system.
         """
         if containment_test is None:
@@ -651,12 +648,13 @@ class Octree:
 
         # depth-first traversal
         # shouldn't be any difference in performance between breadth-first
-        # and depth-first, but this way the nodes will be returned in z-order
-        entire_nodes = deque()
-        partial_leaves = deque()
-        child_queue = deque(start_node.children)
+        # and depth-first (assuming serial), but this way the nodes will be
+        # returned in z-order
+        entire_nodes = []
+        partial_leaves = []
+        child_queue = start_node.children.copy()
         while len(child_queue):
-            node = child_queue.popleft()
+            node = child_queue.pop()
 
             # Test if node entirely contained in shape
             node_vertices = bbox.get_box_vertices(node.box)
@@ -670,9 +668,8 @@ class Octree:
                 elif node.is_leaf:
                     partial_leaves.append(node)
                 else:
-                    # deque extends by repeatedly pushing, which reverses the list
-                    # so to keep depth-first, we need to reverse input list
-                    child_queue.extendleft(reversed(node.children))
+                    # need to reverse input for depth-first search
+                    child_queue.extend(reversed(node.children))
                 continue
 
             # Also need to check closest point. Should take care of overlapping
@@ -682,13 +679,13 @@ class Octree:
                 if node.is_leaf:
                     partial_leaves.append(node)
                 else:
-                    child_queue.extendleft(reversed(node.children))
+                    child_queue.extend(reversed(node.children))
 
         return entire_nodes, partial_leaves
 
     def _get_nodes_in_sphere(
         self, *, center: ArrayLike[float], radius: float
-    ) -> tuple[deque[OctreeNode], deque[OctreeNode]]:
+    ) -> tuple[List[OctreeNode], List[OctreeNode]]:
         """
         Return list of all nodes entirely inside sphere and all nodes partially inside sphere
 
@@ -703,11 +700,15 @@ class Octree:
             Sphere radius
 
         Output:
-            entirely_in: collections.deque[OctreeNode]
+            entirely_in: List[OctreeNode]
             List of nodes that are entirely within shape. Nodes may be internal nodes
 
-            partial_leaves: collections.deque[OctreeNode]
+            partial_leaves: List[OctreeNode]
             List of leaf nodes that are only partially within shape.
+
+        Raises:
+            IndexError
+            When there are unexpected issues with the queue system.
         """
         # sphere bounding box
         bounding_box = np.array(
@@ -759,14 +760,18 @@ class Octree:
         entirely_in, partial_leaves = self._get_nodes_in_shape(
             bounding_box=bounding_box, containment_test=containment_test
         )
+        # reversed stack is a queue if you're not adding anything new and node
+        # lists should be much shorter than final particle index list
+        entirely_in.reversed()
+        partial_leaves.reversed()
 
-        indices = deque()
+        indices = []
         while entirely_in and partial_leaves:
             node, is_full = (
-                entirely_in.popleft(),
+                entirely_in.pop(),
                 True
                 if entirely_in[0].node_start < partial_leaves[0].node_start
-                else partial_leaves.popleft(),
+                else partial_leaves.pop(),
                 False,
             )
             node_indices = np.arange(node.node_start, node.node_end + 1)
@@ -778,7 +783,7 @@ class Octree:
                 mask = containment_test(positions)
                 indices.append(node_indices[mask])
 
-        # indices is now a deque of numpy index arrays. Stack'em
+        # indices is now a list of numpy index arrays. Stack'em
         # Note that all elements should be unique due to octree
         # construction
         indices = np.hstack(indices)
