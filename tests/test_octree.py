@@ -6,6 +6,12 @@ import numpy as np
 import pytest
 from hypothesis import assume, example, given, note, settings
 from hypothesis import strategies as st
+from hypothesis.stateful import (
+    RuleBasedStateMachine,
+    initialize,
+    precondition,
+    rule,
+)
 from numpy.typing import ArrayLike
 
 import packingcubes.bounding_box as bbox
@@ -358,12 +364,88 @@ def test_OctreeNode_invalid_ints(
         raise Exception(str(oerrinfo.value))
 
 
+def test_OctreeNode_empty_data(make_basic_data):
+    data = make_basic_data(0)
+
+    with pytest.raises(octree.OctreeError) as oerrinfo:
+        octree.OctreeNode(
+            data=data,
+            node_start=0,
+            node_end=len(data) - 1,
+            box=data.bounding_box,
+        )
+    assert "Empty dataset" in str(oerrinfo.value)
+
+
+@given(ct.data_with_duplicates())
+def test_OctreeNode_duplicate_data(data: Dataset):
+    with pytest.raises(octree.OctreeError) as oeinfo:
+        octree.OctreeNode(
+            data=data,
+        )
+    assert "minimum particle" in str(oeinfo.value) or "Bad data" in str(oeinfo.value)
+
+
+class OctreeNodeComparison(RuleBasedStateMachine):
+    def __init__(self):
+        super().__init__()
+        self.data = Dataset()
+
+
+# TestOctreeNode = OctreeNodeComparison.TestCase
+
+
 #############################
 #############################
 # Test Octree
 #############################
 #############################
-@pytest.mark.skip("Not implemented yet")
-def test_Octree(make_basic_data):
-    basic_data = make_basic_data()
-    root = octree.Octree(basic_data)
+class OctreeComparison(RuleBasedStateMachine):
+    def __init__(self):
+        super().__init__()
+        self.tree = None
+        self.current_node = None
+
+    @initialize(data=ct.basic_data_strategy(), pt=st.none() | st.integers(min_value=1))
+    def make_octree(self, data: Dataset, pt: int):
+        try:
+            self.tree = octree.Octree(data=data, particle_threshold=pt)
+        except octree.OctreeError as oerr:
+            if len(data) <= 10:
+                note(data.positions)
+            raise oerr
+        self.pt = pt
+        self.current_node = self.tree.root
+
+    @rule()
+    def validate_root_attributes(self):
+        root = self.tree.root
+        data = root.data
+        assert root.node_start == 0
+        assert root.node_end == len(data) - 1
+        assert np.all(root.box == data.bounding_box.astype(float))
+        assert root.tag == []
+        assert root.parent is None
+        assert root._particle_threshold == self.pt
+
+    @rule(child_index=st.integers(min_value=1, max_value=8))
+    @precondition(lambda oc: not oc.current_node.is_leaf)
+    def go_to_child(self, child_index: int):
+        self.current_node = self.current_node.children[child_index]
+
+    @rule()
+    @precondition(lambda oc: oc.current_node is not None)
+    def go_to_parent(self):
+        self.current_node = self.parent
+
+    @rule()
+    @precondition(lambda oc: oc.tree is not None)
+    def node_data_sorted(self):
+        node = self.current_node
+        positions = node.data.positions
+        box = node.box
+        mortons = octree.morton(positions=positions, box=box)
+        assert is_sorted(mortons)
+
+
+TestOctreeComparison = OctreeComparison.TestCase

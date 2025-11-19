@@ -1,5 +1,6 @@
 # File for fixtures that should be shared across the test files
 
+import copy
 import logging
 from collections import namedtuple
 
@@ -179,3 +180,39 @@ def basic_data_strategy(draw):
     )
 
     return ds
+
+
+@st.composite
+def data_with_duplicates(draw):
+    data = draw(basic_data_strategy())
+    # create list of data indices
+    # list must have len in [len(data)+1, inf)
+    # list elements are ints in [0, len(data))
+    data_indices = draw(
+        hypnp.arrays(
+            int,
+            st.integers(
+                min_value=len(data) + 1,
+                max_value=len(data) * 10,
+            ),
+            elements=st.integers(min_value=0, max_value=len(data) - 1),
+        )
+    )
+    dup_data = copy.copy(data)
+    Data = namedtuple(
+        "Data",
+        ["positions"],
+    )
+
+    dup_data._data = Data(
+        data.positions[data_indices],
+    )
+    return dup_data
+
+
+@st.composite
+def valid_data_strategy(draw):
+    data = draw(basic_data_strategy())
+
+    valid_data = data
+    return valid_data
