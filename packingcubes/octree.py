@@ -25,6 +25,10 @@ class Octants(IntEnum):
     RIGHTBACKTOP = 8
 
 
+class OctreeError(Exception):
+    pass
+
+
 # Convenience functions
 def _partition(data: Dataset, lo: int, hi: int, ax: int, pivot: float) -> int:
     """
