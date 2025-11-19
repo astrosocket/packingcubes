@@ -726,7 +726,7 @@ class Octree:
             bounding_box=bounding_box, containment_test=containment_test
         )
 
-    def get_particle_indices_in_shape(
+    def _get_particle_indices_in_shape(
         self,
         *,
         bounding_box: ArrayLike[float],
@@ -742,7 +742,7 @@ class Octree:
 
             containment_test: callable, optional
             Function to test if point(s) are inside shape. Should have the
-            signature
+            (vectorized) signature
             containment_test(point: ArrayLike[float]) -> ArrayLike[bool]
             Defaults to testing if point(s) are inside the provided bounding
             box
@@ -790,16 +790,40 @@ class Octree:
 
         return indices
 
-    def get_particles_indices_in_sphere(
-        self, *, center: ArrayLike[float], radius: float, strict: bool = False
-    ) -> ArrayLike[int]:
+    def get_particle_indices_in_box(
+        self, *, box: ArrayLike, strict: bool = False
+    ) -> ArrayLike:
+        """
+        Return all particles contained within the box
+
+        Inputs:
+            box: ArrayLike
+            Box to check
+
+            strict: bool, optional
+            Flag describing whether each particle in a partially overlapping
+            node should be tested for being inside the box. Setting to
+            False allows indices to include particles outside (but "nearby")
+            box. Defaults to False
+
+        Output:
+            indices: ArrayLike
+            Array of particle indices contained within sphere
+        """
+        bounding_box = box.copy()
+
+        return self._get_particle_indices_in_shape(
+            bounding_box=bounding_box, strict=strict
+        )
+
+    def get_particle_indices_in_sphere(
+        self, *, center: ArrayLike, radius: float, strict: bool = False
+    ) -> ArrayLike:
         """
         Return all particles contained within the sphere defined by center and radius
 
-        Convenience function for get_particle_indices_in_shape
-
         Inputs:
-            center: ArrayLike[float]
+            center: ArrayLike
             Center point of the sphere
 
             radius: float
@@ -807,9 +831,9 @@ class Octree:
 
             strict: bool, optional
             Flag describing whether each particle in a partially overlapping
-            node should undergo containment_test (strict=True). Setting to
+            node should be tested for sphere containment. Setting to
             False allows indices to include particles outside (but "nearby")
-            shape. Defaults to False
+            sphere. Defaults to False
 
         Output:
             indices: ArrayLike
