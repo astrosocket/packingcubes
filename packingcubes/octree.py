@@ -281,6 +281,8 @@ def morton(positions: ArrayLike, box: ArrayLike) -> ArrayLike[int]:
     return morton
 
 
+
+
 # This will be an in-place octree, so each node has a
 # view of the backing array, indices to the start of
 # each subnode/leaf, box size, and node start/end
@@ -294,31 +296,6 @@ class OctreeNode:
     creation contains a recursive node creation call). Each node forms the root
     of its own octree and can have children that are either a
 
-    Inputs:
-        data: Dataset
-        The backing Dataset for the octree
-
-        node_start, node_end: int, optional
-        The start and end data indices for this node. Defaults to 0 and
-        len(data)
-
-        box: ArrayLike, optional
-        Bounding box of the form [x, y, z, dx, dy, dz] where (x, y, z) is the
-        left-front-bottom corner. All particles are assumed to lie inside.
-        Defaults to [0, 0, 0, 1, 1, 1]
-
-        tag: List[int], optional
-        List of 1-based z-order indices describing the current box.
-        E.g. if assuming the default bounding box, the box
-        [0.25, 0.25, 0.75, 0.25, 0.25, 0.25] would be [5,1]
-
-        parent: None | OctreeNode, optional
-        Parent node of this node. None (default) if root of the entire tree.
-
-        particle_threshold: int, optional
-        Configuration parameter for how many particles will be contained in a
-        leaf before splitting into subtrees. Note that currently particle
-        sorting stops at this level, i.e. leaves are unsorted. Default 1.
     """
 
     data: Dataset
@@ -343,6 +320,33 @@ class OctreeNode:
         parent: None | OctreeNode = None,
         particle_threshold=1,
     ) -> None:
+        """
+        Inputs:
+            data: Dataset
+            The backing Dataset for the octree
+
+            node_start, node_end: int, optional
+            The start and end data indices for this node. Defaults to 0 and
+            len(data)
+
+            box: ArrayLike, optional
+            Bounding box of the form [x, y, z, dx, dy, dz] where (x, y, z) is the
+            left-front-bottom corner. All particles are assumed to lie inside.
+            Defaults to [0, 0, 0, 1, 1, 1]
+
+            tag: List[int], optional
+            List of 1-based z-order indices describing the current box.
+            E.g. if assuming the default bounding box, the box
+            [0.25, 0.25, 0.75, 0.25, 0.25, 0.25] would be [5,1]
+
+            parent: None | OctreeNode, optional
+            Parent node of this node. None (default) if root of the entire tree.
+
+            particle_threshold: int, optional
+            Configuration parameter for how many particles will be contained in a
+            leaf before splitting into subtrees. Note that currently particle
+            sorting stops at this level, i.e. leaves are unsorted. Default 1.
+        """
         particle_threshold = int(particle_threshold)
         if particle_threshold <= 0:
             raise OctreeError("particle_threshold must be positive!")
@@ -632,6 +636,10 @@ class Octree:
 
             partial_leaves: collections.deque[OctreeNode]
             List of leaf nodes that are only partially within shape.
+
+        Raises:
+            ValueError IndexError:
+            When there are unexpected issues with the queue system.
         """
         if containment_test is None:
             containment_test = partial(bbox.in_box, box=bounding_box)
@@ -648,29 +656,15 @@ class Octree:
         partial_leaves = deque()
         child_queue = deque(start_node.children)
         while len(child_queue):
-            try:
-                # IndexError should be caught by the len(child_queue) test
-                # but just in case...
-                node = child_queue.popleft()
-            except IndexError:
-                # empty queue
-                break
+            node = child_queue.popleft()
 
             # Test if node entirely contained in shape
             node_vertices = bbox.get_box_vertices(node.box)
             raise NotImplementedError("Need to exclude nodes that are entirely outside")
-            # We currently short-circuit if at least one node is inside and
-            # one outside
-            vertices_enclosed = 0
-            for v in node_vertices:
-                if containment_test(v):
-                    vertices_enclosed += 1
-                elif vertices_enclosed:
-                    break
+
+            vertices_enclosed = sum(containment_test(node_vertices))
 
             if vertices_enclosed:
-                # overlap by box vertex
-                # use len(node_vertices) instead of 8 to handle other solids
                 if vertices_enclosed == len(node_vertices):
                     entire_nodes.append(node)
                 elif node.is_leaf:
