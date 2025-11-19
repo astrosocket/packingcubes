@@ -41,8 +41,6 @@ def _partition(data: Dataset, lo: int, hi: int, ax: int, pivot: float) -> int:
     """
     if lo < 0:
         raise ValueError(f"Low index out of bounds {lo=}")
-    if len(data) <= hi:
-        raise ValueError(f"High index out of bounds {hi=}")
     if lo > hi:
         # nothing to do
         return lo
@@ -50,6 +48,9 @@ def _partition(data: Dataset, lo: int, hi: int, ax: int, pivot: float) -> int:
         # return early to avoid unnecessary swap
         # ternary to avoid data cast
         return lo + (1 if data.positions[lo, ax] < pivot else 0)
+    if len(data) <= hi:
+        # OOB upper index only an issue if we're actually going to use it
+        raise ValueError(f"High index out of bounds {hi=}")
     r = hi  # right edge (constant)
     while lo < hi:
         # pivot is not guaranteed to be in data
