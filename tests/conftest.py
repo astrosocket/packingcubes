@@ -167,6 +167,7 @@ def basic_data_strategy(draw):
     box[3:] = extremes[1, :] - extremes[0, :]
     assume(np.all(box[3:] > 0))
     ds.box = box
+    ds.MIN_PARTICLE_SPACING = np.min(box[3:]) / 1e10
 
     Data = namedtuple(
         "Data",
