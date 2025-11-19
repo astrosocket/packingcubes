@@ -17,17 +17,17 @@ LOGGER = logging.getLogger(__name__)
 #############################
 @given(ct.invalid_boxes())
 def test_make_valid_invalid_boxes(box):
-    with pytest.raises(bbox.BoundingBoxError) as bberr:
+    with pytest.raises(bbox.BoundingBoxError) as bberrinfo:
         bbox._make_valid(box)
     box = np.atleast_1d(np.squeeze(np.asanyarray(box)))
     if len(box) != 6 or box.shape != (6,):
-        assert "wrong dimensions" in str(bberr.value)
+        assert "wrong dimensions" in str(bberrinfo.value)
     elif np.any(box[3:] <= 0):
-        assert "invalid size" in str(bberr.value)
+        assert "invalid size" in str(bberrinfo.value)
     elif not np.all(np.isfinite(box)):
-        assert "not finite" in str(bberr.value)
+        assert "not finite" in str(bberrinfo.value)
     else:
-        raise Exception(f"Unknown exception: {bberr}!")
+        raise Exception(f"Unknown exception: {bberrinfo}!")
 
 
 @given(ct.valid_boxes())
