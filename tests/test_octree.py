@@ -1,4 +1,5 @@
 import logging
+from typing import List
 
 import conftest as ct
 import numpy as np
@@ -318,10 +319,43 @@ def test_morton(positions: ArrayLike, box: ArrayLike):
 # Test OctreeNode
 #############################
 #############################
-# Since _construct is used in the constructor, we won't test it separately
-@pytest.mark.skip(reason="Not implemented yet")
-def test_OctreeNode(make_basic_data):
-    pass
+@given(
+    data=ct.basic_data_strategy(),
+    node_start=st.integers(),
+    node_end=st.integers(),
+    box=ct.valid_boxes(),
+    tag=st.lists(st.sampled_from(octree.Octants)),
+    parent=st.none(),
+    particle_threshold=st.integers(),
+)
+def test_OctreeNode_invalid_ints(
+    data: Dataset,
+    node_start: int,
+    node_end: int,
+    box: ArrayLike,
+    tag: List[octree.Octants],
+    parent: None | octree.OctreeNode,
+    particle_threshold: int,
+):
+    assume(particle_threshold < 1 or node_start < 0 or node_end > len(data) - 1)
+    with pytest.raises(octree.OctreeError) as oerrinfo:
+        octree.OctreeNode(
+            data=data,
+            node_start=node_start,
+            node_end=node_end,
+            box=box,
+            tag=tag,
+            parent=parent,
+            particle_threshold=particle_threshold,
+        )
+    if particle_threshold < 1:
+        assert "particle_threshold" in str(oerrinfo.value)
+    elif node_start < 0:
+        assert "Invalid start" in str(oerrinfo.value)
+    elif node_end > len(data) - 1:
+        assert "Invalid end" in str(oerrinfo.value)
+    else:
+        raise Exception(str(oerrinfo.value))
 
 
 #############################

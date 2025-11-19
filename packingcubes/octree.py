@@ -311,7 +311,7 @@ class OctreeNode:
         parent: None | OctreeNode, optional
         Parent node of this node. None (default) if root of the entire tree.
 
-        _particle_threshold: int, optional
+        particle_threshold: int, optional
         Configuration parameter for how many particles will be contained in a
         leaf before splitting into subtrees. Note that currently particle
         sorting stops at this level, i.e. leaves are unsorted. Default 1.
@@ -332,21 +332,35 @@ class OctreeNode:
         self,
         *,
         data: Dataset,
-        node_start: int = 0,
+        node_start: int = None,
         node_end: int = None,
-        box: ArrayLike = np.array([0, 0, 0, 1, 1, 1], dtype=float),
+        box: ArrayLike = None,
         tag: List[Octants] = None,
         parent: None | OctreeNode = None,
-        _particle_threshold=1,
+        particle_threshold=1,
     ) -> None:
+        particle_threshold = int(particle_threshold)
+        if particle_threshold <= 0:
+            raise OctreeError("particle_threshold must be positive!")
+
         self.data = data
-        self.node_start = node_start
-        self.node_end = len(data) - 1 if node_end is None else node_end
+        if node_start is None:
+            self.node_start = 0
+        elif node_start < 0:
+            raise OctreeError(f"Invalid start index: {node_start}")
+        else:
+            self.node_start = node_start
+        if node_end is None:
+            self.node_end = len(data) - 1
+        elif node_end > len(data) - 1:
+            raise OctreeError(f"Invalid end index: {node_end}")
+        else:
+            self.node_end = node_end
         self.children = []
-        self.box = box.astype(float)
-        self.tag = [] if tag is None else tag
+        self.box = box.astype(float) if box is not None else data.bounding_box
+        self.tag = tag if tag is not None else []
         self.parent = parent
-        self._particle_threshold = _particle_threshold
+        self._particle_threshold = particle_threshold
 
         # begin recursion
         self._construct()
@@ -368,17 +382,21 @@ class OctreeNode:
         # Note also child_list[0] is the offset to child[1]
         # child[0] starts at node_start and ends at
         # node_start+child_list[0] -> child_list only
-        # Note also that there are currently no checks to
-        # ensure that everything is not just being dumped
-        # into one child, causing infinite recursion
         children = []
         for i in range(8):
             child1 = child_list[i - 1] if i > 0 else self.node_start
             child2 = child_list[i] if i < 7 else self.node_end
             # recursing on child i not i-1!
             child_box = _get_child_box(self.box, i)
+            if np.any(child_box[3:] < self.data.MIN_PARTICLE_SPACING):
+                raise OctreeError(
+                    f"Requested child node is smaller than minimum particle "
+                    f"spacing: ({child_box[3:]} < "
+                    f"{self.data.MIN_PARTICLE_SPACING})"
+                )
             LOGGER.debug(
-                f"Making child box{i + 1} for {child2}-{child1}={child2 - child1} particles in box {child_box}"
+                f"Making child box{i + 1} for {child2}-{child1}"
+                f"={child2 - child1} particles in box {child_box}"
             )
             node = OctreeNode(
                 data=self.data,
@@ -391,7 +409,7 @@ class OctreeNode:
             children.append(node)
         # Only add children if current node is above threshold
         if len(self) > self._particle_threshold:
-            self.children.append(node)
+            self.children = children
 
     def __repr__(self):
         return (
@@ -405,6 +423,13 @@ class OctreeNode:
         Return number of particles held by this node
         """
         return self.node_end - self.node_start + 1
+
+    @property
+    def is_leaf(self) -> bool:
+        """
+        Return whether this node is a leaf
+        """
+        return bool(len(self.children))
 
     @property
     def slice(self):
