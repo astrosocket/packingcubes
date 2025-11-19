@@ -165,7 +165,7 @@ def basic_data_strategy(draw):
     box = np.zeros(6)
     box[:3] = extremes[0, :]
     box[3:] = extremes[1, :] - extremes[0, :]
-    assume(np.all(box[3:] > 0))
+    assume(np.all(box[3:] > box[:3] / 1e10))
     ds.box = box
     ds.MIN_PARTICLE_SPACING = np.min(box[3:]) / 1e10
 
