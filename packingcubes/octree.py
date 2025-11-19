@@ -184,7 +184,7 @@ def _box_neighbors_in_node(
     box_ind: int,
 ) -> ArrayLike[Octants]:
     """
-    Return the neighbor boxes that are in the same node. Assuming 0-based indexing
+    Return the neighbor Octants that are in the same node.
     """
     # TODO: look into a case/control-flow free formula
     match box_ind:

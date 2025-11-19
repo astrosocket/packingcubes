@@ -232,6 +232,12 @@ def test_get_child_box_valid(box: ArrayLike):
 #############################
 # Test _box_neighbors_in_node
 #############################
+@given(st.integers().filter(lambda i: i < 1 or i > 8))
+def test_box_neighbors_in_node_invalid(ind: int):
+    with pytest.raises(ValueError):
+        octree._box_neighbors_in_node(ind)
+
+
 @pytest.mark.skip(reason="Not implemented yet")
 def test_box_neighbors_in_node():
     pass
