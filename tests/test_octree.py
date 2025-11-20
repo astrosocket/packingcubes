@@ -385,11 +385,14 @@ def test_OctreeNode_empty_data(make_basic_data):
 
 @given(ct.data_with_duplicates())
 def test_OctreeNode_duplicate_data(data: Dataset):
-    with pytest.raises(octree.OctreeError) as oeinfo:
+    with pytest.warns(octree.OctreeWarning) as owinfo:
+        # need to explicitly set the particle threshold since
+        # data_with_duplicates is only guaranteed to produce 1 duplicate
         octree.OctreeNode(
             data=data,
+            particle_threshold=1,
         )
-    assert "minimum particle" in str(oeinfo.value) or "Bad data" in str(oeinfo.value)
+    assert "Bad data detected" in str(owinfo.value)
 
 
 class OctreeNodeComparison(RuleBasedStateMachine):

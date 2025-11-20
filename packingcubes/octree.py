@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import warnings
 from enum import IntEnum
 from functools import partial
 from typing import List
@@ -12,6 +13,7 @@ import packingcubes.bounding_box as bbox
 from packingcubes.data_objects import Dataset
 
 LOGGER = logging.getLogger(__name__)
+logging.captureWarnings(True)
 
 _DEFAULT_PARTICLE_THRESHOLD = 400
 
@@ -29,6 +31,10 @@ class Octants(IntEnum):
 
 
 class OctreeError(Exception):
+    pass
+
+
+class OctreeWarning(UserWarning):
     pass
 
 
@@ -294,20 +300,50 @@ class OctreeNode:
     Class holding the octree information in a recursive substructure. Note that
     the octree is currently fully initialized on creation of the root (node
     creation contains a recursive node creation call). Each node forms the root
-    of its own octree and can have children that are either a
+    of its own octree and has either 8 children or is a leaf node.
+
+    Attributes:
+        data: Dataset
+        The backing Dataset for the octree
+
+        node_start, node_end: int
+        The start and end data indices for this node. OctreeNodes have
+        node_end+1 - node_start particles
+
+        box: numpy.array
+        Bounding box of the form [x, y, z, dx, dy, dz] where (x, y, z) is the
+        left-front-bottom corner. All particles are assumed to lie inside.
+
+        tag: List[int]
+        List of 1-based z-order indices describing the current box.
+        E.g. if assuming the unit bounding box, the box
+        [0.25, 0.25, 0.75, 0.25, 0.25, 0.25] would be [5,1]
+
+        children: List[OctreeNode]
+        List of this node's children. Empty if leaf node
+
+        parent: None | OctreeNode
+        Parent node of this node. None if root of the entire tree.
 
     """
 
     data: Dataset
+    """ Reference to backing dataset of this OctreeNode """
     node_start: int
+    """ Starting index in data of this OctreeNode """
     node_end: int
+    """ Ending index in data of this OctreeNode. OctreeNodes have node_end+1 - node_start particles """
     box: ArrayLike  # [x,y,z,dx,dy,dz]
+    """ (6, ) array defined as [x, y, z, dx, dy, dz] where (x,y,z) is the left-front-bottom corner """
     # empty for root node, otherwise list of morton indices s.t. [7,2,1] is the
     # tag for the left-front-bottom subnode of the left-back-bottom subnode of
     # right-front-top subnode of the root
     tag: List[Octants]
+    """ List of morton indices describing the location of this OctreeNode in the overall tree """
     children: List[OctreeNode]
+    """ List of OctreeNode children. Empty if leaf node """
     parent: None | OctreeNode
+    """ Reference to parent node or None if root """
 
     def __init__(
         self,
@@ -327,17 +363,18 @@ class OctreeNode:
 
             node_start, node_end: int, optional
             The start and end data indices for this node. Defaults to 0 and
-            len(data)
+            len(data)-1
 
             box: ArrayLike, optional
             Bounding box of the form [x, y, z, dx, dy, dz] where (x, y, z) is the
             left-front-bottom corner. All particles are assumed to lie inside.
-            Defaults to [0, 0, 0, 1, 1, 1]
+            Defaults to data.bounding_box
 
             tag: List[int], optional
             List of 1-based z-order indices describing the current box.
-            E.g. if assuming the default bounding box, the box
-            [0.25, 0.25, 0.75, 0.25, 0.25, 0.25] would be [5,1]
+            E.g. if assuming the unit bounding box, the box
+            [0.25, 0.25, 0.75, 0.25, 0.25, 0.25] would be [5,1]. Defaults to
+            the empty list
 
             parent: None | OctreeNode, optional
             Parent node of this node. None (default) if root of the entire tree.
@@ -345,11 +382,12 @@ class OctreeNode:
             particle_threshold: int, optional
             Configuration parameter for how many particles will be contained in a
             leaf before splitting into subtrees. Note that currently particle
-            sorting stops at this level, i.e. leaves are unsorted. Default 1.
+            sorting stops at this level. Default 1.
         """
         particle_threshold = int(particle_threshold)
         if particle_threshold <= 0:
             raise OctreeError("particle_threshold must be positive!")
+        self._particle_threshold = particle_threshold
 
         if not len(data):
             raise OctreeError("Empty dataset provided")
@@ -368,10 +406,10 @@ class OctreeNode:
         else:
             self.node_end = node_end
         self.children = []
-        self.box = box.astype(float) if box is not None else data.bounding_box
+        self.box = box if box is not None else data.bounding_box
+        self.box = bbox._make_valid(self.box)
         self.tag = tag if tag is not None else []
         self.parent = parent
-        self._particle_threshold = particle_threshold
 
         # begin recursion
         self._construct()
@@ -386,6 +424,12 @@ class OctreeNode:
         child_list = _partition_data(
             self.data, self.box, self.node_start, self.node_end
         )
+
+        # Only add children if current node is above threshold and we haven't
+        # hit recursion limit
+        if len(self) > self._particle_threshold and len(self.tag) < 51:
+            return
+
         # Loop through children sections. If any section has more than
         # _particle_threshold child, recurse.
         # Note this step could be easily converted into a while loop with a
@@ -393,22 +437,20 @@ class OctreeNode:
         # Note also child_list[0] is the offset to child[1]
         # child[0] starts at node_start and ends at
         # node_start+child_list[0] -> child_list only
-        children = []
         for i in range(8):
             child1 = child_list[i - 1] if i > 0 else self.node_start
             child2 = child_list[i] if i < 7 else self.node_end
             # recursing on child i not i-1!
             child_box = _get_child_box(self.box, i)
-            if np.any(child_box[3:] < self.data.MIN_PARTICLE_SPACING):
-                raise OctreeError(
-                    f"Requested child node is smaller than minimum particle "
-                    f"spacing: ({child_box[3:]} < "
-                    f"{self.data.MIN_PARTICLE_SPACING})"
-                )
-            if len(self.tag) + 1 > 24:
-                raise OctreeError(
-                    "Bad data detected. We're already at a depth of 24 "
-                    "and continuing to drop..."
+            # Warn about recursion limit. We hit floating point problems at
+            # ~2e-16 = 2**-52, so we should stop at 51
+            if len(self.tag) > 50:
+                warnings.warn(
+                    "Bad data detected. We're already at a depth of 50 "
+                    "and continuing to drop. We will stop tree construction "
+                    "here to avoid loss of precision",
+                    OctreeWarning,
+                    50,
                 )
             LOGGER.debug(
                 f"Making child box{i + 1} for {child2}-{child1}"
@@ -422,10 +464,7 @@ class OctreeNode:
                 tag=self.tag + [Octants(i + 1)],  # e.g. i=1 corresponds to subtree 3
                 parent=self,
             )
-            children.append(node)
-        # Only add children if current node is above threshold
-        if len(self) > self._particle_threshold:
-            self.children = children
+            self.children.append(node)
 
     def __repr__(self):
         return (
