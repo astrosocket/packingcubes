@@ -18,11 +18,15 @@ def _make_valid(box: ArrayLike):
         raise BoundingBoxError(
             f"Provided box has wrong dimensions: {box.shape} should be (6,)!"
         )
+    if not np.all(np.isfinite(box)):
+        raise BoundingBoxError(f"Provided box is not finite: {box}")
     if np.any(box[3:] <= 0):
         raise BoundingBoxError(f"Provided box has invalid size: ({box[3:]})")
-    if np.all(np.isfinite(box)):
-        return box
-    raise BoundingBoxError(f"Provided box is not finite: {box}")
+    if np.any(box[3:] < box[:3] * np.finfo(float).eps):
+        raise BoundingBoxError(
+            f"Provided box is too small, precision will be lost ({box})"
+        )
+    return box
 
 
 def in_box(box: ArrayLike, xyz: ArrayLike) -> np.ndarray:

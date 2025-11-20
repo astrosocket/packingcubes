@@ -95,11 +95,11 @@ def invalid_boxes_correct_shape(draw):
         nan_inf_errors = draw(
             st.lists(st.integers(min_value=0, max_value=2), min_size=6, max_size=6)
         )
-        neg_zero_errors = np.array(
-            draw(st.lists(st.sampled_from([0, 3, 4]), min_size=6, max_size=6))
+        neg_zero_small_errors = np.array(
+            draw(st.lists(st.sampled_from([0, 3, 4, 5]), min_size=6, max_size=6))
         )
-        neg_zero_errors[:3] = 0
-        return np.maximum(nan_inf_errors, neg_zero_errors)
+        neg_zero_small_errors[:3] = 0
+        return np.maximum(nan_inf_errors, neg_zero_small_errors)
 
     errors = draw(error_list().filter(lambda list_: sum(list_) > 0))
     for i, error in enumerate(errors):
@@ -112,6 +112,9 @@ def invalid_boxes_correct_shape(draw):
                 box[i] = -box[i]
             case 4:
                 box[i] = 0
+            case 5:
+                # only in dx portion
+                box[i] = box[i - 3] * np.finfo(float).eps / 4
     return box
 
 
