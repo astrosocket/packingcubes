@@ -22,10 +22,12 @@ def test_make_valid_invalid_boxes(box):
     box = np.atleast_1d(np.squeeze(np.asanyarray(box)))
     if len(box) != 6 or box.shape != (6,):
         assert "wrong dimensions" in str(bberrinfo.value)
-    elif np.any(box[3:] <= 0):
-        assert "invalid size" in str(bberrinfo.value)
     elif not np.all(np.isfinite(box)):
         assert "not finite" in str(bberrinfo.value)
+    elif np.any(box[3:] <= 0):
+        assert "invalid size" in str(bberrinfo.value)
+    elif np.any(box[3:] <= box[:3] * np.finfo(float).eps):
+        assert "precision" in str(bberrinfo.value)
     else:
         raise Exception(f"Unknown exception: {bberrinfo}!")
 

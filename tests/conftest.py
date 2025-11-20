@@ -1,5 +1,6 @@
 # File for fixtures that should be shared across the test files
 
+import copy
 import logging
 from collections import namedtuple
 
@@ -94,11 +95,11 @@ def invalid_boxes_correct_shape(draw):
         nan_inf_errors = draw(
             st.lists(st.integers(min_value=0, max_value=2), min_size=6, max_size=6)
         )
-        neg_zero_errors = np.array(
-            draw(st.lists(st.sampled_from([0, 3, 4]), min_size=6, max_size=6))
+        neg_zero_small_errors = np.array(
+            draw(st.lists(st.sampled_from([0, 3, 4, 5]), min_size=6, max_size=6))
         )
-        neg_zero_errors[:3] = 0
-        return np.maximum(nan_inf_errors, neg_zero_errors)
+        neg_zero_small_errors[:3] = 0
+        return np.maximum(nan_inf_errors, neg_zero_small_errors)
 
     errors = draw(error_list().filter(lambda list_: sum(list_) > 0))
     for i, error in enumerate(errors):
@@ -111,6 +112,9 @@ def invalid_boxes_correct_shape(draw):
                 box[i] = -box[i]
             case 4:
                 box[i] = 0
+            case 5:
+                # only in dx portion
+                box[i] = box[i - 3] * np.finfo(float).eps / 4
     return box
 
 
@@ -179,3 +183,40 @@ def basic_data_strategy(draw):
     )
 
     return ds
+
+
+@st.composite
+def data_with_duplicates(draw):
+    data = draw(basic_data_strategy())
+    # create list of data indices
+    # list must have len in [len(data)+1, inf) -> this guarantees duplicates
+    # by the pigeonhole principle
+    # list elements are ints in [0, len(data))
+    data_indices = draw(
+        hypnp.arrays(
+            int,
+            st.integers(
+                min_value=len(data) + 1,
+                max_value=len(data) * 10,
+            ),
+            elements=st.integers(min_value=0, max_value=len(data) - 1),
+        )
+    )
+    dup_data = copy.copy(data)
+    Data = namedtuple(
+        "Data",
+        ["positions"],
+    )
+
+    dup_data._data = Data(
+        data.positions[data_indices],
+    )
+    return dup_data
+
+
+@st.composite
+def valid_data_strategy(draw):
+    data = draw(basic_data_strategy())
+
+    valid_data = data
+    return valid_data
