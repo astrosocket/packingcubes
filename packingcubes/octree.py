@@ -159,7 +159,7 @@ def _partition_data(
 
 def _get_child_box(box: ArrayLike, ind: int) -> ArrayLike:
     """
-    Get indth new child box of current box
+    Get indth (0-indexed) new child box of current box
 
     New child box is defined as the suboctant described by position ind
     with size (box[3]/2, box[4]/2, box[5]/2)
@@ -170,16 +170,19 @@ def _get_child_box(box: ArrayLike, ind: int) -> ArrayLike:
     # for a possible "Hilbert" curve that may be better?
     # Raising errors for invalid boxes coming from data
     box = bbox._make_valid(box)
-    # using assert because octree members know better
-    assert isinstance(ind, int) and 0 <= ind and ind < 8, (
-        f"Octree code passed an invalid index: {ind}!"
-    )
+
+    if not isinstance(ind, int) or ind < 0 or 7 < ind:
+        raise ValueError(f"Octree code passed an invalid index: {ind}!")
+
     child_box = box.copy()
     child_box[3:] /= 2.0
     x, y, z = ((ind & 1) / 1, (ind & 2) / 2, (ind & 4) / 4)
     child_box[0] = child_box[0] + child_box[3] * x
     child_box[1] = child_box[1] + child_box[4] * y
     child_box[2] = child_box[2] + child_box[5] * z
+
+    # check for any new problems (basically loss of precision)
+    child_box = bbox._make_valid(child_box)
     return child_box
 
 

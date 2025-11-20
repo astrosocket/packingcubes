@@ -189,7 +189,8 @@ def basic_data_strategy(draw):
 def data_with_duplicates(draw):
     data = draw(basic_data_strategy())
     # create list of data indices
-    # list must have len in [len(data)+1, inf)
+    # list must have len in [len(data)+1, inf) -> this guarantees duplicates
+    # by the pigeonhole principle
     # list elements are ints in [0, len(data))
     data_indices = draw(
         hypnp.arrays(

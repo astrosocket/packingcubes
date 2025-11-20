@@ -214,6 +214,12 @@ def test_get_child_box_invalid_box(box: ArrayLike):
         octree._get_child_box(box, 0)
 
 
+@given(ct.valid_boxes(), st.integers().filter(lambda i: i < 0 or i > 7) | st.floats())
+def test_get_child_box_invalid_index(box: ArrayLike, index: int | float):
+    with pytest.raises(ValueError):
+        octree._get_child_box(box, index)
+
+
 @given(ct.valid_boxes())
 def test_get_child_box_valid(box: ArrayLike):
     # box should be of the form [x, y, z, dx, dy, dz]
