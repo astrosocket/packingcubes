@@ -13,23 +13,75 @@ LOGGER = logging.getLogger(__name__)
 
 
 #############################
+# Test check_valid
+#############################
+@given(st.none() | st.text() | ct.invalid_boxes())
+def test_check_valid_invalid_boxes(box):
+    validation_code = bbox.check_valid(box, raise_error=False)
+    with pytest.raises(bbox.BoundingBoxError) as bberrinfo:
+        bbox.check_valid(box)
+
+    note(f"{validation_code=}")
+    lower_info = str(bberrinfo.value).lower()
+
+    note(f"{lower_info=}")
+
+    if not isinstance(box, np.ndarray):
+        assert "not a box" in str(bberrinfo)
+        assert bbox.BoundingBoxValidFlag.IS_BOX not in validation_code
+        return  # don't check anything else
+
+    box = np.atleast_1d(np.squeeze(np.asanyarray(box)))
+    if len(box) != 6 or box.shape != (6,):
+        assert bbox.BoundingBoxValidFlag.CORRECT_SHAPE not in validation_code
+        assert "wrong shape" in lower_info
+    else:
+        if not np.all(np.isfinite(box)):
+            assert bbox.BoundingBoxValidFlag.FINITE not in validation_code
+            assert "inf/nan" in lower_info
+        if np.any(box[3:] <= 0):
+            assert bbox.BoundingBoxValidFlag.POSITIVE not in validation_code
+            assert "invalid size" in lower_info
+        if np.all(np.isfinite(box)) & np.any(
+            (box[3:] > 0) & (np.abs(box[3:]) <= np.abs(box[:3] * np.finfo(float).eps))
+        ):
+            assert bbox.BoundingBoxValidFlag.PRECISION not in validation_code
+            assert "precision" in lower_info
+    # The following is a regression test...
+    if "Something is very wrong" in lower_info:
+        pytest.fail(f"Unknown exception: {str(bberrinfo.value)}!")
+
+
+@given(ct.valid_boxes())
+def test_check_valid_valid_box(box: ArrayLike):
+    # Note this also checks our valid box generator...
+
+    # should not raise an error
+    validation_code_w_error = bbox.check_valid(box, raise_error=True)
+    validation_code2_no_error = bbox.check_valid(box, raise_error=False)
+
+    # check box is actually valid
+    assert isinstance(box, np.ndarray)
+    assert box.shape == (6,)
+    assert np.all(np.isfinite(box))
+    # this handles both negative sizes and precision
+    assert np.all(box[3:] > np.abs(box[:3] * np.finfo(float).eps))
+
+    # check output
+    assert (
+        validation_code_w_error == validation_code2_no_error
+        and validation_code_w_error == bbox.BoundingBoxValidFlag.VALID
+    )
+
+
+#############################
 # Test _make_valid
 #############################
 @given(ct.invalid_boxes())
 def test_make_valid_invalid_boxes(box):
-    with pytest.raises(bbox.BoundingBoxError) as bberrinfo:
+    with pytest.raises(bbox.BoundingBoxError):
         bbox._make_valid(box)
-    box = np.atleast_1d(np.squeeze(np.asanyarray(box)))
-    if len(box) != 6 or box.shape != (6,):
-        assert "wrong dimensions" in str(bberrinfo.value)
-    elif not np.all(np.isfinite(box)):
-        assert "not finite" in str(bberrinfo.value)
-    elif np.any(box[3:] <= 0):
-        assert "invalid size" in str(bberrinfo.value)
-    elif np.any(box[3:] <= box[:3] * np.finfo(float).eps):
-        assert "precision" in str(bberrinfo.value)
-    else:
-        raise Exception(f"Unknown exception: {bberrinfo}!")
+    # error information already checked in test_check_valid
 
 
 @given(ct.valid_boxes())

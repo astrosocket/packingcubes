@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from enum import Flag, auto
 
 import numpy as np
 from numpy.typing import ArrayLike
@@ -8,24 +9,98 @@ from numpy.typing import ArrayLike
 LOGGER = logging.getLogger(__name__)
 
 
+class BoundingBoxValidFlag(Flag):
+    IS_BOX = auto(), lambda box: f"Box ({box}) is not a box!"
+    CORRECT_SHAPE = (
+        auto(),
+        lambda box: f"Box has wrong shape. Required (6,), received {box.shape}",
+    )
+    FINITE = auto(), lambda box: f"Box ({box}) has inf/NaN values"
+    POSITIVE = auto(), lambda box: f"Box has an invalid size: {box[3:]}"
+    PRECISION = (
+        auto(),
+        lambda box: f"Provided box is too small ({box}). Precision will be lost",
+    )
+    # TODO The following is hacky and I don't like it...
+    VALID = (
+        IS_BOX[0] | CORRECT_SHAPE[0] | FINITE[0] | POSITIVE[0] | PRECISION[0],
+        lambda box: "This box is valid",
+    )
+
+    def __new__(cls, value: int, message_fun: callable):
+        obj = object.__new__(cls)
+        obj._value_ = value
+        obj.message_fun = message_fun
+        return obj
+
+    def get_Messages(self, box: ArrayLike):
+        if self == 0:
+            # If this happens, hoo boy...
+            return [f"Something is very wrong with box: {box}"]
+        messages = []
+        for flag in BoundingBoxValidFlag:
+            if flag not in self:
+                messages.append(flag.message_fun(box))
+        return messages
+
+
 class BoundingBoxError(ValueError):
-    pass
+    def __init__(
+        self,
+        box: ArrayLike,
+        errortype: BoundingBoxValidFlag = BoundingBoxValidFlag.VALID,
+    ):
+        self.errortype = errortype
+        self.box = box
+        self.messages = self.errortype.get_Messages(self.box)
+        if len(self.messages):
+            self.messages = "Bounding Box errors: \n" + "\n".join(self.messages)
+        super().__init__(self.messages)
+
+
+def check_valid(box: np.ndarray, *, raise_error: bool = True):
+    """
+    Check if a bounding box is valid
+
+    Tests that a numpy array has the following attributes:
+        1. it has shape (6, )
+        2. it has finite values
+        3. Values 4-6 are positive
+        4. Values 4-6 are larger than the floating point precision of the 1-3
+            values (i.e. box[0] + box[3] > box[0])
+    """
+    flag = BoundingBoxValidFlag.VALID
+    if not isinstance(box, np.ndarray):
+        flag ^= BoundingBoxValidFlag.IS_BOX
+        if raise_error:
+            raise BoundingBoxError(box=box, errortype=flag)
+        else:
+            return flag
+    if len(box) != 6 or box.shape != (6,):
+        flag ^= BoundingBoxValidFlag.CORRECT_SHAPE
+    else:
+        if not np.all(np.isfinite(box)):
+            flag ^= BoundingBoxValidFlag.FINITE
+        if np.any(box[3:] <= 0):
+            flag ^= BoundingBoxValidFlag.POSITIVE
+        if np.any(
+            np.isfinite(box[:3])
+            & np.isfinite(box[3:])
+            & (box[3:] > 0)
+            & (box[3:] < (np.abs(box[:3]) + box[3:]) * np.finfo(float).eps)
+        ):
+            flag ^= BoundingBoxValidFlag.PRECISION
+    if raise_error and flag != BoundingBoxValidFlag.VALID:
+        raise BoundingBoxError(box=box, errortype=flag)
+    return flag
 
 
 def _make_valid(box: ArrayLike):
+    """
+    Coerce a box-like object into a box if possible
+    """
     box = np.atleast_1d(np.squeeze(np.asanyarray(box)))
-    if len(box) != 6 or box.shape != (6,):
-        raise BoundingBoxError(
-            f"Provided box has wrong dimensions: {box.shape} should be (6,)!"
-        )
-    if not np.all(np.isfinite(box)):
-        raise BoundingBoxError(f"Provided box is not finite: {box}")
-    if np.any(box[3:] <= 0):
-        raise BoundingBoxError(f"Provided box has invalid size: ({box[3:]})")
-    if np.any(box[3:] < box[:3] * np.finfo(float).eps):
-        raise BoundingBoxError(
-            f"Provided box is too small, precision will be lost ({box})"
-        )
+    check_valid(box, raise_error=True)
     return box
 
 
