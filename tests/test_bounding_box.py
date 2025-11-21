@@ -128,6 +128,31 @@ def test_midplane(box: ArrayLike):
 
 
 #############################
+# Test max_depth
+#############################
+@given(ct.valid_boxes())
+def test_max_depth_valid_box(box):
+    max_depth = bbox.max_depth(box)
+    note(f"{max_depth=}")
+
+    smallest_dx = 2.0 ** (-max_depth) * box[3:]
+    note(f"{smallest_dx=}")
+
+    # test at farthest corner from 0
+    farthest_corner = np.abs(box[:3]) + box[3:]
+    note(f"{farthest_corner=}")
+
+    np.testing.assert_array_less(farthest_corner, farthest_corner + smallest_dx)
+
+    eps = np.finfo(float).eps
+    assert np.any(
+        np.isclose(
+            farthest_corner, farthest_corner + smallest_dx / 2, atol=eps, rtol=eps
+        )
+    )
+
+
+#############################
 # Test normalize_to_box
 #############################
 @given(ct.valid_positions(), ct.valid_boxes())

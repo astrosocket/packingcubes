@@ -136,6 +136,20 @@ def midplane(box: ArrayLike) -> ArrayLike:
     return np.array([box[i] + box[i + 3] / 2 for i in range(3)])
 
 
+def max_depth(box: ArrayLike) -> int:
+    """
+    Get max depth supported by this box
+
+    Max depth is defined as the maximum number of times this box can be split
+    in half before x[i] + dx[i] == x[i].
+
+    Note: no validation is performed on the input box
+    """
+    min_box_sizes = np.maximum(1, np.abs(box[:3]) + box[3:]) * np.finfo(float).eps
+    max_depth = np.ceil(np.log2(np.min(box[3:] / min_box_sizes))).astype(int)
+    return max_depth
+
+
 def normalize_to_box(coordinates: ArrayLike, box: ArrayLike) -> ArrayLike:
     """
     Rescale and shift the coordinates such that they are bounded by the unit cube
