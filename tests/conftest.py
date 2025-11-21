@@ -127,17 +127,17 @@ def invalid_boxes(draw):
     return box
 
 
-def valid_positions():
+def valid_positions(max_particles=3e2):
     return hypnp.arrays(
         float,
-        st.tuples(st.integers(min_value=1, max_value=3e2), st.just(3)),
+        st.tuples(st.integers(min_value=1, max_value=max_particles), st.just(3)),
         elements=st.floats(min_value=-1e10, max_value=1e10),
     )
 
 
 @st.composite
-def invalid_positions(draw):
-    positions = draw(valid_positions())
+def invalid_positions(draw, max_particles=3e2):
+    positions = draw(valid_positions(max_particles=max_particles))
     # generate bad_inds as a array of flags corresponding to which indices are
     # bad., i.e. 3 = 1*2**0 + 1*2**1 + 0*2**2 = [1,1,0]
     bad_inds = draw(
@@ -162,16 +162,24 @@ def invalid_positions(draw):
 
 
 @st.composite
-def basic_data_strategy(draw):
+def basic_data_strategy(draw, max_particles=3e2):
     ds = Dataset(name="basic_strategy", filepath="")
-    positions = draw(valid_positions())
+    positions = draw(valid_positions(max_particles=max_particles))
     extremes = np.array([np.min(positions, axis=0), np.max(positions, axis=0)])
-    box = np.zeros(6)
-    box[:3] = extremes[0, :]
-    box[3:] = extremes[1, :] - extremes[0, :]
-    assume(np.all(box[3:] > box[:3] / 1e10))
-    ds.box = box
-    ds.MIN_PARTICLE_SPACING = np.min(box[3:]) / 1e10
+    if len(positions) == 0:
+        box = np.array([0, 0, 0, 1, 1, 1])
+    elif len(positions) == 1:
+        box = np.zeros(6)
+        box[:3] = positions
+        box[3:] = ((box[:3] == 0) + (box[:3] != 0) * np.abs(box[:3])) * np.finfo(
+            float
+        ).eps
+    else:
+        box = np.zeros(6)
+        box[:3] = extremes[0, :]
+        box[3:] = extremes[1, :] - extremes[0, :]
+    assume(np.all(box[3:] > np.abs(box[:3]) / 1e10))
+    ds._box = box
 
     Data = namedtuple(
         "Data",
@@ -186,8 +194,8 @@ def basic_data_strategy(draw):
 
 
 @st.composite
-def data_with_duplicates(draw):
-    data = draw(basic_data_strategy())
+def data_with_duplicates(draw, max_particles=15):
+    data = draw(basic_data_strategy(max_particles=max_particles))
     # create list of data indices
     # list must have len in [len(data)+1, inf) -> this guarantees duplicates
     # by the pigeonhole principle
