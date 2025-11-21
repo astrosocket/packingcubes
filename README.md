@@ -1,3 +1,5 @@
+[![Tested with Hypothesis](https://img.shields.io/badge/hypothesis-tested-brightgreen.svg)](https://hypothesis.readthedocs.io/)
+
 # packingcubes
 
 Compact oct-tree implementation used for Socket
