@@ -1,4 +1,5 @@
 import logging
+from collections import namedtuple
 from typing import List
 
 import conftest as ct
@@ -367,7 +368,7 @@ def test_OctreeNode_invalid_ints(
     elif node_end > len(data) - 1:
         assert "Invalid end" in str(oerrinfo.value)
     else:
-        raise Exception(str(oerrinfo.value))
+        pytest.fail(str(oerrinfo.value))
 
 
 def test_OctreeNode_empty_data(make_basic_data):
@@ -383,16 +384,66 @@ def test_OctreeNode_empty_data(make_basic_data):
     assert "Empty dataset" in str(oerrinfo.value)
 
 
-@given(ct.data_with_duplicates())
+def make_worst_case_duplicate() -> Dataset:
+    """
+    Worst case duplicate would be some sort of 3D Cantor dust-like fractal
+    structure but we don't have time to test that, so we'll just do the lop
+    layer -> 8 vertices of the unit cube that are duplicated
+    """
+    data = Dataset(filepath="")
+
+    positions = []
+    for i in range(2):
+        for j in range(2):
+            for k in range(2):
+                for _ in range(2):
+                    positions.append([i, j, k])
+    positions = np.array(positions, dtype=float)
+
+    data._box = np.array([0, 0, 0, 1, 1, 1], dtype=float)
+
+    Data = namedtuple(
+        "Data",
+        ["positions"],
+    )
+
+    data._data = Data(
+        positions,
+    )
+
+    return data
+
+
+@example(make_worst_case_duplicate())
+@given(data=ct.data_with_duplicates(max_particles=3))
+# This will cause the test to take a long time but is
+# required for make_worst_case_duplicate
+@settings(deadline=700, print_blob=True)
+@pytest.mark.filterwarnings("::packingcubes.octree.OctreeWarning::")
+@pytest.mark.filterwarnings("error")
 def test_OctreeNode_duplicate_data(data: Dataset):
-    with pytest.warns(octree.OctreeWarning) as owinfo:
-        # need to explicitly set the particle threshold since
-        # data_with_duplicates is only guaranteed to produce 1 duplicate
-        octree.OctreeNode(
-            data=data,
-            particle_threshold=1,
-        )
-    assert "Bad data detected" in str(owinfo.value)
+    note(f"{data.bounding_box=}")
+    note(f"{data.positions=}")
+    note(f"{bbox.max_depth(data.bounding_box)}")
+
+    # if all particles are identical, then the box shouldn't support splitting
+    # but we still want to test the recursion limit
+    if bbox.max_depth(data.bounding_box) < 1:
+        with pytest.raises(octree.OctreeError) as oeinfo:
+            node = octree.OctreeNode(data=data, particle_threshold=1)
+        assert "negative max depth" in str(oeinfo.value)
+    else:
+        with pytest.warns(octree.OctreeWarning, match=r"Bad data detected"):
+            # need to explicitly set the particle threshold since
+            # data_with_duplicates is only guaranteed to produce 1 duplicate
+            node = octree.OctreeNode(
+                data=data,
+                particle_threshold=1,
+            )
+            # if no warning was raised
+            note(f"{node=}")
+            for child in node.children:
+                note(f"{child}")
 
 
 class OctreeNodeComparison(RuleBasedStateMachine):
@@ -423,7 +474,7 @@ class OctreeComparison(RuleBasedStateMachine):
             if len(data) <= 10:
                 note(data.positions)
             raise oerr
-        self.pt = pt
+        self.pt = pt if pt is not None else octree._DEFAULT_PARTICLE_THRESHOLD
         self.current_node = self.tree.root
 
     @rule()
@@ -438,14 +489,18 @@ class OctreeComparison(RuleBasedStateMachine):
         assert root._particle_threshold == self.pt
 
     @rule(child_index=st.integers(min_value=1, max_value=8))
+    @precondition(lambda oc: oc.current_node is not None)
     @precondition(lambda oc: not oc.current_node.is_leaf)
     def go_to_child(self, child_index: int):
+        note(self.current_node)
+        note(f"{self.current_node.is_leaf}")
         self.current_node = self.current_node.children[child_index]
 
     @rule()
     @precondition(lambda oc: oc.current_node is not None)
+    @precondition(lambda oc: oc.current_node.parent is not None)
     def go_to_parent(self):
-        self.current_node = self.parent
+        self.current_node = self.current_node.parent
 
     @rule()
     @precondition(lambda oc: oc.tree is not None)

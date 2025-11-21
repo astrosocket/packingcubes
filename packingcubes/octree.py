@@ -355,6 +355,7 @@ class OctreeNode:
         tag: List[Octants] = None,
         parent: None | OctreeNode = None,
         particle_threshold=1,
+        max_depth=None,
     ) -> None:
         """
         Inputs:
@@ -411,6 +412,19 @@ class OctreeNode:
         self.tag = tag if tag is not None else []
         self.parent = parent
 
+        if self.parent is None:
+            # we are at the root, set max depth based on floating point
+            # precision
+            self._max_depth = bbox.max_depth(self.box) - 1
+            if len(self) == 1:
+                self._max_depth = 0
+        else:
+            self._max_depth = self.parent._max_depth - 1
+        if self._max_depth < 0:
+            raise OctreeError(
+                "Attempted to create an OctreeNode with negative max depth!"
+            )
+
         # begin recursion
         self._construct()
 
@@ -425,13 +439,27 @@ class OctreeNode:
             self.data, self.box, self.node_start, self.node_end
         )
 
-        # Only add children if current node is above threshold and we haven't
-        # hit recursion limit
-        if len(self) > self._particle_threshold and len(self.tag) < 51:
+        # Only look at children if current node has at least 2 particles and
+        # we haven't hit recursion limit. No reason to sort if 1 or fewer
+        # particles and recursion limit is so we don't hit floating point
+        # precision errors.
+        if len(self) <= 1 or self._max_depth < 1:
+            LOGGER.debug(
+                "Exiting on single particle"
+                if len(self) <= 1
+                else f"Exiting on recursion limit {len(self.tag)}"
+            )
+            if len(self) > 1:
+                warnings.warn(
+                    f"Bad data detected at a depth of {len(self.tag)}.\n"
+                    f"Box ({self.box}) does not support further splitting.\n"
+                    "We will stop tree construction here to avoid loss of "
+                    "precision",
+                    OctreeWarning,
+                )
             return
 
-        # Loop through children sections. If any section has more than
-        # _particle_threshold child, recurse.
+        # Loop through children sections and recurse.
         # Note this step could be easily converted into a while loop with a
         # stack of subsections instead of recursion
         # Note also child_list[0] is the offset to child[1]
@@ -439,19 +467,10 @@ class OctreeNode:
         # node_start+child_list[0] -> child_list only
         for i in range(8):
             child1 = child_list[i - 1] if i > 0 else self.node_start
-            child2 = child_list[i] if i < 7 else self.node_end
+            # need node_end + 1 because we have child2 - 1 below
+            child2 = child_list[i] if i < 7 else self.node_end + 1
             # recursing on child i not i-1!
             child_box = _get_child_box(self.box, i)
-            # Warn about recursion limit. We hit floating point problems at
-            # ~2e-16 = 2**-52, so we should stop at 51
-            if len(self.tag) > 50:
-                warnings.warn(
-                    "Bad data detected. We're already at a depth of 50 "
-                    "and continuing to drop. We will stop tree construction "
-                    "here to avoid loss of precision",
-                    OctreeWarning,
-                    50,
-                )
             LOGGER.debug(
                 f"Making child box{i + 1} for {child2}-{child1}"
                 f"={child2 - child1} particles in box {child_box}"
@@ -464,7 +483,9 @@ class OctreeNode:
                 tag=self.tag + [Octants(i + 1)],  # e.g. i=1 corresponds to subtree 3
                 parent=self,
             )
-            self.children.append(node)
+            # Only _keep_ children if above _particle_threshold
+            if len(self) > self._particle_threshold:
+                self.children.append(node)
 
     def __repr__(self):
         return (
@@ -477,14 +498,14 @@ class OctreeNode:
         """
         Return number of particles held by this node
         """
-        return self.node_end - self.node_start + 1
+        return np.maximum(self.node_end - self.node_start + 1, 0)
 
     @property
     def is_leaf(self) -> bool:
         """
         Return whether this node is a leaf
         """
-        return bool(len(self.children))
+        return not bool(len(self.children))
 
     @property
     def slice(self):
