@@ -206,7 +206,7 @@ def test_partition_data_sub_box(make_basic_data, child_ind: int):
 
 
 #############################
-# test _get_child_box
+# Test _get_child_box
 #############################
 @given(ct.invalid_boxes())
 def test_get_child_box_invalid_box(box: ArrayLike):

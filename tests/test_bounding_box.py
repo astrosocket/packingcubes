@@ -75,18 +75,18 @@ def test_check_valid_valid_box(box: ArrayLike):
 
 
 #############################
-# Test _make_valid
+# Test make_valid
 #############################
 @given(ct.invalid_boxes())
 def test_make_valid_invalid_boxes(box):
     with pytest.raises(bbox.BoundingBoxError):
-        bbox._make_valid(box)
+        bbox.make_valid(box)
     # error information already checked in test_check_valid
 
 
 @given(ct.valid_boxes())
 def test_make_valid_valid_boxes(box):
-    valid_box = bbox._make_valid(box)
+    valid_box = bbox.make_valid(box)
 
     assert np.all(valid_box == box)
 

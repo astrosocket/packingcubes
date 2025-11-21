@@ -175,7 +175,7 @@ def _get_child_box(box: ArrayLike, ind: int) -> ArrayLike:
     # https://math.stackexchange.com/questions/2411867/3d-hilbert-curve-without-double-length-edges
     # for a possible "Hilbert" curve that may be better?
     # Raising errors for invalid boxes coming from data
-    box = bbox._make_valid(box)
+    box = bbox.make_valid(box)
 
     if not isinstance(ind, int) or ind < 0 or 7 < ind:
         raise ValueError(f"Octree code passed an invalid index: {ind}!")
@@ -188,7 +188,7 @@ def _get_child_box(box: ArrayLike, ind: int) -> ArrayLike:
     child_box[2] = child_box[2] + child_box[5] * z
 
     # check for any new problems (basically loss of precision)
-    child_box = bbox._make_valid(child_box)
+    child_box = bbox.make_valid(child_box)
     return child_box
 
 
@@ -407,7 +407,7 @@ class OctreeNode:
             self.node_end = node_end
         self.children = []
         self.box = box if box is not None else data.bounding_box
-        self.box = bbox._make_valid(self.box)
+        self.box = bbox.make_valid(self.box)
         self.tag = tag if tag is not None else []
         self.parent = parent
 

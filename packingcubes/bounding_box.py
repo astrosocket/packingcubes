@@ -95,9 +95,24 @@ def check_valid(box: np.ndarray, *, raise_error: bool = True):
     return flag
 
 
-def _make_valid(box: ArrayLike):
+def make_valid(box: ArrayLike) -> np.ndarray:
     """
     Coerce a box-like object into a box if possible
+
+    Inputs:
+        box: ArrayLike
+        A six element array
+
+    Outputs:
+        box: numpy.ndarray
+        A numpy array with in the form [x, y, z, dx, dy, dz] with the following
+        conditions: finite, all |x[i]| * epsilon < dx[i]
+
+    Raises:
+        BoundingBoxError if coercing is not possible
+
+    See Also:
+        check_valid
     """
     box = np.atleast_1d(np.squeeze(np.asanyarray(box)))
     check_valid(box, raise_error=True)
@@ -108,7 +123,7 @@ def in_box(box: ArrayLike, xyz: ArrayLike) -> np.ndarray:
     """
     Check if point is inside box
     """
-    box = _make_valid(box)
+    box = make_valid(box)
     xyz = np.atleast_2d(xyz)
     return np.all((box[:3] <= xyz) & (xyz <= box[:3] + box[3:]), axis=1)
 
@@ -117,7 +132,7 @@ def midplane(box: ArrayLike) -> ArrayLike:
     """
     Return the 3 coordinates specifying the midplane of the box
     """
-    box = _make_valid(box)
+    box = make_valid(box)
     return np.array([box[i] + box[i + 3] / 2 for i in range(3)])
 
 
@@ -125,7 +140,7 @@ def normalize_to_box(coordinates: ArrayLike, box: ArrayLike) -> ArrayLike:
     """
     Rescale and shift the coordinates such that they are bounded by the unit cube
     """
-    box = _make_valid(box)
+    box = make_valid(box)
     # Need to deal with subnormal values
     fixed_subnormal = np.sign(coordinates) * np.clip(
         np.abs(coordinates),
@@ -143,7 +158,7 @@ def get_neighbor_boxes(box: ArrayLike) -> ArrayLike:
     z-order, so row 0 is the box at [x-dx,y-dy,z-dz], row 2 is [x+dx,y-dy,z-dz]
     and row 25 is [x+dx,y+dy,z+dz]
     """
-    box = _make_valid(box)
+    box = make_valid(box)
     # We generate all 27 boxes (so including box) and then remove box because
     # it makes the code logic *much* simpler and shouldn't significantly
     # increase the number of resources used
@@ -161,7 +176,7 @@ def get_box_center(box: ArrayLike) -> ArrayLike:
     """
     Return the coordinates of the center of the box
     """
-    box = _make_valid(box)
+    box = make_valid(box)
     return box[:3] + box[3:] / 2
 
 
@@ -173,7 +188,7 @@ def get_box_vertex(box: ArrayLike, index: int, *, jitter: float = 0) -> ArrayLik
     vertex of the box slightly (1%) smaller (larger) if jitter is positive
     (negative)
     """
-    box = _make_valid(box)
+    box = make_valid(box)
     if not isinstance(index, int):
         raise ValueError("Index must be an int!")
     if index < 1 or index > 8:
@@ -199,7 +214,7 @@ def get_box_vertices(box: ArrayLike, *, jitter: float = 0) -> ArrayLike:
     if not np.isfinite(jitter):
         raise ValueError("Jitter must be a finite value")
 
-    box = _make_valid(box)
+    box = make_valid(box)
 
     vertices = np.zeros((8, 3))
 
@@ -247,7 +262,7 @@ def project_point_on_box(
         pxyz: numpy.ndarray
         Projected coordinates
     """
-    box = _make_valid(box)
+    box = make_valid(box)
 
     if np.any(np.isnan(xyz)):
         raise ValueError("Point contains NaN!")
