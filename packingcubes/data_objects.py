@@ -27,7 +27,6 @@ class Dataset:
 
         # the following will need to be set by the data loader
         self._box = np.array([0, 0, 0, 1, 1, 1], dtype=float)
-        self.MIN_PARTICLE_SPACING = 1e-8
 
     @property
     def positions(self) -> ArrayLike:
@@ -42,7 +41,7 @@ class Dataset:
         return len(self._data.positions)
 
     def __repr__(self) -> str:
-        return f"Dataset with {len(self)} particles and box {self.box}"
+        return f"Dataset with {len(self)} particles and box {self.bounding_box}"
 
     @property
     def bounding_box(self):

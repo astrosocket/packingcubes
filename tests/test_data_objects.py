@@ -1,4 +1,6 @@
+import conftest as ct
 import numpy as np
+import pytest
 from hypothesis import example, given
 from hypothesis import strategies as st
 
@@ -25,10 +27,15 @@ def test_swap(make_basic_data, datalen_loc1_loc2):
     assert np.all(basic_data.positions[loc2] == pos1)
 
 
-def test_bounding_box(make_basic_data):
-    basic_data = make_basic_data()
-    bbox = np.array([0, 0, 0, 1, 1, 1])
-    assert np.all(bbox == basic_data.bounding_box)
+@given(ct.basic_data_strategy())
+def test_bounding_box(basic_data):
+    box = basic_data.bounding_box
+    positions = basic_data.positions
+
+    assert np.all(box[:3] == np.min(positions, axis=0))
+    assert box[3:] == pytest.approx(
+        np.max(positions, axis=0) - box[:3],
+    )
 
 
 @given(st.integers(min_value=1, max_value=5e5))
