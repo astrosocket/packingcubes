@@ -42,4 +42,4 @@ def test_bounding_box(basic_data):
 def test_len(make_basic_data, data_len):
     basic_data = make_basic_data(num_particles=data_len)
     assert len(basic_data) == data_len
-    assert len(basic_data) == len(basic_data._data.positions)
+    assert len(basic_data) == len(basic_data._positions)

@@ -30,15 +30,15 @@ class Dataset:
 
     @property
     def positions(self) -> ArrayLike:
-        return self._data.positions
+        return self._positions
 
     def _swap(self, first: int, second: int) -> None:
-        temp = self._data.positions[first, :].copy()
-        self._data.positions[first, :] = self._data.positions[second, :]
-        self._data.positions[second, :] = temp
+        temp = self._positions[first, :].copy()
+        self._positions[first, :] = self._positions[second, :]
+        self._positions[second, :] = temp
 
     def __len__(self) -> int:
-        return len(self._data.positions)
+        return len(self._positions)
 
     def __repr__(self) -> str:
         return f"Dataset with {len(self)} particles and box {self.bounding_box}"

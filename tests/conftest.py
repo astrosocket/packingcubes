@@ -30,16 +30,7 @@ def fake_basic_dataset(num_particles: int = 10, seed: int = 0xDEADBEEF) -> Datas
     )
     positions = prng.random_sample((num_particles, 3))
 
-    Data = namedtuple(
-        "Data",
-        [
-            "positions",
-        ],
-    )
-
-    ds._data = Data(
-        positions,
-    )
+    ds._positions = positions
 
     return ds
 
@@ -181,14 +172,7 @@ def basic_data_strategy(draw, max_particles=3e2):
     assume(np.all(box[3:] > np.abs(box[:3]) / 1e10))
     ds._box = box
 
-    Data = namedtuple(
-        "Data",
-        ["positions"],
-    )
-
-    ds._data = Data(
-        positions,
-    )
+    ds._positions = positions
 
     return ds
 
@@ -216,9 +200,8 @@ def data_with_duplicates(draw, max_particles=15):
         ["positions"],
     )
 
-    dup_data._data = Data(
-        data.positions[data_indices],
-    )
+    dup_data._positions = data.positions[data_indices]
+
     return dup_data
 
 
