@@ -5,18 +5,52 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "packingcubes"
 version = "0.0.1a1"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
     "numpy",
+    "h5py",
+    "unyt",
+    "tqdm",
 ]
 
 [project.optional-dependencies]
-dev = [
+viz = [
+    "matplotlib",
+]
+jupyter = [
+    "ipywidgets",
+    "ipykernel",
+    "ipympl"
+]
+all = ["packingcubes[viz]", "packingcubes[jupyter]"]
+
+
+[dependency-groups]
+test = [
     "pytest",
+    "hypothesis"
+]
+profile = [
+    "scalene",
+    "pyinstrument",
+]
+viz = [
+    "matplotlib",
+]
+jupyter = [
+    "ipywidgets",
+    "ipykernel",
+    "ipympl",
+]
+dev = [
     "ruff",
+    "pre-commit",
     "coverage",
     "pytest-cov",
-    "pre-commit",
+    {include-group = "test"},
+    {include-group = "profile"},
+    {include-group = "viz"},
+    {include-group = "jupyter"}
 ]
 
 [tool.ruff.lint]
@@ -37,18 +71,43 @@ packingcubes = { path = ".", editable = true }
 
 [tool.pixi.environments]
 default = { solve-group = "default" }
-dev = { features = ["dev"], solve-group = "default" }
-test = { features = ["test"], solve-group = "default" }
+dev = { features = ["test","viz","jupyter","dev","profile"], solve-group = "default" }
+test = { features = ["test","viz"], solve-group = "default" }
 
 [tool.pixi.tasks]
 
 [tool.pixi.feature.dev.tasks]
 test = "pytest --cov=packingcubes"
 
+[tool.pixi.feature.dev.dependencies]
+ipykernel = ">=7.1.0,<8"
+pyinstrument = ">=5.1.1,<6"
+unyt = ">=3.0.4,<4"
+pytest-cov = ">=7.0.0,<8"
+ruff = ">=0.14.8,<0.15"
+pre-commit = ">=4.5.0,<5"
+coverage = ">=7.12.0,<8"
+
 [tool.pixi.feature.test.dependencies]
 pytest = "*"
-pytest-cov = "*"
+hypothesis = ">=6.148.6,<7"
+
+[tool.pixi.feature.profile.dependencies]
+scalene = ">=1.5.51,<2"
+pyinstrument = ">=5.1.1,<6"
+
+[tool.pixi.feature.viz.dependencies]
+matplotlib = "*"
+
+[tool.pixi.feature.jupyter.dependencies]
+ipykernel = ">=7.1.0,<8"
+ipympl = ">=0.9.8,<0.10"
+ipywidgets = ">=8.1.8,<9"
 
 [tool.pixi.dependencies]
-hypothesis = ">=6.144.0,<7"
-ipykernel = ">=7.1.0,<8"
+numpy = "*"
+h5py = ">=3.15.1,<4"
+tqdm = ">=4.67.1,<5"
+matplotlib = ">=3.10.8,<4"
+unyt = ">=3.0.4,<4"
+ipywidgets = ">=8.1.8,<9"
