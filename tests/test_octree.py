@@ -1,5 +1,4 @@
 import logging
-from collections import namedtuple
 from typing import List
 
 import conftest as ct
@@ -365,14 +364,8 @@ def make_worst_case_duplicate() -> Dataset:
 
     data._box = bbox.BoundingBox(np.array([0, 0, 0, 1, 1, 1], dtype=float))
 
-    Data = namedtuple(
-        "Data",
-        ["positions"],
-    )
-
-    data._data = Data(
-        positions,
-    )
+    data._positions = positions
+    data._setup_index()
 
     return data
 

@@ -2,7 +2,6 @@
 
 import copy
 import logging
-from collections import namedtuple
 
 import numpy as np
 import pytest
@@ -32,6 +31,8 @@ def fake_basic_dataset(num_particles: int = 10, seed: int = 0xDEADBEEF) -> Datas
     positions = prng.random_sample((num_particles, 3))
 
     ds._positions = positions
+
+    ds._setup_index()
 
     return ds
 
@@ -181,6 +182,8 @@ def basic_data_strategy(draw, max_particles=3e2):
 
     ds._positions = positions
 
+    ds._setup_index()
+
     return ds
 
 
@@ -202,12 +205,11 @@ def data_with_duplicates(draw, max_particles=15):
         )
     )
     dup_data = copy.copy(data)
-    Data = namedtuple(
-        "Data",
-        ["positions"],
-    )
 
     dup_data._positions = data.positions[data_indices]
+
+    del dup_data._index
+    dup_data._setup_index()
 
     return dup_data
 
