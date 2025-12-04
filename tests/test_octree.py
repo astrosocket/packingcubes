@@ -167,7 +167,7 @@ def test_partition_data_sub_box(make_basic_data, child_ind: int):
     # i.e. child_list[1]:child_list[2]
     note(f"For child box {child_ind}")
     child_ind = child_ind - 1  # convert to 0-index
-    lvl1_child_box = octree._get_child_box(basic_data.bounding_box, child_ind)
+    lvl1_child_box = bbox.get_child_box(basic_data.bounding_box, child_ind)
     note(f"{lvl1_child_box=}")
     lvl1_child_start = lvl1_child_list[child_ind - 1] if child_ind else 0
     lvl1_child_end = (
@@ -175,7 +175,7 @@ def test_partition_data_sub_box(make_basic_data, child_ind: int):
     )
     note(f"lvl1_child_indices={lvl1_child_start}-{lvl1_child_end}")
     lvl1_child_pos = basic_data.positions[lvl1_child_start : lvl1_child_end + 1].copy()
-    normalized_pos = (lvl1_child_pos - lvl1_child_box[:3]) / lvl1_child_box[3:]
+    normalized_pos = (lvl1_child_pos - lvl1_child_box.box[:3]) / lvl1_child_box.box[3:]
     lvl1_morton = octree.morton(lvl1_child_pos, lvl1_child_box)
     note("Prior to partition:")
     for i, (pos, norm, mort) in enumerate(
@@ -191,7 +191,7 @@ def test_partition_data_sub_box(make_basic_data, child_ind: int):
         lvl1_child_end,
     )
     lvl1_child_pos = basic_data.positions[lvl1_child_start : lvl1_child_end + 1].copy()
-    normalized_pos = (lvl1_child_pos - lvl1_child_box[:3]) / lvl1_child_box[3:]
+    normalized_pos = (lvl1_child_pos - lvl1_child_box.box[:3]) / lvl1_child_box.box[3:]
     lvl1_morton = octree.morton(lvl1_child_pos, lvl1_child_box)
     note("After partition:")
     for i, (pos, norm, mort) in enumerate(
@@ -204,43 +204,6 @@ def test_partition_data_sub_box(make_basic_data, child_ind: int):
     note(f"actual order{lvl1_morton}")
     note("")
     assert np.all(expected_order == lvl1_morton)
-
-
-#############################
-# Test _get_child_box
-#############################
-@given(ct.invalid_boxes())
-def test_get_child_box_invalid_box(box: ArrayLike):
-    with pytest.raises(bbox.BoundingBoxError):
-        octree._get_child_box(box, 0)
-
-
-@given(ct.valid_boxes(), st.integers().filter(lambda i: i < 0 or i > 7) | st.floats())
-def test_get_child_box_invalid_index(box: ArrayLike, index: int | float):
-    with pytest.raises(ValueError):
-        octree._get_child_box(box, index)
-
-
-@given(ct.valid_boxes())
-def test_get_child_box_valid(box: ArrayLike):
-    # box should be of the form [x, y, z, dx, dy, dz]
-    x, y, z, dx, dy, dz = box
-    dx2, dy2, dz2 = dx / 2.0, dy / 2.0, dz / 2.0
-    child_boxes = [
-        [x, y, z],  # 1
-        [x + dx2, y, z],  # 2
-        [x, y + dy2, z],  # 3
-        [x + dx2, y + dy2, z],  # 4
-        [x, y, z + dz2],  # 5
-        [x + dx2, y, z + dz2],  # 6
-        [x, y + dy2, z + dz2],  # 7
-        [x + dx2, y + dy2, z + dz2],  # 8
-    ]
-    dxbox = [dx2, dy2, dz2]
-    for i in range(8):
-        child_box = octree._get_child_box(box, i)
-        assert child_box[:3] == pytest.approx(child_boxes[i])
-        assert child_box[3:] == pytest.approx(dxbox)
 
 
 #############################
@@ -400,7 +363,7 @@ def make_worst_case_duplicate() -> Dataset:
                     positions.append([i, j, k])
     positions = np.array(positions, dtype=float)
 
-    data._box = np.array([0, 0, 0, 1, 1, 1], dtype=float)
+    data._box = bbox.BoundingBox(np.array([0, 0, 0, 1, 1, 1], dtype=float))
 
     Data = namedtuple(
         "Data",

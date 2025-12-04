@@ -11,6 +11,7 @@ from hypothesis import strategies as st
 from hypothesis.extra import numpy as hypnp
 from numpy.random import RandomState
 
+from packingcubes.bounding_box import BoundingBox
 from packingcubes.data_objects import Dataset
 
 LOGGER = logging.getLogger(__name__)
@@ -118,6 +119,12 @@ def invalid_boxes(draw):
     return box
 
 
+@st.composite
+def valid_bounding_boxes(draw):
+    box = draw(valid_boxes())
+    return BoundingBox(box)
+
+
 def valid_positions(max_particles=3e2):
     return hypnp.arrays(
         float,
@@ -170,7 +177,7 @@ def basic_data_strategy(draw, max_particles=3e2):
         box[:3] = extremes[0, :]
         box[3:] = extremes[1, :] - extremes[0, :]
     assume(np.all(box[3:] > np.abs(box[:3]) / 1e10))
-    ds._box = box
+    ds._box = BoundingBox(box)
 
     ds._positions = positions
 

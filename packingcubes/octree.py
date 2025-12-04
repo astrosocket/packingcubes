@@ -163,35 +163,6 @@ def _partition_data(
     return child_list
 
 
-def _get_child_box(box: ArrayLike, ind: int) -> ArrayLike:
-    """
-    Get indth (0-indexed) new child box of current box
-
-    New child box is defined as the suboctant described by position ind
-    with size (box[3]/2, box[4]/2, box[5]/2)
-    """
-    # Use z-index order for now, but other possibilities
-    # like Hilbert curves exist - and see
-    # https://math.stackexchange.com/questions/2411867/3d-hilbert-curve-without-double-length-edges
-    # for a possible "Hilbert" curve that may be better?
-    # Raising errors for invalid boxes coming from data
-    box = bbox.make_valid(box)
-
-    if not isinstance(ind, int) or ind < 0 or 7 < ind:
-        raise ValueError(f"Octree code passed an invalid index: {ind}!")
-
-    child_box = box.copy()
-    child_box[3:] /= 2.0
-    x, y, z = ((ind & 1) / 1, (ind & 2) / 2, (ind & 4) / 4)
-    child_box[0] = child_box[0] + child_box[3] * x
-    child_box[1] = child_box[1] + child_box[4] * y
-    child_box[2] = child_box[2] + child_box[5] * z
-
-    # check for any new problems (basically loss of precision)
-    child_box = bbox.make_valid(child_box)
-    return child_box
-
-
 def _box_neighbors_in_node(
     box_ind: int,
 ) -> ArrayLike[Octants]:
@@ -333,8 +304,8 @@ class OctreeNode:
     """ Starting index in data of this OctreeNode """
     node_end: int
     """ Ending index in data of this OctreeNode. OctreeNodes have node_end+1 - node_start particles """
-    box: ArrayLike  # [x,y,z,dx,dy,dz]
-    """ (6, ) array defined as [x, y, z, dx, dy, dz] where (x,y,z) is the left-front-bottom corner """
+    box: bbox.BoundingBox  # [x,y,z,dx,dy,dz]
+    """ BoundingBox with field box that is a (6, ) array defined as [x, y, z, dx, dy, dz] where (x,y,z) is the left-front-bottom corner """
     # empty for root node, otherwise list of morton indices s.t. [7,2,1] is the
     # tag for the left-front-bottom subnode of the left-back-bottom subnode of
     # right-front-top subnode of the root
@@ -470,7 +441,7 @@ class OctreeNode:
             # need node_end + 1 because we have child2 - 1 below
             child2 = child_list[i] if i < 7 else self.node_end + 1
             # recursing on child i not i-1!
-            child_box = _get_child_box(self.box, i)
+            child_box = bbox.get_child_box(self.box, i)
             LOGGER.debug(
                 f"Making child box{i + 1} for {child2}-{child1}"
                 f"={child2 - child1} particles in box {child_box}"
@@ -667,7 +638,7 @@ class Octree:
         return node
 
     def _get_nodes_in_shape(
-        self, *, bounding_box: ArrayLike[float], containment_test: callable = None
+        self, *, bounding_box: bbox.BoxLike, containment_test: callable = None
     ) -> tuple[List[OctreeNode], List[OctreeNode]]:
         """
         Return list of all nodes entirely inside shape and all nodes partially inside shape
@@ -680,7 +651,7 @@ class Octree:
                     < partial_leaves[j + 1].z_order
 
         Inputs:
-            bounding_box: ArrayLike
+            bounding_box: BoxLike
             Shape bounding box
 
             containment_test: callable, optional
@@ -774,13 +745,17 @@ class Octree:
             When there are unexpected issues with the queue system.
         """
         # sphere bounding box
-        bounding_box = np.array(
-            center[0] - radius,
-            center[1] - radius,
-            center[2] - radius,
-            2 * radius,
-            2 * radius,
-            2 * radius,
+        bounding_box = bbox.BoundingBox(
+            np.array(
+                [
+                    center[0] - radius,
+                    center[1] - radius,
+                    center[2] - radius,
+                    2 * radius,
+                    2 * radius,
+                    2 * radius,
+                ]
+            )
         )
 
         containment_test = partial(_point_in_sphere, center=center, radius=radius)
@@ -792,7 +767,7 @@ class Octree:
     def _get_particle_indices_in_shape(
         self,
         *,
-        bounding_box: ArrayLike[float],
+        bounding_box: bbox.BoxLike,
         containment_test: callable = None,
         strict: bool = False,
     ) -> ArrayLike[int]:
@@ -800,7 +775,7 @@ class Octree:
         Return all particles contained within a shape that fits inside bounding box
 
         Inputs:
-            bounding_box: ArrayLike
+            bounding_box: BoxLike
             Shape bounding box
 
             containment_test: callable, optional
@@ -873,7 +848,7 @@ class Octree:
             indices: ArrayLike
             Array of particle indices contained within sphere
         """
-        bounding_box = box.copy()
+        bounding_box = bbox.BoundingBox(box.copy())
 
         return self._get_particle_indices_in_shape(
             bounding_box=bounding_box, strict=strict
@@ -903,13 +878,17 @@ class Octree:
             Array of particle indices contained within sphere
         """
         # sphere bounding box
-        bounding_box = np.array(
-            center[0] - radius,
-            center[1] - radius,
-            center[2] - radius,
-            2 * radius,
-            2 * radius,
-            2 * radius,
+        bounding_box = bbox.BoundingBox(
+            np.array(
+                [
+                    center[0] - radius,
+                    center[1] - radius,
+                    center[2] - radius,
+                    2 * radius,
+                    2 * radius,
+                    2 * radius,
+                ]
+            )
         )
 
         containment_test = partial(_point_in_sphere, center=center, radius=radius)

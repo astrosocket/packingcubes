@@ -5,6 +5,8 @@ from typing import Any
 import numpy as np
 from numpy.typing import ArrayLike
 
+import packingcubes.bounding_box as bbox
+
 LOGGER = logging.getLogger(__name__)
 
 
@@ -26,7 +28,7 @@ class Dataset:
         self.name = name
 
         # the following will need to be set by the data loader
-        self._box = np.array([0, 0, 0, 1, 1, 1], dtype=float)
+        self._box = bbox.BoundingBox(np.array([0, 0, 0, 1, 1, 1], dtype=float))
 
     @property
     def positions(self) -> ArrayLike:
@@ -45,4 +47,4 @@ class Dataset:
 
     @property
     def bounding_box(self):
-        return self._box.copy()
+        return self._box

@@ -88,7 +88,7 @@ def test_make_valid_invalid_boxes(box):
 def test_make_valid_valid_boxes(box):
     valid_box = bbox.make_valid(box)
 
-    assert np.all(valid_box == box)
+    assert np.all(valid_box.box == box)
 
 
 #############################
@@ -130,16 +130,16 @@ def test_midplane(box: ArrayLike):
 #############################
 # Test max_depth
 #############################
-@given(ct.valid_boxes())
-def test_max_depth_valid_box(box):
-    max_depth = bbox.max_depth(box)
+@given(ct.valid_bounding_boxes())
+def test_max_depth_valid_box(bounding_box):
+    max_depth = bbox.max_depth(bounding_box)
     note(f"{max_depth=}")
 
-    smallest_dx = 2.0 ** (-max_depth) * box[3:]
+    smallest_dx = 2.0 ** (-max_depth) * bounding_box.box[3:]
     note(f"{smallest_dx=}")
 
     # test at farthest corner from 0
-    farthest_corner = np.abs(box[:3]) + box[3:]
+    farthest_corner = np.abs(bounding_box.box[:3]) + bounding_box.box[3:]
     note(f"{farthest_corner=}")
 
     np.testing.assert_array_less(farthest_corner, farthest_corner + smallest_dx)
@@ -194,6 +194,42 @@ def test_get_neighbor_boxes(box: ArrayLike):
     neighbors = bbox.get_neighbor_boxes(box)
 
     assert expected_neighbors == pytest.approx(neighbors)
+
+
+#############################
+# Test get_child_box
+#############################
+@given(
+    ct.valid_bounding_boxes(),
+    st.integers().filter(lambda i: i < 0 or i > 7) | st.floats(),
+)
+def test_get_child_box_invalid_index(
+    bounding_box: bbox.BoundingBox, index: int | float
+):
+    with pytest.raises(ValueError):
+        bbox.get_child_box(bounding_box, index)
+
+
+@given(ct.valid_bounding_boxes())
+def test_get_child_box_valid(bounding_box: bbox.BoundingBox):
+    # box should be of the form [x, y, z, dx, dy, dz]
+    x, y, z, dx, dy, dz = bounding_box.box
+    dx2, dy2, dz2 = dx / 2.0, dy / 2.0, dz / 2.0
+    child_boxes = [
+        [x, y, z],  # 1
+        [x + dx2, y, z],  # 2
+        [x, y + dy2, z],  # 3
+        [x + dx2, y + dy2, z],  # 4
+        [x, y, z + dz2],  # 5
+        [x + dx2, y, z + dz2],  # 6
+        [x, y + dy2, z + dz2],  # 7
+        [x + dx2, y + dy2, z + dz2],  # 8
+    ]
+    dxbox = [dx2, dy2, dz2]
+    for i in range(8):
+        child_box = bbox.get_child_box(bounding_box, i)
+        assert child_box.box[:3] == pytest.approx(child_boxes[i])
+        assert child_box.box[3:] == pytest.approx(dxbox)
 
 
 #############################
@@ -312,8 +348,8 @@ def test_get_box_vertices_valid(box: ArrayLike, jitter: float):
     expected_vertices[6, :] = [x, y + dy, z + dz]
     expected_vertices[7, :] = [x + dx, y + dy, z + dz]
 
-    vertices = bbox.get_box_vertices(box=box, jitter=0)
-    vertices_w_jitter = bbox.get_box_vertices(box=box, jitter=jitter)
+    vertices = bbox.get_box_vertices(bbox=box, jitter=0)
+    vertices_w_jitter = bbox.get_box_vertices(bbox=box, jitter=jitter)
 
     # check without jitter
     assert expected_vertices == pytest.approx(vertices)
