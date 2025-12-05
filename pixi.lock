@@ -2534,7 +2534,7 @@ packages:
 - pypi: ./
   name: packingcubes
   version: 0.0.1a1
-  sha256: f9f7aad5b7eb1d60f5d59b9dd28d2460c1b43a2fe1e808992881e6299897dad4
+  sha256: 7c36784193d1e23a3629ffdd25fb3f58d4b44eae65e131ea8eecb3611bfb575f
   requires_dist:
   - numpy
   - h5py
