@@ -216,6 +216,7 @@ def data_with_duplicates(draw, max_particles=15):
 
 @st.composite
 def valid_data_strategy(draw):
+    raise NotImplementedError("valid_data_strategy is still in progress")
     data = draw(basic_data_strategy())
 
     valid_data = data
