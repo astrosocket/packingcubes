@@ -71,8 +71,6 @@ select = [
     "I",
     # McCabe Complexity
     "C90",
-    # Perfomance
-    #"PERF",
     # numpy
     "NPY",
 ]

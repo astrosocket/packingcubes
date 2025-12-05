@@ -60,11 +60,9 @@ class BoundingBoxValidFlag(Flag):
         if self == 0:
             # If this happens, hoo boy...
             return [f"Something is very wrong with bbox: {box}"]
-        messages = []
-        for flag in BoundingBoxValidFlag:
-            if flag not in self:
-                messages.append(flag.message_fun(box))
-        return messages
+        return [
+            flag.message_fun(box) for flag in BoundingBoxValidFlag if flag not in self
+        ]
 
 
 class BoundingBoxError(ValueError):
