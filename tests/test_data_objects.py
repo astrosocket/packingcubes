@@ -32,9 +32,9 @@ def test_bounding_box(basic_data):
     box = basic_data.bounding_box
     positions = basic_data.positions
 
-    assert np.all(box[:3] == np.min(positions, axis=0))
-    assert box[3:] == pytest.approx(
-        np.max(positions, axis=0) - box[:3],
+    assert np.all(box.box[:3] == np.min(positions, axis=0))
+    assert box.box[3:] == pytest.approx(
+        np.max(positions, axis=0) - box.box[:3],
     )
 
 
@@ -42,4 +42,4 @@ def test_bounding_box(basic_data):
 def test_len(make_basic_data, data_len):
     basic_data = make_basic_data(num_particles=data_len)
     assert len(basic_data) == data_len
-    assert len(basic_data) == len(basic_data._data.positions)
+    assert len(basic_data) == len(basic_data._positions)

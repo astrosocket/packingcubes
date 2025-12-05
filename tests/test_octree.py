@@ -1,6 +1,4 @@
 import logging
-from collections import namedtuple
-from typing import List
 
 import conftest as ct
 import numpy as np
@@ -30,7 +28,7 @@ def basic_data_with_invalid_bounds(draw):
     basic_data = draw(ct.basic_data_strategy())
     lower = draw(st.integers(min_value=-10, max_value=0))
     upper = draw(
-        st.integers(min_value=len(basic_data) - 1, max_value=len(basic_data) + 10)
+        st.integers(min_value=len(basic_data) - 1, max_value=len(basic_data) + 10),
     )
     assume(lower < 0 or upper >= len(basic_data))
     return basic_data, lower, upper
@@ -49,7 +47,7 @@ def test_partition_invalid_bounds(basic_data_with_bounds: tuple[Dataset, int, in
     basic_data, lower, upper = basic_data_with_bounds
     midplane = bbox.midplane(basic_data.bounding_box)
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="out of bounds"):
         partition = octree._partition(basic_data, lower, upper, 0, midplane[0])
 
 
@@ -60,7 +58,11 @@ def test_partition_axis_invalid(basic_data: Dataset, ax: int):
 
     with pytest.raises(IndexError):
         partition = octree._partition(
-            basic_data, 0, len(basic_data) - 1, ax, midplane[ax]
+            basic_data,
+            0,
+            len(basic_data) - 1,
+            ax,
+            midplane[ax],
         )
 
 
@@ -70,7 +72,9 @@ def test_partition_axis_invalid(basic_data: Dataset, ax: int):
     st.floats(-1, 2),
 )
 def test_partition_valid(
-    basic_data_with_bounds: tuple[Dataset, int, int], ax: int, midplane_scale: float
+    basic_data_with_bounds: tuple[Dataset, int, int],
+    ax: int,
+    midplane_scale: float,
 ):
     basic_data, lower, upper = basic_data_with_bounds
     midplane = bbox.midplane(basic_data.bounding_box)
@@ -116,10 +120,14 @@ def test_partition_data_full_box(
     note(morton_inds)
     note(f"Positions :{basic_data.positions[1:2, :]}")
     note(
-        f"Normalized: {bbox.normalize_to_box(basic_data.positions[1:2, :], basic_data.bounding_box)}"
+        f"Normalized: {
+            bbox.normalize_to_box(basic_data.positions[1:2, :], basic_data.bounding_box)
+        }",
     )
     note(
-        f"Morton: {octree.morton(basic_data.positions[1:2, :], basic_data.bounding_box)}"
+        f"Morton: {
+            octree.morton(basic_data.positions[1:2, :], basic_data.bounding_box)
+        }",
     )
 
     child_list = octree._partition_data(
@@ -167,7 +175,7 @@ def test_partition_data_sub_box(make_basic_data, child_ind: int):
     # i.e. child_list[1]:child_list[2]
     note(f"For child box {child_ind}")
     child_ind = child_ind - 1  # convert to 0-index
-    lvl1_child_box = octree._get_child_box(basic_data.bounding_box, child_ind)
+    lvl1_child_box = bbox.get_child_box(basic_data.bounding_box, child_ind)
     note(f"{lvl1_child_box=}")
     lvl1_child_start = lvl1_child_list[child_ind - 1] if child_ind else 0
     lvl1_child_end = (
@@ -175,11 +183,11 @@ def test_partition_data_sub_box(make_basic_data, child_ind: int):
     )
     note(f"lvl1_child_indices={lvl1_child_start}-{lvl1_child_end}")
     lvl1_child_pos = basic_data.positions[lvl1_child_start : lvl1_child_end + 1].copy()
-    normalized_pos = (lvl1_child_pos - lvl1_child_box[:3]) / lvl1_child_box[3:]
+    normalized_pos = (lvl1_child_pos - lvl1_child_box.box[:3]) / lvl1_child_box.box[3:]
     lvl1_morton = octree.morton(lvl1_child_pos, lvl1_child_box)
     note("Prior to partition:")
     for i, (pos, norm, mort) in enumerate(
-        zip(lvl1_child_pos, normalized_pos, lvl1_morton)
+        zip(lvl1_child_pos, normalized_pos, lvl1_morton, strict=True),
     ):
         note(f"{i=} {pos}->{norm} = {mort}")
     expected_order = np.sort(lvl1_morton)
@@ -191,15 +199,15 @@ def test_partition_data_sub_box(make_basic_data, child_ind: int):
         lvl1_child_end,
     )
     lvl1_child_pos = basic_data.positions[lvl1_child_start : lvl1_child_end + 1].copy()
-    normalized_pos = (lvl1_child_pos - lvl1_child_box[:3]) / lvl1_child_box[3:]
+    normalized_pos = (lvl1_child_pos - lvl1_child_box.box[:3]) / lvl1_child_box.box[3:]
     lvl1_morton = octree.morton(lvl1_child_pos, lvl1_child_box)
     note("After partition:")
     for i, (pos, norm, mort) in enumerate(
-        zip(lvl1_child_pos, normalized_pos, lvl1_morton)
+        zip(lvl1_child_pos, normalized_pos, lvl1_morton, strict=True),
     ):
         note(f"{i=} {pos}->{norm} = {mort}")
     note(
-        f"{child_list=} -> {[c - lvl1_child_list[1] for c in child_list]} (normalized)"
+        f"{child_list=} -> {[c - lvl1_child_list[1] for c in child_list]} (normalized)",
     )
     note(f"actual order{lvl1_morton}")
     note("")
@@ -207,48 +215,11 @@ def test_partition_data_sub_box(make_basic_data, child_ind: int):
 
 
 #############################
-# Test _get_child_box
-#############################
-@given(ct.invalid_boxes())
-def test_get_child_box_invalid_box(box: ArrayLike):
-    with pytest.raises(bbox.BoundingBoxError):
-        octree._get_child_box(box, 0)
-
-
-@given(ct.valid_boxes(), st.integers().filter(lambda i: i < 0 or i > 7) | st.floats())
-def test_get_child_box_invalid_index(box: ArrayLike, index: int | float):
-    with pytest.raises(ValueError):
-        octree._get_child_box(box, index)
-
-
-@given(ct.valid_boxes())
-def test_get_child_box_valid(box: ArrayLike):
-    # box should be of the form [x, y, z, dx, dy, dz]
-    x, y, z, dx, dy, dz = box
-    dx2, dy2, dz2 = dx / 2.0, dy / 2.0, dz / 2.0
-    child_boxes = [
-        [x, y, z],  # 1
-        [x + dx2, y, z],  # 2
-        [x, y + dy2, z],  # 3
-        [x + dx2, y + dy2, z],  # 4
-        [x, y, z + dz2],  # 5
-        [x + dx2, y, z + dz2],  # 6
-        [x, y + dy2, z + dz2],  # 7
-        [x + dx2, y + dy2, z + dz2],  # 8
-    ]
-    dxbox = [dx2, dy2, dz2]
-    for i in range(8):
-        child_box = octree._get_child_box(box, i)
-        assert child_box[:3] == pytest.approx(child_boxes[i])
-        assert child_box[3:] == pytest.approx(dxbox)
-
-
-#############################
 # Test _box_neighbors_in_node
 #############################
 @given(st.integers().filter(lambda i: i < 1 or i > 8))
 def test_box_neighbors_in_node_invalid(ind: int):
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Valid options"):
         octree._box_neighbors_in_node(ind)
 
 
@@ -263,10 +234,11 @@ def test_box_neighbors_in_node():
 
 
 @example(np.array([[np.nan, 0, 0]]), np.array([0, 0, 0, 1, 1, 1])).xfail(
-    reason="NaNs/Infs propagate into indices"
+    reason="NaNs/Infs propagate into indices",
 )
 @example(np.array([[0, 0, 0]]), np.array([0, 0, 0, 1, -1, 1])).xfail(
-    reason="Invalid boxes fail", raises=bbox.BoundingBoxError
+    reason="Invalid boxes fail",
+    raises=bbox.BoundingBoxError,
 )
 # The following examples no longer "fail". It's unclear whether the morton
 # indices make _sense_, but morton() will happily compute them...
@@ -282,47 +254,35 @@ def test_morton(positions: ArrayLike, box: ArrayLike):
 
     mortons = octree.morton(positions, box)
 
-    for morton, pos in zip(mortons, positions):
+    for morton, pos in zip(mortons, positions, strict=True):
         assert 1 <= morton <= 8
         match morton:
             case 1:
                 assert np.all(pos < midplane)
             case 2:
-                assert (
-                    pos[0] >= midplane[0]
-                    and pos[1] < midplane[1]
-                    and pos[2] < midplane[2]
-                )
+                assert pos[0] >= midplane[0]
+                assert pos[1] < midplane[1]
+                assert pos[2] < midplane[2]
             case 3:
-                assert (
-                    pos[0] < midplane[0]
-                    and pos[1] >= midplane[1]
-                    and pos[2] < midplane[2]
-                )
+                assert pos[0] < midplane[0]
+                assert pos[1] >= midplane[1]
+                assert pos[2] < midplane[2]
             case 4:
-                assert (
-                    pos[0] >= midplane[0]
-                    and pos[1] >= midplane[1]
-                    and pos[2] < midplane[2]
-                )
+                assert pos[0] >= midplane[0]
+                assert pos[1] >= midplane[1]
+                assert pos[2] < midplane[2]
             case 5:
-                assert (
-                    pos[0] < midplane[0]
-                    and pos[1] < midplane[1]
-                    and pos[2] >= midplane[2]
-                )
+                assert pos[0] < midplane[0]
+                assert pos[1] < midplane[1]
+                assert pos[2] >= midplane[2]
             case 6:
-                assert (
-                    pos[0] >= midplane[0]
-                    and pos[1] < midplane[1]
-                    and pos[2] >= midplane[2]
-                )
+                assert pos[0] >= midplane[0]
+                assert pos[1] < midplane[1]
+                assert pos[2] >= midplane[2]
             case 7:
-                assert (
-                    pos[0] < midplane[0]
-                    and pos[1] >= midplane[1]
-                    and pos[2] >= midplane[2]
-                )
+                assert pos[0] < midplane[0]
+                assert pos[1] >= midplane[1]
+                assert pos[2] >= midplane[2]
             case 8:
                 assert np.all(pos >= midplane)
 
@@ -346,7 +306,7 @@ def test_OctreeNode_invalid_ints(
     node_start: int,
     node_end: int,
     box: ArrayLike,
-    tag: List[octree.Octants],
+    tag: list[octree.Octants],
     parent: None | octree.OctreeNode,
     particle_threshold: int,
 ):
@@ -400,16 +360,10 @@ def make_worst_case_duplicate() -> Dataset:
                     positions.append([i, j, k])
     positions = np.array(positions, dtype=float)
 
-    data._box = np.array([0, 0, 0, 1, 1, 1], dtype=float)
+    data._box = bbox.BoundingBox(np.array([0, 0, 0, 1, 1, 1], dtype=float))
 
-    Data = namedtuple(
-        "Data",
-        ["positions"],
-    )
-
-    data._data = Data(
-        positions,
-    )
+    data._positions = positions
+    data._setup_index()
 
     return data
 
@@ -433,14 +387,14 @@ def test_OctreeNode_duplicate_data(data: Dataset):
             node = octree.OctreeNode(data=data, particle_threshold=1)
         assert "negative max depth" in str(oeinfo.value)
     else:
-        with pytest.warns(octree.OctreeWarning, match=r"Bad data detected"):
+        with pytest.warns(octree.OctreeWarning, match=r"Bad data detected"):  # noqa PT031
             # need to explicitly set the particle threshold since
             # data_with_duplicates is only guaranteed to produce 1 duplicate
             node = octree.OctreeNode(
                 data=data,
                 particle_threshold=1,
             )
-            # if no warning was raised
+            # if no warning was raised we want to know why
             note(f"{node=}")
             for child in node.children:
                 note(f"{child}")
