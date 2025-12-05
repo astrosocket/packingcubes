@@ -8,6 +8,7 @@ from typing import List
 
 import numpy as np
 from numpy.typing import ArrayLike
+from tqdm.auto import tqdm
 
 import packingcubes.bounding_box as bbox
 from packingcubes.data_objects import Dataset
@@ -116,39 +117,39 @@ def _partition_data(
     #  1/-----2/
 
     # z-partition
-    LOGGER.debug(f"Partitioning 1-8: s:{lo} e:{hi}")
-    LOGGER.debug(f"{morton(data.positions[lo : hi + 1], box)}")
+    # LOGGER.debug(f"Partitioning 1-8: s:{lo} e:{hi}")
+    # LOGGER.debug(f"{morton(data.positions[lo : hi + 1], box)}")
     zsplit = _partition(data, lo, hi, 2, midplane[2])
 
     # x-partition and y-partition - note that these combine to be only two
     # passes through the list.
-    LOGGER.debug(f"Partitioning 1-4: s:{lo} e:{zsplit - 1}")
-    LOGGER.debug(f"{morton(data.positions[lo:zsplit], box)}")
+    # LOGGER.debug(f"Partitioning 1-4: s:{lo} e:{zsplit - 1}")
+    # LOGGER.debug(f"{morton(data.positions[lo:zsplit], box)}")
     ysplit1 = _partition(data, lo, zsplit - 1, 1, midplane[1])
 
-    LOGGER.debug(f"Partitioning 1-2: s:{lo} e:{ysplit1 - 1}")
-    LOGGER.debug(f"{morton(data.positions[lo:ysplit1], box)}")
+    # LOGGER.debug(f"Partitioning 1-2: s:{lo} e:{ysplit1 - 1}")
+    # LOGGER.debug(f"{morton(data.positions[lo:ysplit1], box)}")
     xsplit1 = _partition(data, lo, ysplit1 - 1, 0, midplane[0])
 
-    LOGGER.debug(f"Partitioning 3-4: s:{ysplit1} e:{zsplit - 1}")
-    LOGGER.debug(f"{morton(data.positions[ysplit1:zsplit], box)}")
+    # LOGGER.debug(f"Partitioning 3-4: s:{ysplit1} e:{zsplit - 1}")
+    # LOGGER.debug(f"{morton(data.positions[ysplit1:zsplit], box)}")
     xsplit2 = _partition(data, ysplit1, zsplit - 1, 0, midplane[0])
 
-    LOGGER.debug(f"Partitioning 5-8: s:{zsplit} e:{hi}")
-    LOGGER.debug(f"{morton(data.positions[zsplit : hi + 1], box)}")
+    # LOGGER.debug(f"Partitioning 5-8: s:{zsplit} e:{hi}")
+    # LOGGER.debug(f"{morton(data.positions[zsplit : hi + 1], box)}")
     ysplit2 = _partition(data, zsplit, hi, 1, midplane[1])
 
-    LOGGER.debug(f"Partitioning 5-6: s:{zsplit} e:{ysplit2 - 1}")
-    LOGGER.debug(f"{morton(data.positions[zsplit:ysplit2], box)}")
+    # LOGGER.debug(f"Partitioning 5-6: s:{zsplit} e:{ysplit2 - 1}")
+    # LOGGER.debug(f"{morton(data.positions[zsplit:ysplit2], box)}")
     xsplit3 = _partition(data, zsplit, ysplit2 - 1, 0, midplane[0])
 
-    LOGGER.debug(f"Partitioning 7-8: s:{ysplit2} e:{hi}")
-    LOGGER.debug(f"{morton(data.positions[ysplit2 : hi + 1], box)}")
+    # LOGGER.debug(f"Partitioning 7-8: s:{ysplit2} e:{hi}")
+    # LOGGER.debug(f"{morton(data.positions[ysplit2 : hi + 1], box)}")
     xsplit4 = _partition(data, ysplit2, hi, 0, midplane[0])
 
-    LOGGER.debug(
-        f"y1:{xsplit1} x1:{ysplit1} y2:{xsplit2} z:{zsplit} y3:{xsplit3} x2:{ysplit2} y4:{xsplit4}"
-    )
+    # LOGGER.debug(
+    #     f"y1:{xsplit1} x1:{ysplit1} y2:{xsplit2} z:{zsplit} y3:{xsplit3} x2:{ysplit2} y4:{xsplit4}"
+    # )
 
     # child_list[-1] = lo #    indices of child_0 (morton=1): lo, xsplit1-1
     child_list[0] = xsplit1  # indices of child_1 (morton=2): xsplit1, ysplit1-1
@@ -159,7 +160,7 @@ def _partition_data(
     child_list[5] = ysplit2  # indices of child_6 (morton=7): ysplit2, xsplit4-1
     child_list[6] = xsplit4  # indices of child_7 (morton=8): xsplit4, hi
 
-    LOGGER.debug(f"{lo=} {hi=} {child_list}")
+    # LOGGER.debug(f"{lo=} {hi=} {child_list}")
     return child_list
 
 
@@ -260,6 +261,20 @@ def morton(positions: ArrayLike, box: ArrayLike) -> ArrayLike[int]:
     return morton
 
 
+def _convert_list_to_tag_str(tag: List[Octants]) -> str:
+    """
+    Convert list of Octants to a str
+    """
+    return "".join([f"{t.value}" for t in tag])
+
+
+def _convert_tag_str_to_list(tag_str: str) -> List[Octants]:
+    """
+    Convert string that looks like a list of Octants into one
+    """
+    return [Octants(int(t)) for t in tag_str]
+
+
 # This will be an in-place octree, so each node has a
 # view of the backing array, indices to the start of
 # each subnode/leaf, box size, and node start/end
@@ -311,8 +326,8 @@ class OctreeNode:
     # right-front-top subnode of the root
     tag: List[Octants]
     """ List of morton indices describing the location of this OctreeNode in the overall tree """
-    children: List[OctreeNode]
-    """ List of OctreeNode children. Empty if leaf node """
+    children: List[None | OctreeNode]
+    """ List of OctreeNode children with None as placeholders for empty children. Empty if leaf node """
     parent: None | OctreeNode
     """ Reference to parent node or None if root """
 
@@ -325,8 +340,8 @@ class OctreeNode:
         box: ArrayLike = None,
         tag: List[Octants] = None,
         parent: None | OctreeNode = None,
-        particle_threshold=1,
-        max_depth=None,
+        particle_threshold: int = 1,
+        pbar: tqdm.tqdm = None,
     ) -> None:
         """
         Inputs:
@@ -355,6 +370,9 @@ class OctreeNode:
             Configuration parameter for how many particles will be contained in a
             leaf before splitting into subtrees. Note that currently particle
             sorting stops at this level. Default 1.
+
+            pbar: tqdm, optional
+            A tqdm() instance for optional progress updates
         """
         particle_threshold = int(particle_threshold)
         if particle_threshold <= 0:
@@ -396,6 +414,8 @@ class OctreeNode:
                 "Attempted to create an OctreeNode with negative max depth!"
             )
 
+        self._pbar = pbar
+
         # begin recursion
         self._construct()
 
@@ -407,20 +427,25 @@ class OctreeNode:
         # sort everything, even if we have fewer than 8 leaves
         # this step also generates child_list
         child_list = _partition_data(
-            self.data, self.box, self.node_start, self.node_end
+            self.data,
+            self.box,
+            self.node_start,
+            self.node_end,
         )
 
-        # Only look at children if current node has at least 2 particles and
-        # we haven't hit recursion limit. No reason to sort if 1 or fewer
-        # particles and recursion limit is so we don't hit floating point
-        # precision errors.
-        if len(self) <= 1 or self._max_depth < 1:
+        # Only look at children if current node has at least
+        # _particle_threshold particles and we haven't hit recursion limit.
+        # Ideally, we'd continue sorting until we hit 1 particle
+        # but we likely can/should switch to a different sorting method, like
+        # insertion sort on Morton codes or similar
+        # Recursion limit is so we don't hit floating point precision errors.
+        if len(self) <= self._particle_threshold or self._max_depth < 1:
             LOGGER.debug(
-                "Exiting on single particle"
-                if len(self) <= 1
+                "Exiting on particle threshold"
+                if len(self) <= self._particle_threshold
                 else f"Exiting on recursion limit {len(self.tag)}"
             )
-            if len(self) > 1:
+            if len(self) > self._particle_threshold:
                 warnings.warn(
                     f"Bad data detected at a depth of {len(self.tag)}.\n"
                     f"Box ({self.box}) does not support further splitting.\n"
@@ -428,6 +453,8 @@ class OctreeNode:
                     "precision",
                     OctreeWarning,
                 )
+            if self._pbar is not None:
+                self._pbar.update(len(self))
             return
 
         # Loop through children sections and recurse.
@@ -436,16 +463,23 @@ class OctreeNode:
         # Note also child_list[0] is the offset to child[1]
         # child[0] starts at node_start and ends at
         # node_start+child_list[0] -> child_list only
+        children = []
         for i in range(8):
             child1 = child_list[i - 1] if i > 0 else self.node_start
             # need node_end + 1 because we have child2 - 1 below
             child2 = child_list[i] if i < 7 else self.node_end + 1
+
+            # append empty child as None
+            if child1 >= child2:
+                children.append(None)
+                continue
+
             # recursing on child i not i-1!
             child_box = bbox.get_child_box(self.box, i)
-            LOGGER.debug(
-                f"Making child box{i + 1} for {child2}-{child1}"
-                f"={child2 - child1} particles in box {child_box}"
-            )
+            # LOGGER.debug(
+            #     f"Making child box{i + 1} for {child2}-{child1}"
+            #     f"={child2 - child1} particles in box {child_box}"
+            # )
             node = OctreeNode(
                 data=self.data,
                 node_start=child1,
@@ -453,15 +487,20 @@ class OctreeNode:
                 box=child_box,
                 tag=self.tag + [Octants(i + 1)],  # e.g. i=1 corresponds to subtree 3
                 parent=self,
+                particle_threshold=self._particle_threshold,
+                pbar=self._pbar,
             )
-            # Only _keep_ children if above _particle_threshold
-            if len(self) > self._particle_threshold:
-                self.children.append(node)
+            children.append(node)
+        # Only _keep_ children if above _particle_threshold
+        if len(self) > self._particle_threshold:
+            self.children.extend(children)
+        if self._pbar is not None and self.is_leaf:
+            self._pbar.update(len(self))
 
     def __repr__(self):
         return (
-            f"OctreeNode (id:{self.tag}) from {self.node_start}-{self.node_end} ({len(self)} particles) with"
-            + f" box {self.box} and {len(self.children)} child node"
+            f"OctreeNode (id:{_convert_list_to_tag_str(self.tag)}) from {self.node_start}-{self.node_end} ({len(self)} particles) with"
+            + f" box {self.box} and {len([c for c in self.children if c is not None])} child node"
             + f"{'' if len(self.children) == 1 else 's'}"
         )
 
@@ -518,7 +557,7 @@ def _top_down_containing_node(
     while len(node) > 1:
         # find leaf or smallest subtree containing point
         for child in node.children:
-            if bbox.in_box(child.box, xyz):
+            if child is not None and bbox.in_box(child.box, xyz):
                 node = child
                 break  # for child loop
         else:
@@ -537,22 +576,12 @@ def _bottom_up_containing_node(node: OctreeNode, xyz: ArrayLike):
     return node if bbox.in_box(node.box, xyz) else None
 
 
-def _node_contains_points(node: OctreeNode, points: ArrayLike) -> bool:
-    """
-    For a given node and array of points, return True if all points are contained within, False otherwise
-    """
-    for point in points:
-        if not bbox.in_box(node.box, point):
-            return False
-    return True
-
-
 def _point_in_sphere(point: ArrayLike, center: ArrayLike, radius: float) -> bool:
     """
     Return true if point is closer than (<=) radius to center. Vectorizable
     """
     # We don't need to calculate the actual distance, we only need to compare dist^2
-    dist2 = np.sum((point - center) ** 2, axis=1)
+    dist2 = np.sum(np.atleast_2d((point - center) ** 2), axis=1)
     return dist2 <= radius**2
 
 
@@ -572,16 +601,80 @@ class Octree:
         Number of particles allowed in a leaf before splitting. Defaults to
         _DEFAULT_PARTICLE_THRESHOLD
 
+        show_pbar: bool, optional
+        Show a progress bar during tree construction
+
     """
 
     root: OctreeNode
 
-    def __init__(self, data: Dataset, *, particle_threshold: int = None) -> None:
+    def __init__(
+        self, data: Dataset, *, particle_threshold: int = None, show_pbar: bool = False
+    ) -> None:
         if particle_threshold is None:
             particle_threshold = _DEFAULT_PARTICLE_THRESHOLD
+
+        pbar = None
+        if show_pbar:
+            pbar = tqdm(total=len(data), miniters=1000)
+
         self.root = OctreeNode(
-            data=data, box=data.bounding_box, particle_threshold=particle_threshold
+            data=data,
+            box=data.bounding_box,
+            particle_threshold=particle_threshold,
+            pbar=pbar,
         )
+
+        if show_pbar:
+            pbar.close()
+
+    def get_leaves(self):
+        """
+        Return a list of all leaf octree nodes in depth-first order
+        """
+        if hasattr(self, "_leaves"):
+            return self._leaves
+        leaves = []
+        nodes = [self.root]
+        while nodes:
+            node = nodes.pop()
+            if node is None:
+                continue
+            if node.is_leaf:
+                leaves.append(node)
+            else:
+                nodes.extend(reversed(node.children))
+        self._leaves = leaves
+        return leaves
+
+    def get_node(self, tag: str | List[Octants]) -> OctreeNode:
+        """
+        Return the node corresponding to the provided tag
+        """
+        if isinstance(tag, str):
+            tag = _convert_tag_str_to_list(tag)
+
+        if not tag:
+            return self.root
+
+        node = self.root
+        for t in tag:
+            node = node.children[t]
+
+        return node
+
+    def __iter__(self):
+        """
+        Return all nodes as pre-order tree traversal
+        """
+        nodes = [self.root]
+        while nodes:
+            node = nodes.pop()
+            if node is None:
+                continue
+            yield node
+            if not node.is_leaf:
+                nodes.extend(reversed(node.children))
 
     def get_containing_node_of_point(
         self,
@@ -631,10 +724,10 @@ class Octree:
         for point in points:
             if node is None:
                 node = self.get_containing_node_of_point(
-                    *point, start_node=start_node, top_down=top_down
+                    point, start_node=start_node, top_down=top_down
                 )
             else:
-                node = _bottom_up_containing_node(node, *point)
+                node = _bottom_up_containing_node(node, point)
         return node
 
     def _get_nodes_in_shape(
@@ -686,13 +779,16 @@ class Octree:
         # returned in z-order
         entire_nodes = []
         partial_leaves = []
-        child_queue = start_node.children.copy()
+        child_queue = list(reversed(start_node.children))
         while len(child_queue):
             node = child_queue.pop()
 
+            if node is None:
+                continue
+
             # Test if node entirely contained in shape
             node_vertices = bbox.get_box_vertices(node.box)
-            raise NotImplementedError("Need to exclude nodes that are entirely outside")
+            # raise NotImplementedError("Need to exclude nodes that are entirely outside")
 
             vertices_enclosed = sum(containment_test(node_vertices))
 
@@ -744,6 +840,10 @@ class Octree:
             IndexError
             When there are unexpected issues with the queue system.
         """
+
+        if len(center) != 3:
+            raise ValueError("Center should be a 3 element array")
+
         # sphere bounding box
         bounding_box = bbox.BoundingBox(
             np.array(
@@ -760,7 +860,7 @@ class Octree:
 
         containment_test = partial(_point_in_sphere, center=center, radius=radius)
 
-        return self._get_nodes_in_sphere(
+        return self._get_nodes_in_shape(
             bounding_box=bounding_box, containment_test=containment_test
         )
 
@@ -770,7 +870,7 @@ class Octree:
         bounding_box: bbox.BoxLike,
         containment_test: callable = None,
         strict: bool = False,
-    ) -> ArrayLike[int]:
+    ) -> ArrayLike:
         """
         Return all particles contained within a shape that fits inside bounding box
 
@@ -800,19 +900,24 @@ class Octree:
         )
         # reversed stack is a queue if you're not adding anything new and node
         # lists should be much shorter than final particle index list
-        entirely_in.reversed()
-        partial_leaves.reversed()
+        entirely_in.reverse()
+        partial_leaves.reverse()
 
-        indices = []
-        while entirely_in and partial_leaves:
-            node, is_full = (
-                entirely_in.pop(),
-                True
-                if entirely_in[0].node_start < partial_leaves[0].node_start
-                else partial_leaves.pop(),
-                False,
-            )
-            node_indices = np.arange(node.node_start, node.node_end + 1)
+        # initialize with empty index list so hstack doesn't complain
+        indices = [np.array([], dtype=int)]
+        while entirely_in or partial_leaves:
+            if entirely_in and partial_leaves:
+                node, is_full = (
+                    (entirely_in.pop(), True)
+                    if entirely_in[0].node_start < partial_leaves[0].node_start
+                    else (partial_leaves.pop(), False)
+                )
+            elif entirely_in:
+                node, is_full = entirely_in.pop(), True
+            else:
+                node, is_full = partial_leaves.pop(), False
+
+            node_indices = np.arange(node.node_start, node.node_end + 1, dtype=int)
 
             if is_full or not strict:
                 indices.append(node_indices)
@@ -824,9 +929,7 @@ class Octree:
         # indices is now a list of numpy index arrays. Stack'em
         # Note that all elements should be unique due to octree
         # construction
-        indices = np.hstack(indices)
-
-        return indices
+        return np.hstack(indices)
 
     def get_particle_indices_in_box(
         self, *, box: ArrayLike, strict: bool = False
@@ -877,6 +980,10 @@ class Octree:
             indices: ArrayLike
             Array of particle indices contained within sphere
         """
+
+        if len(center) != 3:
+            raise ValueError("Center should be a 3 element array")
+
         # sphere bounding box
         bounding_box = bbox.BoundingBox(
             np.array(
@@ -893,7 +1000,7 @@ class Octree:
 
         containment_test = partial(_point_in_sphere, center=center, radius=radius)
 
-        return self.get_particle_indices_in_shape(
+        return self._get_particle_indices_in_shape(
             bounding_box=bounding_box, containment_test=containment_test, strict=strict
         )
 
