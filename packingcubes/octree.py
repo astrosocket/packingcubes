@@ -660,6 +660,8 @@ class Octree:
         node = self.root
         for t in tag:
             node = node.children[t]
+            if node is None:
+                return None
 
         return node
 
