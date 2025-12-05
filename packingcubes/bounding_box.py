@@ -26,6 +26,10 @@ type BoxLike = ArrayLike | BoundingBox
 
 
 class BoundingBoxValidFlag(Flag):
+    """
+    Validations performed on a box
+    """
+
     IS_BOX = auto(), lambda box: f"Box ({box}) is not a box!"
     CORRECT_SHAPE = (
         auto(),
@@ -37,7 +41,7 @@ class BoundingBoxValidFlag(Flag):
         auto(),
         lambda box: f"Provided box is too small ({box}). Precision will be lost",
     )
-    # TODO The following is hacky and I don't like it...
+    # TODO: The following (e.g. IS_BOX[0]) is hacky and I don't like it...
     VALID = (
         IS_BOX[0] | CORRECT_SHAPE[0] | FINITE[0] | POSITIVE[0] | PRECISION[0],
         lambda box: "This box is valid",
@@ -49,7 +53,10 @@ class BoundingBoxValidFlag(Flag):
         obj.message_fun = message_fun
         return obj
 
-    def get_Messages(self, box: ArrayLike):
+    def get_messages(self, box: ArrayLike):
+        """
+        Obtain the test results from this flag assuming the provided box
+        """
         if self == 0:
             # If this happens, hoo boy...
             return [f"Something is very wrong with bbox: {box}"]
@@ -61,14 +68,24 @@ class BoundingBoxValidFlag(Flag):
 
 
 class BoundingBoxError(ValueError):
+    """BoundingBox validation error"""
+
     def __init__(
         self,
         box: ArrayLike,
-        errortype: BoundingBoxValidFlag = BoundingBoxValidFlag.VALID,
+        errortype: BoundingBoxValidFlag,
     ):
+        """
+        Args:
+            box: ArrayLike
+            The invalid box responsible
+
+            errortype: BoundingBoxValidFlag
+            Flag listing the box definition violations
+        """
         self.errortype = errortype
         self.box = box
-        self.messages = self.errortype.get_Messages(self.box)
+        self.messages = self.errortype.get_messages(self.box)
         if len(self.messages):
             self.messages = "Bounding Box errors: \n" + "\n".join(self.messages)
         super().__init__(self.messages)
@@ -84,6 +101,21 @@ def check_valid(box: np.ndarray, *, raise_error: bool = True):
         3. Values 4-6 are positive
         4. Values 4-6 are larger than the floating point precision of the 1-3
             values (i.e. box[0] + box[3] > box[0])
+
+    Args:
+        box: numpy.ndarray
+        Array to check
+
+        raise_error: bool, optional
+        How to deal with an invalid box. Raise error on True (default) or
+        return test results flag
+
+    Returns:
+        flag: BoundingBoxValidFlag
+        Flag of all test results
+
+    Raises:
+        BoundingBoxError if raise_error is True and box is invalid
     """
     flag = BoundingBoxValidFlag.VALID
     if not isinstance(box, np.ndarray):
@@ -115,13 +147,13 @@ def make_valid(bbox: BoxLike) -> BoundingBox:
     """
     Coerce a box-like object into a BoundingBox if possible. No-op if already.
 
-    Inputs:
+    Args:
         bbox: BoxLike
         Something that looks like a box, i.e. a numpy array with in the form
         [x, y, z, dx, dy, dz] with the following conditions: finite, all
         |x[i]| * epsilon < dx[i] or a BoundingBox
 
-    Outputs:
+    Returns:
         bbox: BoundingBox
         The input box as a BoundingBox
 
@@ -138,7 +170,18 @@ def make_valid(bbox: BoxLike) -> BoundingBox:
 
 def in_box(bbox: BoxLike, xyz: ArrayLike) -> np.ndarray:
     """
-    Check if point is inside box
+    Check if points are inside box
+
+    Args:
+        bbox: BoxLike
+        Box to check
+
+        xyz: ArrayLike
+        Array of points with shape Nx3 to test. (3,) arrays will be converted
+
+    Returns:
+        in_box: ndarray[bool]
+        Boolean array where True means point is inside box
     """
     bbox = make_valid(bbox)
     xyz = np.atleast_2d(xyz)
@@ -218,7 +261,18 @@ def get_child_box(bbox: BoundingBox, ind: int) -> BoundingBox:
     Get indth (0-indexed) new child box of current box
 
     New child box is defined as the suboctant described by position ind
-    with size (box[3]/2, box[4]/2, box[5]/2)
+    with size (box[3]/2, box[4]/2, box[5]/2). The child box is not currently
+    guaranteed to be a proper BoundingBox
+
+    Args:
+        bbox: BoundingBox
+        Parent box
+
+        ind: int
+        Z-order index (0-indexed) of child box
+
+    Returns:
+        child_box: BoundingBox
     """
     # Use z-index order for now, but other possibilities
     # like Hilbert curves exist - and see
@@ -252,6 +306,20 @@ def get_box_vertex(bbox: BoxLike, index: int, *, jitter: float = 0) -> ArrayLike
     Note that a jitter can be applied. If so the coordinates will be the
     vertex of the box slightly (1%) smaller (larger) if jitter is positive
     (negative)
+
+    Args:
+        bbox: BoxLike
+        Box to get vertex of
+
+        index: int
+        Z-order (0-based) index of vertex
+
+        jitter: float, optional
+        Jitter direction. Default 0 (no jitter)
+
+    Returns:
+        vertex: numpy.ndarray
+        (3,) numpy array corresponding to the specified vertex
     """
     bbox = make_valid(bbox)
     if not isinstance(index, int):
@@ -277,6 +345,17 @@ def get_box_vertices(bbox: BoxLike, *, jitter: float = 0) -> ArrayLike:
     Note that a jitter can be applied. If so the coordinates will be the
     vertices of the box slightly (1%) smaller (larger) if jitter is positive
     (negative)
+
+    Args:
+        bbox: BoxLike
+        Box to get vertex of
+
+        jitter: float, optional
+        Jitter direction. Default 0 (no jitter)
+
+    Returns:
+        vertices: numpy.ndarray
+        (6,3) numpy array corresponding to the box vertices in z-order
     """
     if not np.isfinite(jitter):
         raise ValueError("Jitter must be a finite value")
@@ -314,7 +393,7 @@ def project_point_on_box(
     Note: Jitter is not applied to points inside the box (so a point cannot
         be jittered *out*).
 
-    Inputs:
+    Args:
         bbox: BoxLike
         Box to project on
 

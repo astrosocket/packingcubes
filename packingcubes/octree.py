@@ -344,7 +344,7 @@ class OctreeNode:
         pbar: tqdm.tqdm = None,
     ) -> None:
         """
-        Inputs:
+        Args:
             data: Dataset
             The backing Dataset for the octree
 
@@ -593,24 +593,30 @@ class Octree:
     on a Dataset object. The octree will be composed of OctreeNodes and is
     currently computed in a top-down approach
 
-    Inputs:
-        data: Dataset
-        A Dataset containing particle data
-
-        particle_threshold: int, optional
-        Number of particles allowed in a leaf before splitting. Defaults to
-        _DEFAULT_PARTICLE_THRESHOLD
-
-        show_pbar: bool, optional
-        Show a progress bar during tree construction
+    Attributes:
+        root: OctreeNode
+        The root node of the octree
 
     """
 
     root: OctreeNode
+    """The root node of the octree"""
 
     def __init__(
         self, data: Dataset, *, particle_threshold: int = None, show_pbar: bool = False
     ) -> None:
+        """
+        Args:
+            data: Dataset
+            A Dataset containing particle data
+
+            particle_threshold: int, optional
+            Number of particles allowed in a leaf before splitting. Defaults to
+            _DEFAULT_PARTICLE_THRESHOLD
+
+            show_pbar: bool, optional
+            Show a progress bar during tree construction
+        """
         if particle_threshold is None:
             particle_threshold = _DEFAULT_PARTICLE_THRESHOLD
 
@@ -649,7 +655,15 @@ class Octree:
 
     def get_node(self, tag: str | List[Octants]) -> OctreeNode:
         """
-        Return the node corresponding to the provided tag
+        Return the node corresponding to the provided tag or None if not found
+
+        Args:
+            tag: str | List[Octants]
+            The tag to search for
+
+        Returns:
+            node | None
+            Node in octree with specified tag or None if it does not exist
         """
         if isinstance(tag, str):
             tag = _convert_tag_str_to_list(tag)
@@ -745,7 +759,7 @@ class Octree:
                 < entirely_in[i + 1].z_order
                     < partial_leaves[j + 1].z_order
 
-        Inputs:
+        Args:
             bounding_box: BoxLike
             Shape bounding box
 
@@ -756,7 +770,7 @@ class Octree:
             Defaults to testing if point(s) are inside the provided bounding
             box
 
-        Output:
+        Returns:
             entirely_in: List[OctreeNode]
             List of nodes that are entirely within shape. Nodes may be internal nodes
 
@@ -824,14 +838,14 @@ class Octree:
         Calls _get_nodes_in_shape with sphere's bounding box and
         _point_in_sphere as the containment_test
 
-        Inputs:
+        Args:
             center: ArrayLike
             Coordinates of sphere center
 
             radius: float
             Sphere radius
 
-        Output:
+        Returns:
             entirely_in: List[OctreeNode]
             List of nodes that are entirely within shape. Nodes may be internal nodes
 
@@ -876,7 +890,7 @@ class Octree:
         """
         Return all particles contained within a shape that fits inside bounding box
 
-        Inputs:
+        Args:
             bounding_box: BoxLike
             Shape bounding box
 
@@ -893,7 +907,7 @@ class Octree:
             False allows indices to include particles outside (but "nearby")
             shape. Defaults to False
 
-        Output:
+        Returns:
             indices: ArrayLike
             Array of particle indices contained within shape
         """
@@ -939,7 +953,7 @@ class Octree:
         """
         Return all particles contained within the box
 
-        Inputs:
+        Args:
             box: ArrayLike
             Box to check
 
@@ -949,7 +963,7 @@ class Octree:
             False allows indices to include particles outside (but "nearby")
             box. Defaults to False
 
-        Output:
+        Returns:
             indices: ArrayLike
             Array of particle indices contained within sphere
         """
@@ -965,7 +979,7 @@ class Octree:
         """
         Return all particles contained within the sphere defined by center and radius
 
-        Inputs:
+        Args:
             center: ArrayLike
             Center point of the sphere
 
@@ -978,7 +992,7 @@ class Octree:
             False allows indices to include particles outside (but "nearby")
             sphere. Defaults to False
 
-        Output:
+        Returns:
             indices: ArrayLike
             Array of particle indices contained within sphere
         """
@@ -1017,7 +1031,7 @@ class Octree:
               1. Check if neighboring node is closer than closest particle
               2. Compare particles in neighbor node to closest
 
-        Inputs:
+        Args:
             xyz: ArrayLike
             Coordinates of point to check
 
