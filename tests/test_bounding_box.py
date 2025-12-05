@@ -43,7 +43,7 @@ def test_check_valid_invalid_boxes(box):
             assert bbox.BoundingBoxValidFlag.POSITIVE not in validation_code
             assert "invalid size" in lower_info
         if np.all(np.isfinite(box)) & np.any(
-            (box[3:] > 0) & (np.abs(box[3:]) <= np.abs(box[:3] * np.finfo(float).eps))
+            (box[3:] > 0) & (np.abs(box[3:]) <= np.abs(box[:3] * np.finfo(float).eps)),
         ):
             assert bbox.BoundingBoxValidFlag.PRECISION not in validation_code
             assert "precision" in lower_info
@@ -68,10 +68,8 @@ def test_check_valid_valid_box(box: ArrayLike):
     assert np.all(box[3:] > np.abs(box[:3] * np.finfo(float).eps))
 
     # check output
-    assert (
-        validation_code_w_error == validation_code2_no_error
-        and validation_code_w_error == bbox.BoundingBoxValidFlag.VALID
-    )
+    assert validation_code_w_error == validation_code2_no_error
+    assert validation_code_w_error == bbox.BoundingBoxValidFlag.VALID
 
 
 #############################
@@ -124,7 +122,7 @@ def test_midplane(box: ArrayLike):
     midplane = bbox.midplane(box)
 
     for i, m in enumerate(midplane):
-        assert midplane[i] == box[i] + box[i + 3] / 2
+        assert m == box[i] + box[i + 3] / 2
 
 
 #############################
@@ -147,8 +145,11 @@ def test_max_depth_valid_box(bounding_box):
     eps = np.finfo(float).eps
     assert np.any(
         np.isclose(
-            farthest_corner, farthest_corner + smallest_dx / 2, atol=eps, rtol=eps
-        )
+            farthest_corner,
+            farthest_corner + smallest_dx / 2,
+            atol=eps,
+            rtol=eps,
+        ),
     )
 
 
@@ -162,7 +163,7 @@ def test_normalize_to_box(coordinates, box):
 
     assert np.all((0 <= normal_coords) & (normal_coords <= 1))
     assert normal_coords == pytest.approx(
-        np.clip((coordinates - box[:3]) / box[3:], a_min=0, a_max=1)
+        np.clip((coordinates - box[:3]) / box[3:], a_min=0, a_max=1),
     )
 
 
@@ -204,9 +205,10 @@ def test_get_neighbor_boxes(box: ArrayLike):
     st.integers().filter(lambda i: i < 0 or i > 7) | st.floats(),
 )
 def test_get_child_box_invalid_index(
-    bounding_box: bbox.BoundingBox, index: int | float
+    bounding_box: bbox.BoundingBox,
+    index: int | float,
 ):
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="invalid index"):
         bbox.get_child_box(bounding_box, index)
 
 
@@ -264,20 +266,25 @@ def test_get_box_vertex_invalid_boxes(box: ArrayLike):
     st.floats(allow_infinity=False, allow_nan=False),
 )
 def test_get_box_vertex_invalid_indices(
-    box: ArrayLike, index: int | float, jitter: float
+    box: ArrayLike,
+    index: int | float,
+    jitter: float,
 ):
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="out of bounds|must be an int|must be finite"):
         bbox.get_box_vertex(box, index=index, jitter=jitter)
 
 
 @example(np.array([0, 0, 0, 1, 1, 1]), 1, np.nan).xfail(
-    reason="Jitter must be a number", raises=ValueError
+    reason="Jitter must be a number",
+    raises=ValueError,
 )
 @example(np.array([0, 0, 0, 1, 1, 1]), 1, np.inf).xfail(
-    reason="Jitter must be finite", raises=ValueError
+    reason="Jitter must be finite",
+    raises=ValueError,
 )
 @example(np.array([0, 0, 0, 1, 1, 1]), 1, -np.inf).xfail(
-    reason="Jitter must be finite", raises=ValueError
+    reason="Jitter must be finite",
+    raises=ValueError,
 )
 @given(
     ct.valid_boxes(),
@@ -323,13 +330,16 @@ def test_get_box_vertices_invalid_boxes(box: ArrayLike):
 
 
 @example(np.array([0, 0, 0, 1, 1, 1]), np.nan).xfail(
-    reason="NaNs/Infs not valid jitters", raises=ValueError
+    reason="NaNs/Infs not valid jitters",
+    raises=ValueError,
 )
 @example(np.array([0, 0, 0, 1, 1, 1]), np.inf).xfail(
-    reason="NaNs/Infs not valid jitters", raises=ValueError
+    reason="NaNs/Infs not valid jitters",
+    raises=ValueError,
 )
 @example(np.array([0, 0, 0, 1, 1, 1]), -np.inf).xfail(
-    reason="NaNs/Infs not valid jitters", raises=ValueError
+    reason="NaNs/Infs not valid jitters",
+    raises=ValueError,
 )
 @given(
     ct.valid_boxes(),
@@ -356,10 +366,11 @@ def test_get_box_vertices_valid(box: ArrayLike, jitter: float):
 
     # check with jitter
     if jitter != 0:
-        for i, (v, vj) in enumerate(zip(vertices, vertices_w_jitter)):
+        for i, (v, vj) in enumerate(zip(vertices, vertices_w_jitter, strict=True)):
             # need a better test here
             note(
-                f"{i=} w/o jitter: {v} w/ jitter:{vj} {'inside' if jitter > 0 else 'outside'}?:{bbox.in_box(box, vj)}"
+                f"{i=} w/o jitter: {v} w/ jitter:{vj} "
+                f"{'inside' if jitter > 0 else 'outside'}?:{bbox.in_box(box, vj)}",
             )
             assert np.all(v != vj)
             assert bbox.in_box(box, vj) != (jitter < 0)
@@ -370,7 +381,9 @@ def test_get_box_vertices_valid(box: ArrayLike, jitter: float):
 #############################
 @given(ct.invalid_boxes(), ct.valid_positions(), st.floats())
 def test_project_point_on_box_invalid_box(
-    box: ArrayLike, xyz: ArrayLike, jitter: float
+    box: ArrayLike,
+    xyz: ArrayLike,
+    jitter: float,
 ):
     with pytest.raises(bbox.BoundingBoxError):
         bbox.project_point_on_box(box, xyz, jitter=jitter)
@@ -382,17 +395,21 @@ def test_project_point_on_box_invalid_box(
     st.floats(),
 )
 def test_project_point_on_box_invalid_point_nan(
-    box: ArrayLike, xyz: ArrayLike, jitter: float
+    box: ArrayLike,
+    xyz: ArrayLike,
+    jitter: float,
 ):
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="contains NaN"):
         bbox.project_point_on_box(box, xyz, jitter=jitter)
 
 
 @example(np.array([0, 0, 0, 1, 1, 1]), np.array([0, 0, 0]), np.nan).xfail(
-    reason="Jitter must be a number", raises=ValueError
+    reason="Jitter must be a number",
+    raises=ValueError,
 )
 @example(np.array([0, 0, 0, 1, 1, 1]), np.array([0, 0, 0]), -1).xfail(
-    reason="Negative jitter not supported yet", raises=NotImplementedError
+    reason="Negative jitter not supported yet",
+    raises=NotImplementedError,
 )
 # infinite points are allowed
 @example(np.array([0, 0, 0, 1, 1, 1]), np.array([np.inf, 0, 0]), 1)
@@ -406,7 +423,7 @@ def test_project_point_on_box_valid(box: ArrayLike, xyz: ArrayLike, jitter: floa
     xyzs = np.atleast_2d(xyz)
     pxyzs = np.atleast_2d(pxyz)
     pxyz_w_jitters = np.atleast_2d(pxyz_w_jitter)
-    for txyz, tpxyz, tpxyz_w_jitter in zip(xyzs, pxyzs, pxyz_w_jitters):
+    for txyz, tpxyz, tpxyz_w_jitter in zip(xyzs, pxyzs, pxyz_w_jitters, strict=True):
         # test we didn't mess up already contained points
         if bbox.in_box(box, txyz):
             assert txyz == pytest.approx(tpxyz)

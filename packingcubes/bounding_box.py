@@ -122,8 +122,7 @@ def check_valid(box: np.ndarray, *, raise_error: bool = True):
         flag ^= BoundingBoxValidFlag.IS_BOX
         if raise_error:
             raise BoundingBoxError(box=box, errortype=flag)
-        else:
-            return flag
+        return flag
     if len(box) != 6 or box.shape != (6,):
         flag ^= BoundingBoxValidFlag.CORRECT_SHAPE
     else:
@@ -135,7 +134,7 @@ def check_valid(box: np.ndarray, *, raise_error: bool = True):
             np.isfinite(box[:3])
             & np.isfinite(box[3:])
             & (box[3:] > 0)
-            & (box[3:] < (np.abs(box[:3]) + box[3:]) * np.finfo(float).eps)
+            & (box[3:] < (np.abs(box[:3]) + box[3:]) * np.finfo(float).eps),
         ):
             flag ^= BoundingBoxValidFlag.PRECISION
     if raise_error and flag != BoundingBoxValidFlag.VALID:
@@ -214,8 +213,7 @@ def max_depth(bbox: BoundingBox) -> int:
     min_box_sizes = (
         np.maximum(1, np.abs(bbox.box[:3]) + bbox.box[3:]) * np.finfo(float).eps
     )
-    max_depth = np.ceil(np.log2(np.min(bbox.box[3:] / min_box_sizes))).astype(int)
-    return max_depth
+    return np.ceil(np.log2(np.min(bbox.box[3:] / min_box_sizes))).astype(int)
 
 
 def normalize_to_box(coordinates: ArrayLike, bbox: BoxLike) -> ArrayLike:
@@ -230,13 +228,15 @@ def normalize_to_box(coordinates: ArrayLike, bbox: BoxLike) -> ArrayLike:
         a_max=None,
     )
     return np.clip(
-        (fixed_subnormal - bbox.box[:3]) / bbox.box[3:], a_min=0.0, a_max=1.0
+        (fixed_subnormal - bbox.box[:3]) / bbox.box[3:],
+        a_min=0.0,
+        a_max=1.0,
     )
 
 
 def get_neighbor_boxes(bbox: BoxLike) -> ArrayLike:
     """
-    Return the twenty-six boxes that would be the neighbors of this box in a uniform grid
+    Return the 26 boxes that would be the neighbors of this box in a uniform grid
 
     Boxes are returned as a 26x6 array, where each row is a box. Order is
     z-order, so row 0 is the box at [x-dx,y-dy,z-dz], row 2 is [x+dx,y-dy,z-dz]
@@ -380,7 +380,10 @@ def get_box_vertices(bbox: BoxLike, *, jitter: float = 0) -> ArrayLike:
 
 
 def project_point_on_box(
-    bbox: BoxLike, xyz: ArrayLike, *, jitter: float = 0
+    bbox: BoxLike,
+    xyz: ArrayLike,
+    *,
+    jitter: float = 0,
 ) -> np.ndarray:
     """
     Return coordinates of projection of (x, y, z) on nearest box face.
@@ -420,8 +423,8 @@ def project_point_on_box(
         raise NotImplementedError()
 
     jitter = np.sign(jitter) * bbox.box[3:] / 100
-    clamped_xyz = np.clip(
-        xyz, a_min=bbox.box[:3] + jitter, a_max=bbox.box[:3] + bbox.box[3:] - jitter
+    return np.clip(
+        xyz,
+        a_min=bbox.box[:3] + jitter,
+        a_max=bbox.box[:3] + bbox.box[3:] - jitter,
     ).astype(float)
-
-    return clamped_xyz

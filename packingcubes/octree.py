@@ -4,7 +4,6 @@ import logging
 import warnings
 from enum import IntEnum
 from functools import partial
-from typing import List
 
 import numpy as np
 from numpy.typing import ArrayLike
@@ -14,7 +13,7 @@ import packingcubes.bounding_box as bbox
 from packingcubes.data_objects import Dataset
 
 LOGGER = logging.getLogger(__name__)
-logging.captureWarnings(True)
+logging.captureWarnings(capture=True)
 
 _DEFAULT_PARTICLE_THRESHOLD = 400
 
@@ -88,7 +87,7 @@ def _partition_data(
     box: ArrayLike,
     lo: int,
     hi: int,
-) -> List[int]:
+) -> list[int]:
     """
     Partition 3D data from lo to hi contained in bounding box into 8 octants.
 
@@ -148,7 +147,8 @@ def _partition_data(
     xsplit4 = _partition(data, ysplit2, hi, 0, midplane[0])
 
     # LOGGER.debug(
-    #     f"y1:{xsplit1} x1:{ysplit1} y2:{xsplit2} z:{zsplit} y3:{xsplit3} x2:{ysplit2} y4:{xsplit4}"
+    #     f"y1:{xsplit1} x1:{ysplit1} y2:{xsplit2} "
+    #     f"z:{zsplit} y3:{xsplit3} x2:{ysplit2} y4:{xsplit4}"
     # )
 
     # child_list[-1] = lo #    indices of child_0 (morton=1): lo, xsplit1-1
@@ -222,7 +222,7 @@ def _box_neighbors_in_node(
             ]  # [4,6,7]
         case _:
             raise ValueError(
-                f"Invalid {box_ind=} specified! Valid options are in octree.Octants"
+                f"Invalid {box_ind=} specified! Valid options are in octree.Octants",
             )
 
 
@@ -250,25 +250,24 @@ def morton(positions: ArrayLike, box: ArrayLike) -> ArrayLike[int]:
     # behavior of _partition, and if your data looks like that, there's not
     # much we can do...
     midplane = bbox.midplane(box)
-    morton = (
+    # We do not attempt to convert to Octants here because that would create a
+    # numpy *object* array. Just leave them as ints
+    return (
         1
         + (positions[:, 0] >= midplane[0])
         + 2 * (positions[:, 1] >= midplane[1])
         + 4 * (positions[:, 2] >= midplane[2])
     ).astype(int)
-    # We do not attempt to convert to Octants here because that would create a
-    # numpy *object* array. Just leave them as ints
-    return morton
 
 
-def _convert_list_to_tag_str(tag: List[Octants]) -> str:
+def _convert_list_to_tag_str(tag: list[Octants]) -> str:
     """
     Convert list of Octants to a str
     """
     return "".join([f"{t.value}" for t in tag])
 
 
-def _convert_tag_str_to_list(tag_str: str) -> List[Octants]:
+def _convert_tag_str_to_list(tag_str: str) -> list[Octants]:
     """
     Convert string that looks like a list of Octants into one
     """
@@ -318,16 +317,28 @@ class OctreeNode:
     node_start: int
     """ Starting index in data of this OctreeNode """
     node_end: int
-    """ Ending index in data of this OctreeNode. OctreeNodes have node_end+1 - node_start particles """
+    """ 
+    Ending index in data of this OctreeNode. OctreeNodes have 
+    node_end+1 - node_start particles 
+    """
     box: bbox.BoundingBox  # [x,y,z,dx,dy,dz]
-    """ BoundingBox with field box that is a (6, ) array defined as [x, y, z, dx, dy, dz] where (x,y,z) is the left-front-bottom corner """
+    """ 
+    BoundingBox with field box that is a (6, ) array defined as 
+    [x, y, z, dx, dy, dz] where (x,y,z) is the left-front-bottom corner 
+    """
     # empty for root node, otherwise list of morton indices s.t. [7,2,1] is the
     # tag for the left-front-bottom subnode of the left-back-bottom subnode of
     # right-front-top subnode of the root
-    tag: List[Octants]
-    """ List of morton indices describing the location of this OctreeNode in the overall tree """
-    children: List[None | OctreeNode]
-    """ List of OctreeNode children with None as placeholders for empty children. Empty if leaf node """
+    tag: list[Octants]
+    """ 
+    List of morton indices describing the location of this OctreeNode in the
+    overall tree 
+    """
+    children: list[None | OctreeNode]
+    """ 
+    List of OctreeNode children with None as placeholders for empty children.
+    Empty if leaf node.
+    """
     parent: None | OctreeNode
     """ Reference to parent node or None if root """
 
@@ -338,7 +349,7 @@ class OctreeNode:
         node_start: int = None,
         node_end: int = None,
         box: ArrayLike = None,
-        tag: List[Octants] = None,
+        tag: list[Octants] = None,
         parent: None | OctreeNode = None,
         particle_threshold: int = 1,
         pbar: tqdm.tqdm = None,
@@ -411,7 +422,7 @@ class OctreeNode:
             self._max_depth = self.parent._max_depth - 1
         if self._max_depth < 0:
             raise OctreeError(
-                "Attempted to create an OctreeNode with negative max depth!"
+                "Attempted to create an OctreeNode with negative max depth!",
             )
 
         self._pbar = pbar
@@ -443,7 +454,7 @@ class OctreeNode:
             LOGGER.debug(
                 "Exiting on particle threshold"
                 if len(self) <= self._particle_threshold
-                else f"Exiting on recursion limit {len(self.tag)}"
+                else f"Exiting on recursion limit {len(self.tag)}",
             )
             if len(self) > self._particle_threshold:
                 warnings.warn(
@@ -452,6 +463,7 @@ class OctreeNode:
                     "We will stop tree construction here to avoid loss of "
                     "precision",
                     OctreeWarning,
+                    stacklevel=1,
                 )
             if self._pbar is not None:
                 self._pbar.update(len(self))
@@ -499,8 +511,10 @@ class OctreeNode:
 
     def __repr__(self):
         return (
-            f"OctreeNode (id:{_convert_list_to_tag_str(self.tag)}) from {self.node_start}-{self.node_end} ({len(self)} particles) with"
-            + f" box {self.box} and {len([c for c in self.children if c is not None])} child node"
+            f"OctreeNode (id:{_convert_list_to_tag_str(self.tag)})"
+            + f" from {self.node_start}-{self.node_end} ({len(self)} particles) with"
+            + f" box {self.box}"
+            + f" and {len([c for c in self.children if c is not None])} child node"
             + f"{'' if len(self.children) == 1 else 's'}"
         )
 
@@ -552,7 +566,7 @@ def _top_down_containing_node(
     xyz: ArrayLike,
 ):
     """
-    For a given point, return the smallest child node that contains point or None if none do
+    For a given point, return the smallest child node that contains point or None
     """
     while len(node) > 1:
         # find leaf or smallest subtree containing point
@@ -567,7 +581,7 @@ def _top_down_containing_node(
 
 def _bottom_up_containing_node(node: OctreeNode, xyz: ArrayLike):
     """
-    For a given point, return the smallest parent node that contains point or None if none do
+    For a given point, return the smallest parent node that contains point or None
     """
     while node.parent is not None:
         if bbox.in_box(node.box, xyz):
@@ -603,7 +617,11 @@ class Octree:
     """The root node of the octree"""
 
     def __init__(
-        self, data: Dataset, *, particle_threshold: int = None, show_pbar: bool = False
+        self,
+        data: Dataset,
+        *,
+        particle_threshold: int = None,
+        show_pbar: bool = False,
     ) -> None:
         """
         Args:
@@ -653,7 +671,7 @@ class Octree:
         self._leaves = leaves
         return leaves
 
-    def get_node(self, tag: str | List[Octants]) -> OctreeNode:
+    def get_node(self, tag: str | list[Octants]) -> OctreeNode:
         """
         Return the node corresponding to the provided tag or None if not found
 
@@ -710,13 +728,13 @@ class Octree:
         node = self.root if start_node is None else start_node
         if top_down:
             return _top_down_containing_node(node, xyz)
-        else:
-            # find first parent that contains point, then see if parent
-            # can be refined
-            node = _bottom_up_containing_node(node, xyz)
-            if node is not None:
-                return _top_down_containing_node(node, xyz)
-            return None
+
+        # find first parent that contains point, then see if parent
+        # can be refined
+        node = _bottom_up_containing_node(node, xyz)
+        if node is not None:
+            return _top_down_containing_node(node, xyz)
+        return None
 
     def get_containing_node_of_pointlist(
         self,
@@ -740,17 +758,22 @@ class Octree:
         for point in points:
             if node is None:
                 node = self.get_containing_node_of_point(
-                    point, start_node=start_node, top_down=top_down
+                    point,
+                    start_node=start_node,
+                    top_down=top_down,
                 )
             else:
                 node = _bottom_up_containing_node(node, point)
         return node
 
     def _get_nodes_in_shape(
-        self, *, bounding_box: bbox.BoxLike, containment_test: callable = None
-    ) -> tuple[List[OctreeNode], List[OctreeNode]]:
+        self,
+        *,
+        bounding_box: bbox.BoxLike,
+        containment_test: callable = None,
+    ) -> tuple[list[OctreeNode], list[OctreeNode]]:
         """
-        Return list of all nodes entirely inside shape and all nodes partially inside shape
+        Return lists of all nodes entirely inside and partially inside shape
 
         Both node lists will be in z-index order, but are likely to be
         interleaved, i.e.
@@ -804,7 +827,6 @@ class Octree:
 
             # Test if node entirely contained in shape
             node_vertices = bbox.get_box_vertices(node.box)
-            # raise NotImplementedError("Need to exclude nodes that are entirely outside")
 
             vertices_enclosed = sum(containment_test(node_vertices))
 
@@ -830,10 +852,13 @@ class Octree:
         return entire_nodes, partial_leaves
 
     def _get_nodes_in_sphere(
-        self, *, center: ArrayLike[float], radius: float
-    ) -> tuple[List[OctreeNode], List[OctreeNode]]:
+        self,
+        *,
+        center: ArrayLike[float],
+        radius: float,
+    ) -> tuple[list[OctreeNode], list[OctreeNode]]:
         """
-        Return list of all nodes entirely inside sphere and all nodes partially inside sphere
+        Return lists of all nodes entirely inside and nodes partially inside sphere
 
         Calls _get_nodes_in_shape with sphere's bounding box and
         _point_in_sphere as the containment_test
@@ -870,14 +895,15 @@ class Octree:
                     2 * radius,
                     2 * radius,
                     2 * radius,
-                ]
-            )
+                ],
+            ),
         )
 
         containment_test = partial(_point_in_sphere, center=center, radius=radius)
 
         return self._get_nodes_in_shape(
-            bounding_box=bounding_box, containment_test=containment_test
+            bounding_box=bounding_box,
+            containment_test=containment_test,
         )
 
     def _get_particle_indices_in_shape(
@@ -912,7 +938,8 @@ class Octree:
             Array of particle indices contained within shape
         """
         entirely_in, partial_leaves = self._get_nodes_in_shape(
-            bounding_box=bounding_box, containment_test=containment_test
+            bounding_box=bounding_box,
+            containment_test=containment_test,
         )
         # reversed stack is a queue if you're not adding anything new and node
         # lists should be much shorter than final particle index list
@@ -948,7 +975,10 @@ class Octree:
         return np.hstack(indices)
 
     def get_particle_indices_in_box(
-        self, *, box: ArrayLike, strict: bool = False
+        self,
+        *,
+        box: ArrayLike,
+        strict: bool = False,
     ) -> ArrayLike:
         """
         Return all particles contained within the box
@@ -970,11 +1000,16 @@ class Octree:
         bounding_box = bbox.BoundingBox(box.copy())
 
         return self._get_particle_indices_in_shape(
-            bounding_box=bounding_box, strict=strict
+            bounding_box=bounding_box,
+            strict=strict,
         )
 
     def get_particle_indices_in_sphere(
-        self, *, center: ArrayLike, radius: float, strict: bool = False
+        self,
+        *,
+        center: ArrayLike,
+        radius: float,
+        strict: bool = False,
     ) -> ArrayLike:
         """
         Return all particles contained within the sphere defined by center and radius
@@ -1010,14 +1045,16 @@ class Octree:
                     2 * radius,
                     2 * radius,
                     2 * radius,
-                ]
-            )
+                ],
+            ),
         )
 
         containment_test = partial(_point_in_sphere, center=center, radius=radius)
 
         return self._get_particle_indices_in_shape(
-            bounding_box=bounding_box, containment_test=containment_test, strict=strict
+            bounding_box=bounding_box,
+            containment_test=containment_test,
+            strict=strict,
         )
 
     def get_closest_particle(self, xyz: ArrayLike, *, check_neighbors=True) -> int:
@@ -1064,7 +1101,8 @@ class Octree:
         # Need to check all nodes in neighborhood, which is all nodes
         # overlapping with the sphere with same radius as the closest distance
         entirely_in, partial_leaves = self._get_nodes_in_sphere(
-            xyz, radius=closest_dist
+            xyz,
+            radius=closest_dist,
         )
         neighbors = entirely_in + partial_leaves
         for neighbor in neighbors:

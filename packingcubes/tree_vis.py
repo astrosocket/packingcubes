@@ -1,5 +1,4 @@
 import logging
-from typing import Dict, List
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -17,7 +16,7 @@ Module for visualizing octrees and particle data
 """
 
 
-def _extreme_nodes(nodes: List[octree.OctreeNode]):
+def _extreme_nodes(nodes: list[octree.OctreeNode]):
     """
     Find deepest/shallowest nodes (longest/shortest tag) in list of OctreeNodes
     """
@@ -31,7 +30,7 @@ def _extreme_nodes(nodes: List[octree.OctreeNode]):
     return deepest, shallowest
 
 
-def _get_faces(box: bbox.BoundingBox) -> List[np.ndarray]:
+def _get_faces(box: bbox.BoundingBox) -> list[np.ndarray]:
     """
     Return the 30 vertices of the 6 box faces
 
@@ -57,17 +56,15 @@ def _get_faces(box: bbox.BoundingBox) -> List[np.ndarray]:
         [4, 5, 7, 6, 4],  # up
         [0, 2, 3, 1, 0],  # down
     ]
-    vertices = np.array([[box_vertices[j] for j in i] for i in inds])
-
-    return vertices
+    return np.array([[box_vertices[j] for j in i] for i in inds])
 
 
 def cubify_tree(
-    tree: octree.Octree | List[octree.OctreeNode],
+    tree: octree.Octree | list[octree.OctreeNode],
     *,
     leaves_only=True,
     cmap: mpl.colors.Colormap = None,
-) -> Dict[int, Poly3DCollection]:
+) -> dict[int, Poly3DCollection]:
     """
     Transform an octree into a dict of Poly3DCollections indexed by node depth
 
@@ -203,7 +200,7 @@ def plot_octreenode(node: octree.OctreeNode, *, ax=None, color=None):
 
 
 def plot_octree(
-    tree: octree.Octree | List[octree.OctreeNode],
+    tree: octree.Octree | list[octree.OctreeNode],
     *,
     ax=None,
     cmap: mpl.colors.ColorMap = None,

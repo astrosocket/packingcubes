@@ -42,7 +42,7 @@ def make_basic_data():
     def _basic_data(num_particles=10, seed=0xDEADBEEF):
         return fake_basic_dataset(num_particles, seed)
 
-    yield _basic_data
+    return _basic_data
 
 
 #############################
@@ -63,7 +63,7 @@ def valid_dx(draw, x: float):
         st.floats(
             min_value=min_value,
             max_value=max_value,
-        )
+        ),
     )
 
 
@@ -72,11 +72,12 @@ def valid_boxes(draw):
     box_pos = draw(st.tuples(valid_coord(), valid_coord(), valid_coord()))
     box_dx = draw(
         st.tuples(
-            valid_dx(x=box_pos[0]), valid_dx(x=box_pos[1]), valid_dx(x=box_pos[2])
-        )
+            valid_dx(x=box_pos[0]),
+            valid_dx(x=box_pos[1]),
+            valid_dx(x=box_pos[2]),
+        ),
     )
-    box = np.array(box_pos + box_dx)
-    return box
+    return np.array(box_pos + box_dx)
 
 
 @st.composite
@@ -86,10 +87,10 @@ def invalid_boxes_correct_shape(draw):
     @st.composite
     def error_list(draw):
         nan_inf_errors = draw(
-            st.lists(st.integers(min_value=0, max_value=2), min_size=6, max_size=6)
+            st.lists(st.integers(min_value=0, max_value=2), min_size=6, max_size=6),
         )
         neg_zero_small_errors = np.array(
-            draw(st.lists(st.sampled_from([0, 3, 4, 5]), min_size=6, max_size=6))
+            draw(st.lists(st.sampled_from([0, 3, 4, 5]), min_size=6, max_size=6)),
         )
         neg_zero_small_errors[:3] = 0
         return np.maximum(nan_inf_errors, neg_zero_small_errors)
@@ -113,17 +114,15 @@ def invalid_boxes_correct_shape(draw):
 
 @st.composite
 def invalid_boxes(draw):
-    box = draw(
+    return draw(
         hypnp.arrays(float, hypnp.array_shapes().filter(lambda a: np.prod(a) != 6))
-        | invalid_boxes_correct_shape()
+        | invalid_boxes_correct_shape(),
     )
-    return box
 
 
 @st.composite
 def valid_bounding_boxes(draw):
-    box = draw(valid_boxes())
-    return BoundingBox(box)
+    return BoundingBox(draw(valid_boxes()))
 
 
 def valid_positions(max_particles=3e2):
@@ -141,8 +140,10 @@ def invalid_positions(draw, max_particles=3e2):
     # bad., i.e. 3 = 1*2**0 + 1*2**1 + 0*2**2 = [1,1,0]
     bad_inds = draw(
         hypnp.arrays(
-            int, (len(positions), 1), elements=st.integers(min_value=1, max_value=7)
-        )
+            int,
+            (len(positions), 1),
+            elements=st.integers(min_value=1, max_value=7),
+        ),
     )
     # convert to masking array
     mask = np.hstack((bad_inds & 1, (bad_inds & 2) >> 1, (bad_inds & 4) >> 2))
@@ -153,7 +154,7 @@ def invalid_positions(draw, max_particles=3e2):
             st.just(np.nan) | st.just(np.inf),
             min_size=num_bad,
             max_size=num_bad,
-        )
+        ),
     )
 
     positions[np.nonzero(mask)] = bad_values
@@ -171,7 +172,7 @@ def basic_data_strategy(draw, max_particles=3e2):
         box = np.zeros(6)
         box[:3] = positions
         box[3:] = ((box[:3] == 0) + (box[:3] != 0) * np.abs(box[:3])) * np.finfo(
-            float
+            float,
         ).eps
     else:
         box = np.zeros(6)
@@ -202,7 +203,7 @@ def data_with_duplicates(draw, max_particles=15):
                 max_value=len(data) * 10,
             ),
             elements=st.integers(min_value=0, max_value=len(data) - 1),
-        )
+        ),
     )
     dup_data = copy.copy(data)
 
@@ -220,4 +221,4 @@ def valid_data_strategy(draw):
     data = draw(basic_data_strategy())
 
     valid_data = data
-    return valid_data
+    return valid_data  # noqa RET504

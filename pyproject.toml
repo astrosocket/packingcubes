@@ -54,8 +54,30 @@ dev = [
 ]
 
 [tool.ruff.lint]
-extend-select = ["I"]
-ignore = ["F841"]
+select = [
+    # pycodestyle
+    "E",
+    # Pyflakes
+    "F",
+    # pyupgrade
+    "UP",
+    # flake8-bugbear
+    "B",
+    # flake8-simplify
+    "SIM",
+    # additional flake8
+    "FBT","C","A","FA","ICN","LOG","T","PT","Q","RET",
+    # isort
+    "I",
+    # McCabe Complexity
+    "C90",
+    # Perfomance
+    #"PERF",
+    # numpy
+    "NPY",
+]
+ignore = ["F841", "SIM300"]
+unfixable = ["B"]
 
 [tool.coverage.run]
 source = [

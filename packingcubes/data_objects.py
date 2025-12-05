@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import warnings
 from pathlib import Path
@@ -10,7 +11,7 @@ from numpy.typing import ArrayLike
 import packingcubes.bounding_box as bbox
 
 LOGGER = logging.getLogger(__name__)
-logging.captureWarnings(True)
+logging.captureWarnings(capture=True)
 
 
 class DatasetError(Exception):
@@ -49,7 +50,11 @@ class Dataset:
         if not hasattr(self, "_positions"):
             raise DatasetError("Dataset has no data!")
         if hasattr(self, "_index"):
-            warnings.warn("Dataset already has an index. Overwriting!", DatasetWarning)
+            warnings.warn(
+                "Dataset already has an index. Overwriting!",
+                DatasetWarning,
+                stacklevel=2,
+            )
         self._index = np.arange(len(self.positions))
         self._index_dirty = False
 
@@ -106,7 +111,7 @@ class HDF5Dataset(Dataset):
 
     def _preload(self):
         raise NotImplementedError(
-            "You are trying to instantiate a base HDF5 class.\nUse a subclass instead."
+            "You are trying to instantiate a base HDF5 class.\nUse a subclass instead.",
         )
 
     def _set_bounding_box(self):
@@ -159,10 +164,8 @@ class HDF5Dataset(Dataset):
                 self._index_dirty = False
                 self._positions = self._positions[self._index, :]
             else:
-                try:
+                with contextlib.suppress(AttributeError):
                     del self._index
-                except AttributeError:
-                    pass
                 self._setup_index()
 
 
@@ -185,7 +188,7 @@ class GadgetishHDF5Dataset(HDF5Dataset):
             particle_types.extend([p for p in groups if "Part" in p])
         if not particle_types:
             raise DatasetError(
-                "No particle types found in dataset. Looking for groups named Part*"
+                "No particle types found in dataset. Looking for groups named Part*",
             )
         self._particle_types = particle_types
         self._cache_file_name = self.filepath.parent / (
@@ -194,7 +197,7 @@ class GadgetishHDF5Dataset(HDF5Dataset):
         if self._cache_file_name.exists():
             if not h5py.is_hdf5(self._cache_file_name):
                 raise DatasetError(
-                    f"{self._cache_file_name} already exists but is not an hdf5 file!"
+                    f"{self._cache_file_name} already exists but is not an hdf5 file!",
                 )
         else:
             with h5py.File(self._cache_file_name, "w") as file:
@@ -217,7 +220,8 @@ class GadgetishHDF5Dataset(HDF5Dataset):
                     box = boxSize
                 case _:
                     raise DatasetError(
-                        f"Don't know how to deal with a header BoxSize of {len(boxSize)}!"
+                        "Don't know how to deal with a header "
+                        f"BoxSize of {len(boxSize)}!",
                     )
             self._box = bbox.BoundingBox(box)
         else:
@@ -236,5 +240,5 @@ class TranslatedHDF5Dataset(HDF5Dataset):
 
     def _preload(self):
         raise NotImplementedError(
-            "Not yet implemented. Use GadgetishHDF5Dataset for now."
+            "Not yet implemented. Use GadgetishHDF5Dataset for now.",
         )
