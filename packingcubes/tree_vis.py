@@ -1,11 +1,16 @@
 import logging
+from typing import Any
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
-from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+from matplotlib.typing import ColorType
+from mpl_toolkits.mplot3d import Axes3D  # type: ignore
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection  # type: ignore
+from numpy.typing import NDArray
 
 import packingcubes.bounding_box as bbox
+import packingcubes.data_objects as data_objects
 import packingcubes.octree as octree
 
 LOGGER = logging.getLogger(__name__)
@@ -30,7 +35,7 @@ def _extreme_nodes(nodes: list[octree.OctreeNode]):
     return deepest, shallowest
 
 
-def _get_faces(box: bbox.BoundingBox) -> list[np.ndarray]:
+def _get_faces(box: bbox.BoundingBox) -> NDArray:
     """
     Return the 30 vertices of the 6 box faces
 
@@ -62,8 +67,8 @@ def _get_faces(box: bbox.BoundingBox) -> list[np.ndarray]:
 def cubify_tree(
     tree: octree.Octree | list[octree.OctreeNode],
     *,
-    leaves_only=True,
-    cmap: mpl.colors.Colormap = None,
+    leaves_only: bool = True,
+    cmap: mpl.colors.Colormap | None = None,
 ) -> dict[int, Poly3DCollection]:
     """
     Transform an octree into a dict of Poly3DCollections indexed by node depth
@@ -107,7 +112,7 @@ def cubify_tree(
         max_depth += 1
         min_depth -= 1
 
-    vertex_dict = {}
+    vertex_dict: dict[int, list[Any]] = {}
 
     # use relative depth for colors
     color_norm = mpl.colors.Normalize(vmin=min_depth, vmax=max_depth)
@@ -135,7 +140,12 @@ def cubify_tree(
     return poly_dict
 
 
-def plot_box(box: bbox.BoundingBox, *, ax=None, color=None):
+def plot_box(
+    box: bbox.BoundingBox,
+    *,
+    ax: Axes3D | None = None,
+    color: ColorType | None = None,
+):
     """
     Plot a single BoundingBox
 
@@ -175,7 +185,12 @@ def plot_box(box: bbox.BoundingBox, *, ax=None, color=None):
     return ax
 
 
-def plot_octreenode(node: octree.OctreeNode, *, ax=None, color=None):
+def plot_octreenode(
+    node: octree.OctreeNode,
+    *,
+    ax: Axes3D | None = None,
+    color: ColorType | None = None,
+):
     """
     Plot a single OctreeNode
 
@@ -202,8 +217,8 @@ def plot_octreenode(node: octree.OctreeNode, *, ax=None, color=None):
 def plot_octree(
     tree: octree.Octree | list[octree.OctreeNode],
     *,
-    ax=None,
-    cmap: mpl.colors.ColorMap = None,
+    ax: Axes3D | None = None,
+    cmap: mpl.colors.Colormap | None = None,
     leaves_only: bool = True,
 ):
     """
@@ -247,9 +262,9 @@ def plot_octree(
 
 def plot_positions(
     *,
-    positions=None,
-    ds=None,
-    ax=None,
+    positions: NDArray | None = None,
+    ds: data_objects.Dataset | None = None,
+    ax: Axes3D | None = None,
 ):
     """
     Plot an 3D scatter plot of the positions in a dataset
@@ -257,7 +272,7 @@ def plot_positions(
     Creates a new figure if ax is not provided.
 
     Args:
-        positions: ArrayLike, optional
+        positions: NDArray, optional
         Array of 3D points to plot. If not provided will use ds.positions.
         Default None
 

@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import InitVar, dataclass
 from enum import Flag, auto
 
 import numpy as np
-from numpy.typing import ArrayLike
+from numpy.typing import ArrayLike, NDArray
 
 LOGGER = logging.getLogger(__name__)
 
@@ -47,13 +48,15 @@ class BoundingBoxValidFlag(Flag):
         lambda box: "This box is valid",
     )
 
-    def __new__(cls, value: int, message_fun: callable):
+    message_fun: Callable
+
+    def __new__(cls, value: int, message_fun: Callable):
         obj = object.__new__(cls)
         obj._value_ = value
         obj.message_fun = message_fun
         return obj
 
-    def get_messages(self, box: ArrayLike):
+    def get_messages(self, box: BoxLike):
         """
         Obtain the test results from this flag assuming the provided box
         """
@@ -70,12 +73,12 @@ class BoundingBoxError(ValueError):
 
     def __init__(
         self,
-        box: ArrayLike,
+        box: BoxLike,
         errortype: BoundingBoxValidFlag,
     ):
         """
         Args:
-            box: ArrayLike
+            box: BoxLike
             The invalid box responsible
 
             errortype: BoundingBoxValidFlag
@@ -89,7 +92,7 @@ class BoundingBoxError(ValueError):
         super().__init__(self.messages)
 
 
-def check_valid(box: np.ndarray, *, raise_error: bool = True):
+def check_valid(box: BoxLike, *, raise_error: bool = True):
     """
     Check if a bounding box array is valid
 
@@ -165,7 +168,7 @@ def make_valid(bbox: BoxLike) -> BoundingBox:
     return BoundingBox(np.atleast_1d(np.squeeze(np.asanyarray(bbox))))
 
 
-def in_box(bbox: BoxLike, xyz: ArrayLike) -> np.ndarray:
+def in_box(bbox: BoxLike, xyz: ArrayLike) -> NDArray[np.bool_]:
     """
     Check if points are inside box
 
@@ -177,7 +180,7 @@ def in_box(bbox: BoxLike, xyz: ArrayLike) -> np.ndarray:
         Array of points with shape Nx3 to test. (3,) arrays will be converted
 
     Returns:
-        in_box: ndarray[bool]
+        in_box: NDArray[np.bool_]
         Boolean array where True means point is inside box
     """
     bbox = make_valid(bbox)
@@ -185,7 +188,7 @@ def in_box(bbox: BoxLike, xyz: ArrayLike) -> np.ndarray:
     return np.all((bbox.box[:3] <= xyz) & (xyz <= bbox.box[:3] + bbox.box[3:]), axis=1)
 
 
-def midplane(bbox: BoxLike) -> ArrayLike:
+def midplane(bbox: BoxLike) -> tuple[float, float, float]:
     """
     Return the 3 coordinates specifying the midplane of the box
     """
@@ -232,7 +235,7 @@ def normalize_to_box(coordinates: ArrayLike, bbox: BoxLike) -> ArrayLike:
     )
 
 
-def get_neighbor_boxes(bbox: BoxLike) -> ArrayLike:
+def get_neighbor_boxes(bbox: BoxLike) -> NDArray:
     """
     Return the 26 boxes that would be the neighbors of this box in a uniform grid
 
@@ -289,7 +292,7 @@ def get_child_box(bbox: BoundingBox, ind: int) -> BoundingBox:
     return BoundingBox(child_box, force_skip_check=True)
 
 
-def get_box_center(bbox: BoxLike) -> ArrayLike:
+def get_box_center(bbox: BoxLike) -> NDArray:
     """
     Return the coordinates of the center of the box
     """
@@ -297,7 +300,7 @@ def get_box_center(bbox: BoxLike) -> ArrayLike:
     return bbox.box[:3] + bbox.box[3:] / 2
 
 
-def get_box_vertex(bbox: BoxLike, index: int, *, jitter: float = 0) -> ArrayLike:
+def get_box_vertex(bbox: BoxLike, index: int, *, jitter: float = 0) -> NDArray:
     """
     Return the coordinates of the vertex at z-order index (1-based)
 
@@ -336,7 +339,7 @@ def get_box_vertex(bbox: BoxLike, index: int, *, jitter: float = 0) -> ArrayLike
     return coord
 
 
-def get_box_vertices(bbox: BoxLike, *, jitter: float = 0) -> ArrayLike:
+def get_box_vertices(bbox: BoxLike, *, jitter: float = 0) -> NDArray:
     """
     Return the coordinates of the 8 box vertices in z-order
 
@@ -382,7 +385,7 @@ def project_point_on_box(
     xyz: ArrayLike,
     *,
     jitter: float = 0,
-) -> np.ndarray:
+) -> NDArray:
     """
     Return coordinates of projection of (x, y, z) on nearest box face.
 
