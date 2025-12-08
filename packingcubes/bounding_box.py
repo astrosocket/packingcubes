@@ -22,6 +22,12 @@ class BoundingBox:
         if not force_skip_check:
             check_valid(self.box)
 
+    def __copy__(self) -> BoundingBox:
+        return BoundingBox(self.box)
+
+    def __deepcopy__(self, memo) -> BoundingBox:
+        return BoundingBox(self.box.copy())
+
 
 type BoxLike = ArrayLike | BoundingBox
 
