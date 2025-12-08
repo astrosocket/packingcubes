@@ -1094,7 +1094,7 @@ class Octree:
         closest_ind, in_box_dist = node.closest_particle_index(xyz)
 
         def _distance(xyz: ArrayLike, pxyz: ArrayLike):
-            return np.sqrt(np.sum((xyz - pxyz) ** 2, axis=1))
+            return np.sqrt(np.sum(np.atleast_2d((xyz - pxyz) ** 2), axis=1))
 
         closest_dist = in_box_dist
 
