@@ -414,7 +414,7 @@ class OctreeNode:
         else:
             self.node_end = node_end
         self.children = []
-        self.box = bbox.make_valid(self.box) if box is not None else data.bounding_box
+        self.box = bbox.make_valid(box) if box is not None else data.bounding_box
         self.tag = tag if tag is not None else []
         self.parent = parent
 
