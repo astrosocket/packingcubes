@@ -271,6 +271,8 @@ def _convert_list_to_tag_str(tag: list[Octants]) -> str:
     """
     Convert list of Octants to a str
     """
+    if not tag:
+        return "0"
     return "".join([f"{t.value}" for t in tag])
 
 
@@ -278,6 +280,8 @@ def _convert_tag_str_to_list(tag_str: str) -> list[Octants]:
     """
     Convert string that looks like a list of Octants into one
     """
+    if tag_str == "0":
+        return []
     return [Octants(int(t)) for t in tag_str]
 
 
