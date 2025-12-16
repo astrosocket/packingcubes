@@ -31,8 +31,7 @@ test = [
     "hypothesis"
 ]
 profile = [
-    "scalene",
-    "pyinstrument",
+    "pyinstrument", "scalene>=1.5.55,<2",
 ]
 viz = [
     "matplotlib",
@@ -115,8 +114,8 @@ pytest = "*"
 hypothesis = ">=6.148.6,<7"
 
 [tool.pixi.feature.profile.dependencies]
-scalene = ">=1.5.51,<2"
 pyinstrument = ">=5.1.1,<6"
+pympler = ">=1.1,<2"
 
 [tool.pixi.feature.viz.dependencies]
 matplotlib = "*"
