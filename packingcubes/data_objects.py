@@ -80,7 +80,7 @@ class Dataset:
 
     @property
     def bounding_box(self) -> bbox.BoundingBox:
-        return self._box
+        return self._box.copy()
 
 
 class HDF5Dataset(Dataset):

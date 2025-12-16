@@ -22,6 +22,9 @@ class BoundingBox:
         if not force_skip_check:
             check_valid(self.box)
 
+    def copy(self) -> BoundingBox:
+        return self.__deepcopy__(None)
+
     def __copy__(self) -> BoundingBox:
         return BoundingBox(self.box)
 
