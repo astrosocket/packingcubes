@@ -822,20 +822,19 @@ class PythonOctree(Octree):
         """
         Return a list of all leaf octree nodes in depth-first order
         """
-        if hasattr(self, "_leaves"):
-            return self._leaves
-        leaves = []
-        nodes = [self.root]
-        while nodes:
-            node = nodes.pop()
-            if node is None:
-                continue
-            if node.is_leaf:
-                leaves.append(node)
-            else:
-                nodes.extend(reversed(node.children))
-        self._leaves = leaves
-        return leaves
+        if not hasattr(self, "_leaves"):
+            leaves: list[PythonOctreeNode] = []
+            nodes: list[PythonOctreeNode | None] = [self.root]
+            while nodes:
+                node = nodes.pop()
+                if node is None:
+                    continue
+                if node.is_leaf:
+                    leaves.append(node)
+                else:
+                    nodes.extend(reversed(node.children))
+            self._leaves = leaves
+        return self._leaves
 
     def get_node(self, tag: str | list[Octants]) -> PythonOctreeNode | None:
         """
@@ -870,11 +869,9 @@ class PythonOctree(Octree):
         nodes = [self.root]
         while nodes:
             node = nodes.pop()
-            if node is None:
-                continue
             yield node
             if not node.is_leaf:
-                nodes.extend(reversed(node.children))
+                nodes.extend(filter(None, reversed(node.children)))
 
     def _get_containing_node_of_point(
         self,
