@@ -16,6 +16,7 @@ from tqdm.auto import tqdm
 
 import packingcubes.bounding_box as bbox
 from packingcubes.data_objects import Dataset
+from packingcubes.packed_tree import pack_node_metadata
 
 LOGGER = logging.getLogger(__name__)
 logging.captureWarnings(capture=True)
@@ -1352,10 +1353,3 @@ class PythonOctree(Octree):
                 children[last_child]._last_child = True
                 nodes.extend(filter(None, reversed(children)))
         return packed
-
-
-def pack_node_metadata(child_flag: int, my_index: int, level: int, empty: int) -> int:
-    """
-    Simple function for converting node metadata into packed format
-    """
-    return (child_flag << 24) + (my_index << 16) + (level << 8) + empty
