@@ -4,6 +4,7 @@ import abc
 import copy
 import logging
 import warnings
+from array import array
 from collections.abc import Iterable, Iterator, Sized
 from enum import IntEnum
 from functools import partial
@@ -1293,3 +1294,68 @@ class PythonOctree(Octree):
                     closest_ind, closest_dist = neighbor_closest_ind, neighbor_box_dist
 
         return closest_ind, closest_dist
+
+    def to_packed(self) -> array:
+        """
+        Convert to a packed bytestream as described in [Packed Format](packed_format)
+
+        Returns:
+            array
+            Array of `long`s describing this tree
+        """
+        nodes: list[PythonOctreeNode] = [self.root]
+        packed = array("L")
+        current = 0
+        while nodes:
+            node = nodes.pop()
+            node._index = current
+
+            # we know each node is at least 20 bytes = 5 fields long
+            packed.append(5)
+            packed.append(node.node_start)
+            packed.append(node.node_end)
+
+            # pack metadata
+            children = node.children
+            child_flag = 0
+            last_child = 0
+            for i, child in enumerate(children):
+                if child:
+                    child_flag += 1 << i
+                    last_child = i
+            my_index = node.tag[-1] if node.tag else 0
+            level = len(node.tag)
+            metadata = pack_node_metadata(child_flag, my_index, level, 0)
+            packed.append(metadata)
+
+            # increment current position
+            current += 4
+
+            # add parent_offset
+            if node.is_leaf:
+                packed.append(node._index - (node.parent._index if node.parent else 0))
+                current += 1
+                # if last leaf among siblings, track up until no longer last
+                # sibling, appending parent_offset and updating length for
+                # each node, since we now know how long the node is
+                while node.parent and getattr(node, "_last_child", False):
+                    node = node.parent
+                    # set parent_offset
+                    packed.append(
+                        node._index - (node.parent._index if node.parent else 0)
+                    )
+                    current += 1
+                    # update node length
+                    packed[node._index] += current - node._index - 5
+            else:
+                # Set flag on last child to update tree and look at children
+                children[last_child]._last_child = True
+                nodes.extend(filter(None, reversed(children)))
+        return packed
+
+
+def pack_node_metadata(child_flag: int, my_index: int, level: int, empty: int) -> int:
+    """
+    Simple function for converting node metadata into packed format
+    """
+    return (child_flag << 24) + (my_index << 16) + (level << 8) + empty
