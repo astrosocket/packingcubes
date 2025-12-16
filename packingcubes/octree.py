@@ -815,8 +815,8 @@ class PythonOctree(Octree):
             pbar=pbar,
         )
 
-        if show_pbar:
-            pbar.close()  # type: ignore
+        if pbar is not None:
+            pbar.close()
 
     def get_leaves(self) -> list[PythonOctreeNode]:
         """
