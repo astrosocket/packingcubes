@@ -699,7 +699,7 @@ class Octree:
 
         node = self.root
         for t in tag:
-            node = node.children[t]  # type: ignore
+            node = node.children[t - 1]  # type: ignore
             if node is None:
                 return None
 
