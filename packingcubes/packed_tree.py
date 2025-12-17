@@ -116,27 +116,6 @@ def get_children(current: CurrentNode) -> Generator[np.uint8]:
     return (np.uint8(i) for i in octree.Octants if current.child_flag & (1 << (i - 1)))
 
 
-def unpack_node_metadata(
-    metadata: int,
-) -> tuple[np.uint8, np.uint8, np.uint8, np.uint8]:
-    """
-    Unpack a node metadata field into child_flag, my_index, level, and empty
-    """
-    return (
-        np.uint8(metadata >> 24),
-        np.uint8((metadata >> 16) & 255),
-        np.uint8((metadata >> 8) & 255),
-        np.uint8(metadata & 255),
-    )
-
-
-def pack_node_metadata(child_flag: int, my_index: int, level: int, empty: int) -> int:
-    """
-    Pack child_flag, my_index, level, and empty ints into a metadata int
-    """
-    return (child_flag << 24) + (my_index << 16) + (level << 8) + empty
-
-
 def is_leaf(current: CurrentNode) -> bool:
     return not bool(current.child_flag)
 
@@ -242,8 +221,8 @@ class PackedTree(octree.Octree):
         # )
         node.index = index
         node.node_start, node.node_end, metadata = self.tree[(index + 1) : (index + 4)]
-        node.child_flag, node.my_index, node.level, node.empty = unpack_node_metadata(
-            metadata
+        node.child_flag, node.my_index, node.level, node.empty = (
+            octree.unpack_node_metadata(metadata)
         )
         # print(
         #     "{index} ({bytes}->{unpacked}) to ".format(
@@ -324,7 +303,7 @@ class PackedTree(octree.Octree):
 
     def _make_root_node(self) -> CurrentNode:
         # child flag located at field 3
-        child_flag, my_index, level, empty = unpack_node_metadata(self.tree[3])
+        child_flag, my_index, level, empty = octree.unpack_node_metadata(self.tree[3])
         return CurrentNode(
             node_start=self.tree[1],
             node_end=self.tree[2],

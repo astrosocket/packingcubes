@@ -16,7 +16,6 @@ from tqdm.auto import tqdm
 
 import packingcubes.bounding_box as bbox
 from packingcubes.data_objects import Dataset
-from packingcubes.packed_tree import pack_node_metadata
 
 LOGGER = logging.getLogger(__name__)
 logging.captureWarnings(capture=True)
@@ -1353,3 +1352,24 @@ class PythonOctree(Octree):
                 children[last_child]._last_child = True
                 nodes.extend(filter(None, reversed(children)))
         return packed
+
+
+def unpack_node_metadata(
+    metadata: int,
+) -> tuple[int, int, int, int]:
+    """
+    Unpack a node metadata field into child_flag, my_index, level, and empty
+    """
+    return (
+        metadata >> 24,
+        (metadata >> 16) & 255,
+        (metadata >> 8) & 255,
+        metadata & 255,
+    )
+
+
+def pack_node_metadata(child_flag: int, my_index: int, level: int, empty: int) -> int:
+    """
+    Pack child_flag, my_index, level, and empty ints into a metadata int
+    """
+    return (child_flag << 24) + (my_index << 16) + (level << 8) + empty
