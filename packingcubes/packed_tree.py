@@ -119,6 +119,13 @@ class CurrentNode:
     empty: int = 0
 
 
+def get_name(current: CurrentNode) -> str:
+    """
+    Get the name (tag) of this CurrentNode
+    """
+    return _convert_list_to_tag_str(current.tag)
+
+
 def get_children(current: CurrentNode) -> Generator[int]:
     """
     Return a generator of 0-based children indices for this CurrentNode
