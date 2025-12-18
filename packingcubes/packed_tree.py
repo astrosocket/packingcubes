@@ -212,6 +212,23 @@ class PackedTree(octree.Octree):
         raise NotImplementedError
 
     def _update_current_node(self, index: int, node: CurrentNode, child_index: int):
+        """
+        Update the parameters of the node based on the new position
+
+        Note we do no checking for invalid arguments here. This method should
+        **not** be called externally.
+
+        Args:
+            index: int
+            Position in the packed tree
+
+            node: CurrentNode
+            Node to update
+
+            child_index: int
+            Which node to transition to: 0 for parent, 1-8 for the requested
+            child.
+        """
         # currently at a node boundary
         # print(
         #     "Moving from {index} ({bytes}->{unpacked}) to ".format(
@@ -248,6 +265,11 @@ class PackedTree(octree.Octree):
         #     )
         # )
 
+        # Since some information, like the box and tag, are not stored in the
+        # tree, we need to update the node's state. This is dependent on which
+        # direction we're traveling: up the tree requires shortening the tag and
+        # expanding the box; down the tree requires lengthening the tag and
+        # shrinking the box.
         if not child_index:
             # moving to parent - need index of current node to remove offsets
             # need zero-based for positions
@@ -256,7 +278,7 @@ class PackedTree(octree.Octree):
             node.box.box[0] -= node.box.box[3] * (curr_child_index & 1)
             node.box.box[1] -= node.box.box[4] * ((curr_child_index & 2) >> 1)
             node.box.box[2] -= node.box.box[5] * ((curr_child_index & 4) >> 2)
-            # need to grow box after moving
+            # need to grow box _after_ moving
             node.box.box[3:] *= 2
         else:
             # 1-based index is stored
@@ -266,7 +288,7 @@ class PackedTree(octree.Octree):
                     + f"match expected ({node.my_index})"
                 )
             node.tag.append(child_index)
-            # need to shrink box before moving
+            # need to shrink box _before_ moving
             node.box.box[3:] /= 2
             # need zero-based for positions
             child_index -= 1
@@ -278,7 +300,16 @@ class PackedTree(octree.Octree):
         """
         Move pointer to specified child node and return offset
 
-        If child node DNE, return 0
+        Args:
+            node: CurrentNode
+            Node to update
+
+            child_index: int
+            Which (0-based) child node to move to
+
+        Returns:
+            offset: int
+            The number of fields moved or zero if the child DNE
         """
         # currently at a node boundary
         # flag for children is at boundary + 3 fields
