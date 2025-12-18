@@ -707,12 +707,91 @@ class PackedTree(octree.Octree):
         # construction
         return indices
 
+    def _get_particle_indices_in_shape_verts(
+        self,
+        *,
+        bounding_box: bbox.BoxLike,
+        containment_test: octree.ContainmentFunc | None = None,
+    ) -> list[list[int]]:
+        """
+        Return all particles contained within a shape that fits inside bounding box
+
+        Args:
+            bounding_box: BoxLike
+            Shape bounding box
+
+            containment_test: Callable[NDArray], optional
+            Function to test if point(s) are inside shape. Should have the
+            (vectorized) signature
+            containment_test(point: ArrayLike) -> NDArray[bool]
+            Defaults to testing if point(s) are inside the provided bounding
+            box
+
+        Returns:
+            indices: list[tuple[int,int]]
+            List of particle start-stop indices contained within shape
+        """
+
+        if containment_test is None:
+
+            def in_box(xyz: ArrayLike):
+                return bbox.in_box(bounding_box, xyz)
+
+            containment_test = in_box
+
+        # node containing bounding box
+        bbox_center = bbox.get_box_center(bounding_box)
+        node = self._make_root_node()
+
+        indices = []
+        child_queue = [get_children(node)]
+        while child_queue:
+            children = child_queue[-1]
+            try:
+                child = next(children)
+            except StopIteration:
+                child_queue.pop()
+                self._move_to_parent(node)
+                continue
+            self._move_to_child(node, child)
+
+            # Test if node entirely contained in shape
+            node_vertices = bbox.get_box_vertices(node.box)
+
+            vertices_enclosed = sum(containment_test(node_vertices))
+
+            if vertices_enclosed:
+                if is_leaf(node) or vertices_enclosed == len(node_vertices):
+                    indices.append([node.node_start, node.node_end + 1])
+                    if vertices_enclosed == len(node_vertices):
+                        # we're done with this subtree, go back
+                        self._move_to_parent(node)
+                        continue
+                # look at children - leaves return an empty generator
+                child_queue.append(get_children(node))
+                continue
+
+            # No vertex overlap, check closest point.
+            closest_point = bbox.project_point_on_box(node.box, bbox_center)
+            if not containment_test(closest_point):
+                # no overlap, discard
+                self._move_to_parent(node)
+                continue
+            if is_leaf(node):
+                indices.append([node.node_start, node.node_end + 1])
+            child_queue.append(get_children(node))
+
+        # indices is now a list of numpy index arrays. Stack'em
+        # Note that all elements should be unique and pre-sorted due to octree
+        # construction
+        return indices
+
     def get_particle_indices_in_box(
         self,
         *,
         box: bbox.BoxLike,
     ) -> list[list[int]]:
-        return self._get_particle_indices_in_shape(
+        return self._get_particle_indices_in_shape_verts(
             bounding_box=bbox.make_valid(box.copy()),
         )
 
@@ -743,7 +822,7 @@ class PackedTree(octree.Octree):
             octree._point_in_sphere, center=center, radius=radius
         )
 
-        return self._get_particle_indices_in_shape(
+        return self._get_particle_indices_in_shape_verts(
             bounding_box=bounding_box,
             containment_test=containment_test,
         )
