@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import abc
-import copy
 import logging
 import warnings
 from array import array
@@ -1165,7 +1164,7 @@ class PythonOctree(Octree):
             indices: ArrayLike
             Array of particle indices contained within sphere
         """
-        bounding_box = bbox.make_valid(copy.copy(box))
+        bounding_box = bbox.make_valid(box.copy())
 
         return self._get_particle_indices_in_shape(
             bounding_box=bounding_box,
