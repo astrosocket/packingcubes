@@ -713,7 +713,7 @@ class PackedTree(octree.Octree):
         box: bbox.BoxLike,
     ) -> list[list[int]]:
         return self._get_particle_indices_in_shape(
-            bounding_box=box,
+            bounding_box=bbox.make_valid(box.copy()),
         )
 
     def get_particle_indices_in_sphere(
