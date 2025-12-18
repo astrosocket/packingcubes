@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Iterable
 from typing import Any
 
 import matplotlib as mpl
@@ -21,16 +22,15 @@ Module for visualizing octrees and particle data
 """
 
 
-def _extreme_nodes(nodes: list[octree.OctreeNode]):
+def _extreme_nodes(nodes: Iterable[octree.OctreeNode]):
     """
     Find deepest/shallowest nodes (longest/shortest tag) in list of OctreeNodes
     """
-    deepest = nodes[0]
-    shallowest = nodes[0]
+    shallowest = deepest = None
     for node in nodes:
-        if len(node.tag) > len(deepest.tag):
+        if deepest is None or len(node.tag) > len(deepest.tag):
             deepest = node
-        if len(node.tag) < len(shallowest.tag):
+        if shallowest is None or len(node.tag) < len(shallowest.tag):
             shallowest = node
     return deepest, shallowest
 
