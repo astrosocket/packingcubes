@@ -194,10 +194,12 @@ class PackedTree(octree.Octree):
 
         if not source:
             # initialize to unsigned longs
-            self.tree = array("L")
+            self.tree = array("I")
             self._construct_tree(pbar)
         else:
-            self.tree = array("L", source)
+            self.tree = memoryview(source)
+            if self.tree.format in "bBc":
+                self.tree = self.tree.cast("I")
 
         if pbar is not None:
             pbar.close()
