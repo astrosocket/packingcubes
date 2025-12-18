@@ -376,8 +376,8 @@ class PackedTree(octree.Octree):
 
     def _iterate_nodes(self) -> Iterator[CurrentNode]:
         node = self._make_root_node()
-
-        children_to_visit = [(i for i in [np.uint8(0)])]
+        yield node
+        children_to_visit = [get_children(node)]
         while children_to_visit:
             children_generator = children_to_visit[-1]
             try:
