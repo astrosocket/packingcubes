@@ -376,15 +376,44 @@ def get_box_vertices(bbox: BoxLike, *, jitter: float = 0) -> NDArray:
 
     jitter_amount = np.sign(jitter) * bbox.box[3:] / 100
 
-    for k in range(2):
-        for j in range(2):
-            for i in range(2):
-                ind = i + 2 * j + 4 * k
-                vertices[ind, :] = [
-                    bbox.box[0] + i * bbox.box[3] + jitter_amount[0] * (-1) ** i,
-                    bbox.box[1] + j * bbox.box[4] + jitter_amount[1] * (-1) ** j,
-                    bbox.box[2] + k * bbox.box[5] + jitter_amount[2] * (-1) ** k,
-                ]
+    x0 = bbox.box[0] + jitter_amount[0]
+    x1 = bbox.box[0] + bbox.box[3] - jitter_amount[0]
+    y0 = bbox.box[1] + jitter_amount[1]
+    y1 = bbox.box[1] + bbox.box[4] - jitter_amount[1]
+    z0 = bbox.box[2] + jitter_amount[2]
+    z1 = bbox.box[2] + bbox.box[5] - jitter_amount[2]
+
+    vertices[0, 0] = x0
+    vertices[0, 1] = y0
+    vertices[0, 2] = z0
+
+    vertices[1, 0] = x1
+    vertices[1, 1] = y0
+    vertices[1, 2] = z0
+
+    vertices[2, 0] = x0
+    vertices[2, 1] = y1
+    vertices[2, 2] = z0
+
+    vertices[3, 0] = x1
+    vertices[3, 1] = y1
+    vertices[3, 2] = z0
+
+    vertices[4, 0] = x0
+    vertices[4, 1] = y0
+    vertices[4, 2] = z1
+
+    vertices[5, 0] = x1
+    vertices[5, 1] = y0
+    vertices[5, 2] = z1
+
+    vertices[6, 0] = x0
+    vertices[6, 1] = y1
+    vertices[6, 2] = z1
+
+    vertices[7, 0] = x1
+    vertices[7, 1] = y1
+    vertices[7, 2] = z1
 
     return vertices
 
