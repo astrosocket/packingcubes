@@ -108,19 +108,22 @@ def _create_from_current_node(node: CurrentNode) -> PackedNode:
 
 @dataclass
 class CurrentNode:
-    node_end: np.uint32
+    node_end: int
     tag: list[int]
     box: bbox.BoundingBox
-    index: np.uint32 = np.uint32(0)
-    node_start: np.uint32 = np.uint32(0)
-    child_flag: np.uint8 = np.uint8(0)
-    my_index: np.uint8 = np.uint8(0)
-    level: np.uint8 = np.uint8(0)
-    empty: np.uint8 = np.uint8(0)
+    index: int = 0
+    node_start: int = 0
+    child_flag: int = 0
+    my_index: int = 0
+    level: int = 0
+    empty: int = 0
 
 
-def get_children(current: CurrentNode) -> Generator[np.uint8]:
-    return (np.uint8(i) for i in octree.Octants if current.child_flag & (1 << (i - 1)))
+def get_children(current: CurrentNode) -> Generator[int]:
+    """
+    Return a generator of 0-based children indices for this CurrentNode
+    """
+    return (i for i in range(8) if current.child_flag & (1 << i))
 
 
 def is_leaf(current: CurrentNode) -> bool:
@@ -199,18 +202,16 @@ class PackedTree(octree.Octree):
         # )
         # self.root = self.current.copy()
         self.current_node = CurrentNode(
-            index=np.uint32(0),
-            node_start=np.uint32(0),
-            node_end=np.uint32(len(self.data)),
+            index=0,
+            node_start=0,
+            node_end=len(self.data),
             box=self.data.bounding_box,
             tag=[],
         )
 
         raise NotImplementedError
 
-    def _update_current_node(
-        self, index: np.uint32, node: CurrentNode, child_index: np.uint8
-    ):
+    def _update_current_node(self, index: int, node: CurrentNode, child_index: int):
         # currently at a node boundary
         # print(
         #     "Moving from {index} ({bytes}->{unpacked}) to ".format(
@@ -273,7 +274,7 @@ class PackedTree(octree.Octree):
             node.box.box[1] += node.box.box[4] * ((child_index & 2) >> 1)
             node.box.box[2] += node.box.box[5] * ((child_index & 4) >> 2)
 
-    def _move_to_child(self, node: CurrentNode, child_ind: np.uint8):
+    def _move_to_child(self, node: CurrentNode, child_ind: int) -> int:
         """
         Move pointer to specified child node and return offset
 
@@ -283,10 +284,10 @@ class PackedTree(octree.Octree):
         # flag for children is at boundary + 3 fields
         child_flag = self.tree[node.index + 3] >> 24
         # could also use current_node.child_flag
-        if not child_flag & (1 << (child_ind - 1)):
+        if not child_flag & (1 << child_ind):
             return 0
 
-        num_skip = np.bitwise_count((np.uint8(255) >> 9 - child_ind) & child_flag)
+        num_skip = np.bitwise_count((255 >> 8 - child_ind) & child_flag)
 
         # children start at boundary + 4 fields
         current = old = node.index
@@ -294,7 +295,7 @@ class PackedTree(octree.Octree):
         for _ in range(num_skip):
             current += self.tree[current]
 
-        self._update_current_node(current, node, child_ind)
+        self._update_current_node(current, node, child_ind + 1)
         return current - old
 
     def _move_to_parent(self, node: CurrentNode):
@@ -308,7 +309,7 @@ class PackedTree(octree.Octree):
         pl = self.tree[node.index + node_len - 1]
         if pl:
             # only move up if we're not already at root
-            self._update_current_node(node.index - pl, node, np.uint8(0))
+            self._update_current_node(node.index - pl, node, 0)
 
         return pl
 
@@ -318,7 +319,7 @@ class PackedTree(octree.Octree):
         return CurrentNode(
             node_start=self.tree[1],
             node_end=self.tree[2],
-            index=np.uint32(0),
+            index=0,
             child_flag=child_flag,
             my_index=my_index,
             level=level,
