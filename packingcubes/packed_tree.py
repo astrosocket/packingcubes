@@ -482,7 +482,11 @@ class PackedTree(octree.Octree):
             When there are unexpected issues with the queue system.
         """
         if containment_test is None:
-            containment_test = partial(bbox.in_box, bbox=bounding_box)
+
+            def in_box(xyz: ArrayLike):
+                return bbox.in_box(bounding_box, xyz)
+
+            containment_test = in_box
 
         # node containing bounding box
         bbox_vertices = bbox.get_box_vertices(bounding_box)
@@ -615,7 +619,11 @@ class PackedTree(octree.Octree):
         """
 
         if containment_test is None:
-            containment_test = partial(bbox.in_box, bbox=bounding_box)
+
+            def in_box(xyz: ArrayLike):
+                return bbox.in_box(bounding_box, xyz)
+
+            containment_test = in_box
 
         # node containing bounding box
         bbox_vertices = bbox.get_box_vertices(bounding_box)

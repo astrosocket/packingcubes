@@ -945,7 +945,11 @@ class PythonOctree(Octree):
             When there are unexpected issues with the queue system.
         """
         if containment_test is None:
-            containment_test = partial(bbox.in_box, bbox=bounding_box)
+
+            def in_box(xyz: ArrayLike):
+                return bbox.in_box(bounding_box, xyz)
+
+            containment_test = in_box
 
         # node containing bounding box
         bbox_vertices = bbox.get_box_vertices(bounding_box)
@@ -1072,7 +1076,11 @@ class PythonOctree(Octree):
         """
 
         if containment_test is None:
-            containment_test = partial(bbox.in_box, bbox=bounding_box)
+
+            def in_box(xyz: ArrayLike):
+                return bbox.in_box(bounding_box, xyz)
+
+            containment_test = in_box
 
         entirely_in, partial_leaves = self._get_nodes_in_shape(
             bounding_box=bounding_box,
