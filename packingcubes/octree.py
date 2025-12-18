@@ -3,7 +3,6 @@ from __future__ import annotations
 import abc
 import logging
 import warnings
-from array import array
 from collections.abc import Iterable, Iterator, Sized
 from enum import IntEnum
 from functools import partial
@@ -1246,25 +1245,27 @@ class PythonOctree(Octree):
 
         return closest_ind, closest_dist
 
-    def to_packed(self) -> array:
+    def to_packed(self) -> bytes:
         """
         Convert to a packed bytestream as described in [Packed Format](packed_format)
 
         Returns:
-            array
-            Array of `long`s describing this tree
+            packed: bytes
+            Array of unsigned shorts describing this tree
         """
+        num_nodes = sum(1 for n in self)
+        # print(f"Packing {num_nodes} into bytes")
+        packed = memoryview(bytearray(num_nodes * 5 * 4)).cast("I")
         nodes: list[PythonOctreeNode] = [self.root]
-        packed = array("L")
         current = 0
         while nodes:
             node = nodes.pop()
             node._index = current
 
             # we know each node is at least 20 bytes = 5 fields long
-            packed.append(5)
-            packed.append(node.node_start)
-            packed.append(node.node_end)
+            packed[current] = 5
+            packed[current + 1] = node.node_start
+            packed[current + 2] = node.node_end
 
             # pack metadata
             children = node.children
@@ -1277,14 +1278,16 @@ class PythonOctree(Octree):
             my_index = int(node.tag[-1]) if node.tag else 0
             level = len(node.tag)
             metadata = pack_node_metadata(child_flag, my_index, level, 0)
-            packed.append(metadata)
+            packed[current + 3] = metadata
 
             # increment current position
             current += 4
 
             # add parent_offset
             if node.is_leaf:
-                packed.append(node._index - (node.parent._index if node.parent else 0))
+                packed[current] = node._index - (
+                    node.parent._index if node.parent else 0
+                )
                 current += 1
                 # if last leaf among siblings, track up until no longer last
                 # sibling, appending parent_offset and updating length for
@@ -1292,8 +1295,8 @@ class PythonOctree(Octree):
                 while node.parent and getattr(node, "_last_child", False):
                     node = node.parent
                     # set parent_offset
-                    packed.append(
-                        node._index - (node.parent._index if node.parent else 0)
+                    packed[current] = node._index - (
+                        node.parent._index if node.parent else 0
                     )
                     current += 1
                     # update node length
@@ -1302,7 +1305,7 @@ class PythonOctree(Octree):
                 # Set flag on last child to update tree and look at children
                 children[last_child]._last_child = True
                 nodes.extend(filter(None, reversed(children)))
-        return packed
+        return packed.tobytes()
 
 
 def unpack_node_metadata(
