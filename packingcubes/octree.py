@@ -728,8 +728,7 @@ class Octree(Iterable[OctreeNode], Protocol):
         self,
         *,
         box: bbox.BoxLike,
-        strict: bool = False,
-    ) -> NDArray[np.int_]:
+    ) -> list[list[int]]:
         pass
 
     def get_particle_indices_in_sphere(
@@ -737,8 +736,7 @@ class Octree(Iterable[OctreeNode], Protocol):
         *,
         center: NDArray,
         radius: float,
-        strict: bool = False,
-    ) -> NDArray[np.int_]:
+    ) -> list[list[int]]:
         pass
 
     def get_closest_particle(
@@ -1053,8 +1051,7 @@ class PythonOctree(Octree):
         *,
         bounding_box: bbox.BoxLike,
         containment_test: ContainmentFunc | None = None,
-        strict: bool = False,
-    ) -> NDArray[np.int_]:
+    ) -> list[list[int]]:
         """
         Return all particles contained within a shape that fits inside bounding box
 
@@ -1069,15 +1066,9 @@ class PythonOctree(Octree):
             Defaults to testing if point(s) are inside the provided bounding
             box
 
-            strict: bool, optional
-            Flag describing whether each particle in a partially overlapping
-            node should undergo containment_test (strict=True). Setting to
-            False allows indices to include particles outside (but "nearby")
-            shape. Defaults to False
-
         Returns:
-            indices: NDArray
-            Array of particle indices contained within shape
+            indices: list[tuple[int]]
+            List of particle start-stop indices contained within shape
         """
 
         if containment_test is None:
@@ -1093,7 +1084,7 @@ class PythonOctree(Octree):
         partial_leaves.reverse()
 
         # initialize with empty index list so hstack doesn't complain
-        indices = [np.array([], dtype=int)]
+        indices = []
         while entirely_in or partial_leaves:
             if entirely_in and partial_leaves:
                 node, is_full = (
@@ -1106,26 +1097,15 @@ class PythonOctree(Octree):
             else:
                 node, is_full = partial_leaves.pop(), False
 
-            node_indices = np.arange(node.node_start, node.node_end + 1, dtype=int)
+            indices.append((node.node_start, node.node_end + 1))
 
-            if is_full or not strict:
-                indices.append(node_indices)
-            else:
-                positions = node.data.positions[node_indices]
-                mask = containment_test(positions)
-                indices.append(node_indices[mask])
-
-        # indices is now a list of numpy index arrays. Stack'em
-        # Note that all elements should be unique due to octree
-        # construction
-        return np.hstack(indices)
+        return indices
 
     def get_particle_indices_in_box(
         self,
         *,
         box: bbox.BoxLike,
-        strict: bool = False,
-    ) -> NDArray[np.int_]:
+    ) -> list[list[int]]:
         """
         Return all particles contained within the box
 
@@ -1133,21 +1113,14 @@ class PythonOctree(Octree):
             box: BoxLike
             Box to check
 
-            strict: bool, optional
-            Flag describing whether each particle in a partially overlapping
-            node should be tested for being inside the box. Setting to
-            False allows indices to include particles outside (but "nearby")
-            box. Defaults to False
-
         Returns:
-            indices: ArrayLike
-            Array of particle indices contained within sphere
+            indices: list[list[int]]
+            List of particle start-stop indices contained within sphere
         """
         bounding_box = bbox.make_valid(box.copy())
 
         return self._get_particle_indices_in_shape(
             bounding_box=bounding_box,
-            strict=strict,
         )
 
     def get_particle_indices_in_sphere(
@@ -1155,8 +1128,7 @@ class PythonOctree(Octree):
         *,
         center: NDArray,
         radius: float,
-        strict: bool = False,
-    ) -> NDArray[np.int_]:
+    ) -> list[list[int]]:
         """
         Return all particles contained within the sphere defined by center and radius
 
@@ -1167,15 +1139,9 @@ class PythonOctree(Octree):
             radius: float
             Radius of the sphere
 
-            strict: bool, optional
-            Flag describing whether each particle in a partially overlapping
-            node should be tested for sphere containment. Setting to
-            False allows indices to include particles outside (but "nearby")
-            sphere. Defaults to False
-
         Returns:
-            indices: NDArray
-            Array of particle indices contained within sphere
+            indices: list[tuple[int]]
+            List of particle start-stop indices contained within sphere
         """
 
         if len(center) != 3:
@@ -1200,7 +1166,6 @@ class PythonOctree(Octree):
         return self._get_particle_indices_in_shape(
             bounding_box=bounding_box,
             containment_test=containment_test,
-            strict=strict,
         )
 
     def get_closest_particle(

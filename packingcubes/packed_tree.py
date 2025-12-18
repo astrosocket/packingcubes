@@ -594,8 +594,7 @@ class PackedTree(octree.Octree):
         *,
         bounding_box: bbox.BoxLike,
         containment_test: octree.ContainmentFunc | None = None,
-        strict: bool = False,
-    ) -> NDArray[np.int_]:
+    ) -> list[list[int]]:
         """
         Return all particles contained within a shape that fits inside bounding box
 
@@ -610,15 +609,9 @@ class PackedTree(octree.Octree):
             Defaults to testing if point(s) are inside the provided bounding
             box
 
-            strict: bool, optional
-            Flag describing whether each particle in a partially overlapping
-            node should undergo containment_test (strict=True). Setting to
-            False allows indices to include particles outside (but "nearby")
-            shape. Defaults to False
-
         Returns:
-            indices: NDArray
-            Array of particle indices contained within shape
+            indices: list[tuple[int]]
+            List of particle start-stop indices contained within shape
         """
 
         if containment_test is None:
@@ -630,8 +623,7 @@ class PackedTree(octree.Octree):
         node = self._get_containing_node_of_pointlist(bbox_vertices)
         # node = self._make_root_node()
 
-        # initialize with empty index list so hstack doesn't complain
-        indices = [np.array([], dtype=int)]
+        indices = []
         child_queue = [get_children(node)]
         while child_queue:
             children = child_queue[-1]
@@ -661,7 +653,7 @@ class PackedTree(octree.Octree):
             vertices_enclosed = sum(containment_test(node_vertices))
 
             if is_leaf(node) or vertices_enclosed == len(node_vertices):
-                indices.append(np.arange(node.node_start, node.node_end + 1, dtype=int))
+                indices.append([node.node_start, node.node_end + 1])
                 if vertices_enclosed == len(node_vertices):
                     # we're done with this subtree, go back
                     self._move_to_parent(node)
@@ -672,29 +664,23 @@ class PackedTree(octree.Octree):
         # indices is now a list of numpy index arrays. Stack'em
         # Note that all elements should be unique and pre-sorted due to octree
         # construction
-        stacked_indices = np.hstack(indices)
-        if strict:
-            return stacked_indices[
-                containment_test(self.data.positions[stacked_indices])
-            ]
-
-        return stacked_indices
+        return indices
 
     def get_particle_indices_in_box(
         self,
         *,
         box: bbox.BoxLike,
-        strict: bool = False,
-    ) -> NDArray[np.int_]:
-        return self._get_particle_indices_in_shape(bounding_box=box, strict=strict)
+    ) -> list[list[int]]:
+        return self._get_particle_indices_in_shape(
+            bounding_box=box,
+        )
 
     def get_particle_indices_in_sphere(
         self,
         *,
         center: NDArray,
         radius: float,
-        strict: bool = False,
-    ) -> NDArray[np.int_]:
+    ) -> list[list[int]]:
         if len(center) != 3:
             raise ValueError("Center should be a 3 element array")
 
@@ -717,7 +703,8 @@ class PackedTree(octree.Octree):
         )
 
         return self._get_particle_indices_in_shape(
-            bounding_box=bounding_box, containment_test=containment_test, strict=strict
+            bounding_box=bounding_box,
+            containment_test=containment_test,
         )
 
     def get_closest_particle(
