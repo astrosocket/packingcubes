@@ -530,9 +530,8 @@ class PackedTree(octree.Octree):
             containment_test = in_box
 
         # node containing bounding box
-        bbox_vertices = bbox.get_box_vertices(bounding_box)
         bbox_center = bbox.get_box_center(bounding_box)
-        node = self._get_containing_node_of_pointlist(bbox_vertices)
+        node = self._make_root_node()
 
         entire_nodes = []
         partial_leaves = []
@@ -667,10 +666,8 @@ class PackedTree(octree.Octree):
             containment_test = in_box
 
         # node containing bounding box
-        bbox_vertices = bbox.get_box_vertices(bounding_box)
         bbox_center = bbox.get_box_center(bounding_box)
-        node = self._get_containing_node_of_pointlist(bbox_vertices)
-        # node = self._make_root_node()
+        node = self._make_root_node()
 
         indices = []
         child_queue = [get_children(node)]
@@ -683,11 +680,6 @@ class PackedTree(octree.Octree):
                 self._move_to_parent(node)
                 continue
             self._move_to_child(node, child)
-
-            # decision bitflag
-            # b0 - look at children(1) or move to parent(0)
-            # b1 - include node
-            decision = 0
 
             # Check closest point.
             closest_point = bbox.project_point_on_box(node.box, bbox_center)
