@@ -13,6 +13,7 @@ from numpy.typing import ArrayLike, NDArray
 from tqdm.auto import tqdm
 
 import packingcubes.bounding_box as bbox
+from packingcubes.configuration import FIELD_FORMAT
 from packingcubes.data_objects import Dataset
 
 LOGGER = logging.getLogger(__name__)
@@ -1251,11 +1252,11 @@ class PythonOctree(Octree):
 
         Returns:
             packed: bytes
-            Array of unsigned shorts describing this tree
+            Array of FIELD_FORMATs describing this tree
         """
         num_nodes = sum(1 for n in self)
         # print(f"Packing {num_nodes} into bytes")
-        packed = memoryview(bytearray(num_nodes * 5 * 4)).cast("I")
+        packed = memoryview(bytearray(num_nodes * 5 * 4)).cast(FIELD_FORMAT)
         nodes: list[PythonOctreeNode] = [self.root]
         current = 0
         while nodes:

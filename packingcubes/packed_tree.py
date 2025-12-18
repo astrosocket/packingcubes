@@ -13,6 +13,7 @@ from tqdm.auto import tqdm
 
 import packingcubes.bounding_box as bbox
 import packingcubes.octree as octree
+from packingcubes.configuration import FIELD_FORMAT
 from packingcubes.data_objects import Dataset
 
 LOGGER = logging.getLogger(__name__)
@@ -160,10 +161,6 @@ class PackedTree(octree.Octree):
 
     """
 
-    current: np.uint
-    """ Current position in the underlying byte array """
-    current_node: CurrentNode
-    """ Node corresponding to current positions """
     data: Dataset
     """ Backing dataset """
     tree: array
@@ -194,12 +191,12 @@ class PackedTree(octree.Octree):
 
         if not source:
             # initialize to unsigned longs
-            self.tree = array("I")
+            self.tree = array(FIELD_FORMAT)
             self._construct_tree(pbar)
         else:
             self.tree = memoryview(source)
             if self.tree.format in "bBc":
-                self.tree = self.tree.cast("I")
+                self.tree = self.tree.cast(FIELD_FORMAT)
 
         if pbar is not None:
             pbar.close()
