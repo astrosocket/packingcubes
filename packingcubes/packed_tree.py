@@ -26,7 +26,7 @@ class PackedNode(octree.OctreeNode):
         node_start: int | None = None,
         node_end: int,
         box: bbox.BoxLike,
-        tag: list[octree.Octants] | None = None,
+        tag: str | None = None,
     ):
         """
         Initialize a packed root node
@@ -41,7 +41,7 @@ class PackedNode(octree.OctreeNode):
         self._node_start = 0 if node_start is None else node_start
         self._node_end = node_end
         self._box = bbox.make_valid(box)
-        self._tag = [] if tag is None else tag
+        self._tag = "0" if tag is None else tag
         self._index = np.uint(0)
 
     @property
@@ -69,7 +69,7 @@ class PackedNode(octree.OctreeNode):
         return self._box
 
     @property
-    def tag(self) -> list[octree.Octants]:
+    def tag(self) -> str:
         """
         List of 1-based z-order indices describing the current box.
         E.g. if assuming the unit bounding box, the box
@@ -88,12 +88,19 @@ class PackedNode(octree.OctreeNode):
         return node
 
 
+def _convert_list_to_tag_str(tag: list[int]) -> str:
+    """
+    Convert list of ints to a str
+    """
+    return "0" + "".join(str(t) for t in tag)
+
+
 def _create_from_current_node(node: CurrentNode) -> PackedNode:
     packed = PackedNode(
         node_start=int(node.node_start),
         node_end=int(node.node_end),
         box=copy.copy(node.box),
-        tag=node.tag,
+        tag=_convert_list_to_tag_str(node.tag),
     )
     packed._index = np.uint(node.index)
     return packed
@@ -102,7 +109,7 @@ def _create_from_current_node(node: CurrentNode) -> PackedNode:
 @dataclass
 class CurrentNode:
     node_end: np.uint32
-    tag: list[octree.Octants]
+    tag: list[int]
     box: bbox.BoundingBox
     index: np.uint32 = np.uint32(0)
     node_start: np.uint32 = np.uint32(0)
@@ -219,6 +226,8 @@ class PackedTree(octree.Octree):
         #     ),
         #     end="",
         # )
+        # store current my_index in case we're going up tree
+        old_my_index = node.my_index
         node.index = index
         node.node_start, node.node_end, metadata = self.tree[(index + 1) : (index + 4)]
         node.child_flag, node.my_index, node.level, node.empty = (
@@ -241,19 +250,21 @@ class PackedTree(octree.Octree):
         if not child_index:
             # moving to parent - need index of current node to remove offsets
             # need zero-based for positions
-            curr_child_index = node.tag.pop() - 1
+            node.tag.pop()
+            curr_child_index = old_my_index - 1  # need 0-based index
             node.box.box[0] -= node.box.box[3] * (curr_child_index & 1)
             node.box.box[1] -= node.box.box[4] * ((curr_child_index & 2) >> 1)
             node.box.box[2] -= node.box.box[5] * ((curr_child_index & 4) >> 2)
             # need to grow box after moving
             node.box.box[3:] *= 2
         else:
+            # 1-based index is stored
             if node.my_index != child_index:
                 raise octree.OctreeError(
                     f"Child index ({child_index}) does not "
                     + f"match expected ({node.my_index})"
                 )
-            node.tag.append(octree.Octants(int(child_index)))
+            node.tag.append(child_index)
             # need to shrink box before moving
             node.box.box[3:] /= 2
             # need zero-based for positions
@@ -341,12 +352,10 @@ class PackedTree(octree.Octree):
     def get_leaves(self) -> Iterable[PackedNode]:
         return map(_create_from_current_node, filter(is_leaf, self._iterate_nodes()))
 
-    def get_node(self, tag: str | list[octree.Octants]) -> PackedNode | None:
+    def get_node(self, tag: str) -> PackedNode | None:
         node = self._make_root_node()
-        if isinstance(tag, str):
-            tag = octree._convert_tag_str_to_list(tag)
         for child in tag:
-            offset = self._move_to_child(node, np.uint8(child))
+            offset = self._move_to_child(node, int(child))
             if not offset:
                 return None
         return _create_from_current_node(node)

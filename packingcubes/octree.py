@@ -269,24 +269,6 @@ def morton(positions: NDArray, box: bbox.BoxLike) -> NDArray[np.int_]:
     ).astype(int)
 
 
-def _convert_list_to_tag_str(tag: list[Octants]) -> str:
-    """
-    Convert list of Octants to a str
-    """
-    if not tag:
-        return "0"
-    return "".join([f"{t.value}" for t in tag])
-
-
-def _convert_tag_str_to_list(tag_str: str) -> list[Octants]:
-    """
-    Convert string that looks like a list of Octants into one
-    """
-    if tag_str == "0":
-        return []
-    return [Octants(int(t)) for t in tag_str]
-
-
 class OctreeNode(Sized):
     """
     Interface for a node in an octree
@@ -300,10 +282,10 @@ class OctreeNode(Sized):
         Bounding box of the form [x, y, z, dx, dy, dz] where (x, y, z) is the
         left-front-bottom corner. All particles are assumed to lie inside.
 
-        tag: list[int]
-        List of 1-based z-order indices describing the current box.
+        tag: str
+        Str of 1-based z-order indices describing the current box.
         E.g. if assuming the unit bounding box, the box
-        [0.25, 0.25, 0.75, 0.25, 0.25, 0.25] would be [5,1]
+        [0.25, 0.25, 0.75, 0.25, 0.25, 0.25] would be [5,1]. Root node is "0"
 
         children: Iterable[OctreeNode]
         Iterable of this node's children. Empty if leaf node
@@ -342,11 +324,11 @@ class OctreeNode(Sized):
 
     @property
     @abc.abstractmethod
-    def tag(self) -> list[Octants]:
+    def tag(self) -> str:
         """
-        List of 1-based z-order indices describing the current box.
+        String  of 1-based z-order indices describing the current box.
         E.g. if assuming the unit bounding box, the box
-        [0.25, 0.25, 0.75, 0.25, 0.25, 0.25] would be [5,1]
+        [0.25, 0.25, 0.75, 0.25, 0.25, 0.25] would be 51. Root node is "0"
         """
         raise NotImplementedError("Defined by implemented class")
 
@@ -359,7 +341,7 @@ class OctreeNode(Sized):
 
     def __repr__(self):
         return (
-            f"{type(self).__name__} (id:{_convert_list_to_tag_str(self.tag)})"
+            f"{type(self).__name__} (id:{self.tag})"
             + f" from {self.node_start}-{self.node_end} ({len(self)} particles) with"
             + f" box {self.box}"
         )
@@ -396,10 +378,10 @@ class PythonOctreeNode(OctreeNode):
         Bounding box of the form [x, y, z, dx, dy, dz] where (x, y, z) is the
         left-front-bottom corner. All particles are assumed to lie inside.
 
-        tag: List[int]
-        List of 1-based z-order indices describing the current box.
+        tag: str
+        String of 1-based z-order indices describing the current box.
         E.g. if assuming the unit bounding box, the box
-        [0.25, 0.25, 0.75, 0.25, 0.25, 0.25] would be [5,1]
+        [0.25, 0.25, 0.75, 0.25, 0.25, 0.25] would be "51". Root node is "0"
 
         children: List[OctreeNode]
         List of this node's children. Empty if leaf node
@@ -426,10 +408,10 @@ class PythonOctreeNode(OctreeNode):
     # empty for root node, otherwise list of morton indices s.t. [7,2,1] is the
     # tag for the left-front-bottom subnode of the left-back-bottom subnode of
     # right-front-top subnode of the root
-    _tag: list[Octants]
+    _tag: str
     """ 
-    List of morton indices describing the location of this OctreeNode in the
-    overall tree 
+    String of morton indices describing the location of this OctreeNode in the
+    overall tree. Root node is "0"
     """
     _children: list[PythonOctreeNode | None]
     """ 
@@ -446,7 +428,7 @@ class PythonOctreeNode(OctreeNode):
         node_start: int | None = None,
         node_end: int | None = None,
         box: bbox.BoxLike | None = None,
-        tag: list[Octants] | None = None,
+        tag: str | None = None,
         parent: PythonOctreeNode | None = None,
         particle_threshold: int = 1,
         pbar: tqdm | None = None,
@@ -465,11 +447,11 @@ class PythonOctreeNode(OctreeNode):
             left-front-bottom corner. All particles are assumed to lie inside.
             Defaults to data.bounding_box
 
-            tag: List[int], optional
-            List of 1-based z-order indices describing the current box.
+            tag: str, optional
+            String of 1-based z-order indices describing the current box.
             E.g. if assuming the unit bounding box, the box
-            [0.25, 0.25, 0.75, 0.25, 0.25, 0.25] would be [5,1]. Defaults to
-            the empty list
+            [0.25, 0.25, 0.75, 0.25, 0.25, 0.25] would be "51". Defaults to "0"
+            for the root node
 
             parent: OctreeNode, optional
             Parent node of this node. None (default) if root of the entire tree.
@@ -505,7 +487,7 @@ class PythonOctreeNode(OctreeNode):
             self._node_end = node_end
         self._children = []
         self._box = bbox.make_valid(box) if box is not None else data.bounding_box
-        self._tag = tag if tag is not None else []
+        self._tag = tag if tag is not None else "0"
         self._parent = parent
 
         if self._parent is None:
@@ -593,7 +575,7 @@ class PythonOctreeNode(OctreeNode):
                 node_start=child1,
                 node_end=child2 - 1,
                 box=child_box,
-                tag=self._tag + [Octants(i + 1)],  # e.g. i=1 corresponds to subtree 3
+                tag=f"{self._tag}{i + 1}",
                 parent=self,
                 particle_threshold=self._particle_threshold,
                 pbar=self._pbar,
@@ -630,9 +612,9 @@ class PythonOctreeNode(OctreeNode):
         return self._box
 
     @property
-    def tag(self) -> list[Octants]:
+    def tag(self) -> str:
         """
-        List of 1-based z-order indices describing the current box.
+        String of 1-based z-order indices describing the current box.
         E.g. if assuming the unit bounding box, the box
         [0.25, 0.25, 0.75, 0.25, 0.25, 0.25] would be [5,1]
         """
@@ -657,7 +639,7 @@ class PythonOctreeNode(OctreeNode):
 
     def __repr__(self):
         return (
-            f"{type(self).__name__} (id:{_convert_list_to_tag_str(self.tag)})"
+            f"{type(self).__name__} (id:{self.tag})"
             + f" from {self.node_start}-{self.node_end} ({len(self)} particles) with"
             + f" box {self.box}"
             + f" and {len([c for c in self.children if c is not None])} child node"
@@ -740,7 +722,7 @@ class Octree(Iterable[OctreeNode], Protocol):
         ...
 
     def get_leaves(self) -> Iterable[OctreeNode]: ...
-    def get_node(self, tag: str | list[Octants]) -> OctreeNode | None: ...
+    def get_node(self, tag: str) -> OctreeNode | None: ...
 
     def get_particle_indices_in_box(
         self,
@@ -836,27 +818,24 @@ class PythonOctree(Octree):
             self._leaves = leaves
         return self._leaves
 
-    def get_node(self, tag: str | list[Octants]) -> PythonOctreeNode | None:
+    def get_node(self, tag: str) -> PythonOctreeNode | None:
         """
         Return the node corresponding to the provided tag or None if not found
 
         Args:
-            tag: str | List[Octants]
+            tag: str
             The tag to search for
 
         Returns:
             node
             Node in octree with specified tag or None if it does not exist
         """
-        if isinstance(tag, str):
-            tag = _convert_tag_str_to_list(tag)
-
-        if not tag:
+        if not tag or tag == "0":
             return self.root
 
         node = self.root
-        for t in tag:
-            node = node.children[t - 1]  # type: ignore
+        for t in tag[1:]:
+            node = node.children[int(t - 1)]  # type: ignore
             if node is None:
                 return None
 
@@ -1322,7 +1301,7 @@ class PythonOctree(Octree):
                 if child:
                     child_flag += 1 << i
                     last_child = i
-            my_index = node.tag[-1] if node.tag else 0
+            my_index = int(node.tag[-1]) if node.tag else 0
             level = len(node.tag)
             metadata = pack_node_metadata(child_flag, my_index, level, 0)
             packed.append(metadata)
