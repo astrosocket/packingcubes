@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import copy
 import logging
 from array import array
-from collections.abc import Generator, Iterable, Iterator
+from collections.abc import Buffer, Generator, Iterable, Iterator
 from dataclasses import dataclass
 from functools import partial
 
@@ -82,7 +81,7 @@ class PackedNode(octree.OctreeNode):
         node = PackedNode(
             node_start=self.node_start,
             node_end=self.node_end,
-            box=copy.copy(self.box),
+            box=self.box.copy(),
             tag=self.tag,
         )
         node._index = self._index
@@ -100,7 +99,7 @@ def _create_from_current_node(node: CurrentNode) -> PackedNode:
     packed = PackedNode(
         node_start=int(node.node_start),
         node_end=int(node.node_end),
-        box=copy.copy(node.box),
+        box=node.box.copy(),
         tag=_convert_list_to_tag_str(node.tag),
     )
     packed._index = np.uint(node.index)
@@ -163,14 +162,14 @@ class PackedTree(octree.Octree):
 
     data: Dataset
     """ Backing dataset """
-    tree: array
+    tree: memoryview
     """ Tree representation in memory """
 
     def __init__(
         self,
         data: Dataset,
         *,
-        source: bytes | bytearray | Iterable[int] | None,
+        source: Buffer | None,
         particle_threshold: int | None = None,
         show_pbar: bool = False,
     ) -> None:
@@ -191,7 +190,7 @@ class PackedTree(octree.Octree):
 
         if not source:
             # initialize to unsigned longs
-            self.tree = array(FIELD_FORMAT)
+            self.tree = memoryview(array(FIELD_FORMAT))
             self._construct_tree(pbar)
         else:
             self.tree = memoryview(source)
@@ -521,7 +520,7 @@ class PackedTree(octree.Octree):
         """
         if containment_test is None:
 
-            def in_box(xyz: ArrayLike):
+            def in_box(xyz: ArrayLike) -> NDArray[np.bool_]:
                 return bbox.in_box(bounding_box, xyz)
 
             containment_test = in_box
@@ -657,7 +656,7 @@ class PackedTree(octree.Octree):
 
         if containment_test is None:
 
-            def in_box(xyz: ArrayLike):
+            def in_box(xyz: ArrayLike) -> NDArray[np.bool_]:
                 return bbox.in_box(bounding_box, xyz)
 
             containment_test = in_box
@@ -789,7 +788,7 @@ class PackedTree(octree.Octree):
         box: bbox.BoxLike,
     ) -> list[list[int]]:
         return self._get_particle_indices_in_shape_verts(
-            bounding_box=bbox.make_valid(box.copy()),
+            bounding_box=bbox.make_valid(box).copy(),
         )
 
     def get_particle_indices_in_sphere(
