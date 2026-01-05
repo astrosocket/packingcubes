@@ -6,7 +6,7 @@ import warnings
 from collections.abc import Iterable, Iterator, Sized
 from enum import IntEnum
 from functools import partial
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
@@ -43,7 +43,7 @@ class OctreeWarning(UserWarning):
 
 
 class ContainmentFunc(Protocol):
-    def __call__(self, NDArray) -> NDArray[np.bool_]:
+    def __call__(self, xyz: ArrayLike) -> NDArray[np.bool_]:
         pass
 
 
@@ -420,6 +420,17 @@ class PythonOctreeNode(OctreeNode):
     """
     _parent: PythonOctreeNode | None
     """ Reference to parent node or None if root """
+
+    # The following are currently only used when packing
+    if TYPE_CHECKING:
+        _index: int
+        """
+        Index of node in packed array
+        """
+        _last_child: bool
+        """
+        Whether this node is the last child node when listed in order
+        """
 
     def __init__(
         self,
@@ -946,7 +957,7 @@ class PythonOctree(Octree):
         """
         if containment_test is None:
 
-            def in_box(xyz: ArrayLike):
+            def in_box(xyz: ArrayLike) -> NDArray[np.bool_]:
                 return bbox.in_box(bounding_box, xyz)
 
             containment_test = in_box
@@ -1077,7 +1088,7 @@ class PythonOctree(Octree):
 
         if containment_test is None:
 
-            def in_box(xyz: ArrayLike):
+            def in_box(xyz: ArrayLike) -> NDArray[np.bool_]:
                 return bbox.in_box(bounding_box, xyz)
 
             containment_test = in_box
@@ -1105,7 +1116,7 @@ class PythonOctree(Octree):
             else:
                 node, is_full = partial_leaves.pop(), False
 
-            indices.append((node.node_start, node.node_end + 1))
+            indices.append([node.node_start, node.node_end + 1])
 
         return indices
 
@@ -1125,7 +1136,7 @@ class PythonOctree(Octree):
             indices: list[list[int]]
             List of particle start-stop indices contained within sphere
         """
-        bounding_box = bbox.make_valid(box.copy())
+        bounding_box = bbox.make_valid(box).copy()
 
         return self._get_particle_indices_in_shape(
             bounding_box=bounding_box,
@@ -1217,7 +1228,7 @@ class PythonOctree(Octree):
         # get closest particle in that box
         closest_ind, in_box_dist = node.closest_particle_index(xyz)
 
-        def _distance(xyz: NDArray, pxyz: NDArray):
+        def _distance(xyz: NDArray, pxyz: NDArray) -> NDArray:
             return np.sqrt(np.sum(np.atleast_2d((xyz - pxyz) ** 2), axis=1))
 
         closest_dist = in_box_dist
@@ -1304,7 +1315,7 @@ class PythonOctree(Octree):
                     packed[node._index] += current - node._index - 5
             else:
                 # Set flag on last child to update tree and look at children
-                children[last_child]._last_child = True
+                children[last_child]._last_child = True  # type: ignore[union-attr]
                 nodes.extend(filter(None, reversed(children)))
         return packed.tobytes()
 
