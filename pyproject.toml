@@ -98,6 +98,9 @@ unfixable = ["B"]
 source = [
     "packingcubes",
 ]
+omit=[
+    "packingcubes/_version.py",
+]
 
 [tool.pixi.workspace]
 channels = ["conda-forge"]
