@@ -216,6 +216,65 @@ class PackedTree(octree.Octree):
 
         raise NotImplementedError
 
+    @classmethod
+    def _print_packed(cls, packed: memoryview | array, *, expected_node_start=0):
+        """
+        Attempt to print a packed tree for debugging
+        """
+        if isinstance(packed, memoryview) and packed.format != FIELD_FORMAT:
+            packed.cast("b").cast(FIELD_FORMAT)
+        position = 0
+        child_ind = [0]
+        while position + 3 < len(packed):
+            skip_length, node_start, node_end, metadata = packed[
+                position : position + 4
+            ]
+            child_flag, my_index, level, empty = octree.unpack_node_metadata(metadata)
+            print(  # noqa
+                f"{'.' * (level - 1)} sl:{skip_length:4} "
+                f"ns:{node_start:4} ne:{node_end:6} "
+                f"cf: {child_flag:08b}={
+                    ''.join(
+                        str(n + 1)
+                        for n in np.where(
+                            np.unpackbits(np.uint8(child_flag), bitorder='little')
+                        )
+                    )
+                } "
+                f"my:{my_index} ll:{level} em:{empty} (m:{metadata})",
+                end="",
+            )
+            if position + skip_length < len(packed):
+                if skip_length >= 5 + bool(child_flag):
+                    print(f" po: {packed[position + skip_length - 1]}", end="")  # noqa
+                else:
+                    print(" po: DNE", end="")  # noqa
+            else:
+                print(" po: NA", end="")  # noqa
+            print(f" in: {position}")  # noqa
+
+            if node_start != expected_node_start:
+                print(  # noqa
+                    f"Error at index {position}. "
+                    f"Expected to start at {expected_node_start} "
+                    f"but started at {node_start}"
+                )
+                return
+
+            position += 4
+            child_ind[-1] -= 1
+            if child_flag:
+                # internal node: continue with children
+                child_ind.append(int(np.bitwise_count(child_flag)))
+                continue
+            position += 1
+            expected_node_start = node_end + 1
+            while child_ind and not child_ind[-1]:
+                child_ind.pop()
+                position += 1
+
+        print(f"remaining: {packed[position:]}")  # noqa
+
     def _update_current_node(self, index: int, node: CurrentNode, child_index: int):
         """
         Update the parameters of the node based on the new position
