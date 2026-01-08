@@ -119,6 +119,39 @@ class CurrentNode:
     empty: int = 0
 
 
+def _update_node_state(node: CurrentNode, child_index: int, old_my_index: int):
+    # Since some information, like the box and tag, are not stored in the
+    # tree, we need to update the node's state. This is dependent on which
+    # direction we're traveling: up the tree requires shortening the tag and
+    # expanding the box; down the tree requires lengthening the tag and
+    # shrinking the box.
+    if not child_index:
+        # moving to parent - need index of current node to remove offsets
+        # need zero-based for positions
+        node.tag.pop()
+        curr_child_index = old_my_index - 1  # need 0-based index
+        node.box.box[0] -= node.box.box[3] * (curr_child_index & 1)
+        node.box.box[1] -= node.box.box[4] * ((curr_child_index & 2) >> 1)
+        node.box.box[2] -= node.box.box[5] * ((curr_child_index & 4) >> 2)
+        # need to grow box _after_ moving
+        node.box.box[3:] *= 2
+    else:
+        # 1-based index is stored
+        if node.my_index != child_index:
+            raise octree.OctreeError(
+                f"Child index ({child_index}) does not "
+                + f"match expected ({node.my_index})"
+            )
+        node.tag.append(child_index)
+        # need to shrink box _before_ moving
+        node.box.box[3:] /= 2
+        # need zero-based for positions
+        child_index -= 1
+        node.box.box[0] += node.box.box[3] * (child_index & 1)
+        node.box.box[1] += node.box.box[4] * ((child_index & 2) >> 1)
+        node.box.box[2] += node.box.box[5] * ((child_index & 4) >> 2)
+
+
 def get_name(current: CurrentNode) -> str:
     """
     Get the name (tag) of this CurrentNode
@@ -329,36 +362,7 @@ class PackedTree(octree.Octree):
         #     )
         # )
 
-        # Since some information, like the box and tag, are not stored in the
-        # tree, we need to update the node's state. This is dependent on which
-        # direction we're traveling: up the tree requires shortening the tag and
-        # expanding the box; down the tree requires lengthening the tag and
-        # shrinking the box.
-        if not child_index:
-            # moving to parent - need index of current node to remove offsets
-            # need zero-based for positions
-            node.tag.pop()
-            curr_child_index = old_my_index - 1  # need 0-based index
-            node.box.box[0] -= node.box.box[3] * (curr_child_index & 1)
-            node.box.box[1] -= node.box.box[4] * ((curr_child_index & 2) >> 1)
-            node.box.box[2] -= node.box.box[5] * ((curr_child_index & 4) >> 2)
-            # need to grow box _after_ moving
-            node.box.box[3:] *= 2
-        else:
-            # 1-based index is stored
-            if node.my_index != child_index:
-                raise octree.OctreeError(
-                    f"Child index ({child_index}) does not "
-                    + f"match expected ({node.my_index})"
-                )
-            node.tag.append(child_index)
-            # need to shrink box _before_ moving
-            node.box.box[3:] /= 2
-            # need zero-based for positions
-            child_index -= 1
-            node.box.box[0] += node.box.box[3] * (child_index & 1)
-            node.box.box[1] += node.box.box[4] * ((child_index & 2) >> 1)
-            node.box.box[2] += node.box.box[5] * ((child_index & 4) >> 2)
+        _update_node_state(node, child_index, old_my_index)
 
     def _move_to_child(self, node: CurrentNode, child_ind: int) -> int:
         """
