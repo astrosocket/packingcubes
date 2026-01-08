@@ -114,20 +114,15 @@ def test_partition_data_full_box(
 ):
     note("Before partition")
     note(basic_data.bounding_box)
-    # note(bbox.normalize_to_box(basic_data.positions, basic_data.bounding_box))
-    note(basic_data.positions)
-    morton_inds = octree.morton(basic_data.positions, basic_data.bounding_box)
-    note(morton_inds)
-    note(f"Positions :{basic_data.positions[1:2, :]}")
+    note(f"Positions :{basic_data.positions[:2, :]}")
     note(
         f"Normalized: {
-            bbox.normalize_to_box(basic_data.positions[1:2, :], basic_data.bounding_box)
+            bbox.normalize_to_box(basic_data.bounding_box, basic_data.positions[:2, :])
         }",
     )
+    morton_inds = octree.morton(basic_data.positions, basic_data.bounding_box)
     note(
-        f"Morton: {
-            octree.morton(basic_data.positions[1:2, :], basic_data.bounding_box)
-        }",
+        f"Morton: {morton_inds[:2]}",
     )
 
     child_list = octree._partition_data(
@@ -138,16 +133,21 @@ def test_partition_data_full_box(
     )
 
     note("After partition")
-    note(basic_data.bounding_box)
-    note(bbox.normalize_to_box(basic_data.positions, basic_data.bounding_box))
+    note(
+        f"Normalized: {
+            bbox.normalize_to_box(basic_data.bounding_box, basic_data.positions[:2, :])
+        }",
+    )
     morton_inds = octree.morton(basic_data.positions, basic_data.bounding_box)
-    note(morton_inds)
+    note(
+        f"Morton: {morton_inds[:2]}",
+    )
 
-    bin_count = np.bincount(morton_inds, minlength=8)
+    bin_count = np.bincount(morton_inds, minlength=9)
     # morton inds are 1-8, so bin 0 is always 0. Even though anything
     # in bin 1 should _start_ at index=0 (since we're doing the top-level
     # partition), child_list doesn't contain an explicit index for bin 1
-    expected_child_list = np.cumsum(bin_count)[1:8]
+    expected_child_list = np.cumsum(bin_count)
     note(f"{bin_count=} e:{expected_child_list} g:{child_list}")
 
     assert is_sorted(morton_inds)
@@ -289,7 +289,7 @@ def test_morton(positions: ArrayLike, box: ArrayLike):
 
 #############################
 #############################
-# Test OctreeNode
+# Test PythonOctreeNode
 #############################
 #############################
 @given(
@@ -301,18 +301,18 @@ def test_morton(positions: ArrayLike, box: ArrayLike):
     parent=st.none(),
     particle_threshold=st.integers(),
 )
-def test_OctreeNode_invalid_ints(
+def test_PythonOctreeNode_invalid_ints(
     data: Dataset,
     node_start: int,
     node_end: int,
     box: ArrayLike,
     tag: list[octree.Octants],
-    parent: None | octree.OctreeNode,
+    parent: None | octree.PythonOctreeNode,
     particle_threshold: int,
 ):
     assume(particle_threshold < 1 or node_start < 0 or node_end > len(data) - 1)
     with pytest.raises(octree.OctreeError) as oerrinfo:
-        octree.OctreeNode(
+        octree.PythonOctreeNode(
             data=data,
             node_start=node_start,
             node_end=node_end,
@@ -331,11 +331,11 @@ def test_OctreeNode_invalid_ints(
         pytest.fail(str(oerrinfo.value))
 
 
-def test_OctreeNode_empty_data(make_basic_data):
+def test_PythonOctreeNode_empty_data(make_basic_data):
     data = make_basic_data(0)
 
     with pytest.raises(octree.OctreeError) as oerrinfo:
-        octree.OctreeNode(
+        octree.PythonOctreeNode(
             data=data,
             node_start=0,
             node_end=len(data) - 1,
@@ -375,7 +375,7 @@ def make_worst_case_duplicate() -> Dataset:
 @settings(deadline=700, print_blob=True)
 @pytest.mark.filterwarnings("::packingcubes.octree.OctreeWarning::")
 @pytest.mark.filterwarnings("error")
-def test_OctreeNode_duplicate_data(data: Dataset):
+def test_PythonOctreeNode_duplicate_data(data: Dataset):
     note(f"{data.bounding_box=}")
     note(f"{data.positions=}")
     note(f"{bbox.max_depth(data.bounding_box)}")
@@ -384,13 +384,13 @@ def test_OctreeNode_duplicate_data(data: Dataset):
     # but we still want to test the recursion limit
     if bbox.max_depth(data.bounding_box) < 1:
         with pytest.raises(octree.OctreeError) as oeinfo:
-            node = octree.OctreeNode(data=data, particle_threshold=1)
+            node = octree.PythonOctreeNode(data=data, particle_threshold=1)
         assert "negative max depth" in str(oeinfo.value)
     else:
         with pytest.warns(octree.OctreeWarning, match=r"Bad data detected"):  # noqa PT031
             # need to explicitly set the particle threshold since
             # data_with_duplicates is only guaranteed to produce 1 duplicate
-            node = octree.OctreeNode(
+            node = octree.PythonOctreeNode(
                 data=data,
                 particle_threshold=1,
             )
@@ -400,30 +400,32 @@ def test_OctreeNode_duplicate_data(data: Dataset):
                 note(f"{child}")
 
 
-class OctreeNodeComparison(RuleBasedStateMachine):
+class PythonOctreeNodeComparison(RuleBasedStateMachine):
     def __init__(self):
         super().__init__()
         self.data = Dataset()
 
 
-# TestOctreeNode = OctreeNodeComparison.TestCase
+# TestPythonOctreeNode = PythonOctreeNodeComparison.TestCase
 
 
 #############################
 #############################
-# Test Octree
+# Test PythonOctree
 #############################
 #############################
-class OctreeComparison(RuleBasedStateMachine):
+class PythonOctreeComparison(RuleBasedStateMachine):
     def __init__(self):
         super().__init__()
         self.tree = None
         self.current_node = None
 
     @initialize(data=ct.basic_data_strategy(), pt=st.none() | st.integers(min_value=1))
+    @pytest.mark.filterwarnings("ignore:Bad data")
     def make_octree(self, data: Dataset, pt: int):
+        assume(bbox.max_depth(data.bounding_box) > 0)
         try:
-            self.tree = octree.Octree(data=data, particle_threshold=pt)
+            self.tree = octree.PythonOctree(data=data, particle_threshold=pt)
         except octree.OctreeError as oerr:
             if len(data) <= 10:
                 note(data.positions)
@@ -437,33 +439,40 @@ class OctreeComparison(RuleBasedStateMachine):
         data = root.data
         assert root.node_start == 0
         assert root.node_end == len(data) - 1
-        assert np.all(root.box == data.bounding_box.astype(float))
-        assert root.tag == []
+        assert root.box.box == pytest.approx(data.bounding_box.box.astype(float))
+        assert root.tag == "0"
         assert root.parent is None
         assert root._particle_threshold == self.pt
 
-    @rule(child_index=st.integers(min_value=1, max_value=8))
-    @precondition(lambda oc: oc.current_node is not None)
-    @precondition(lambda oc: not oc.current_node.is_leaf)
+    @rule(child_index=st.integers(min_value=0, max_value=7))
+    @precondition(
+        lambda oc: oc.current_node is not None and not oc.current_node.is_leaf
+    )
     def go_to_child(self, child_index: int):
         note(self.current_node)
         note(f"{self.current_node.is_leaf}")
         self.current_node = self.current_node.children[child_index]
 
     @rule()
-    @precondition(lambda oc: oc.current_node is not None)
-    @precondition(lambda oc: oc.current_node.parent is not None)
+    @precondition(
+        lambda oc: oc.current_node is not None and oc.current_node.parent is not None
+    )
     def go_to_parent(self):
         self.current_node = self.current_node.parent
 
     @rule()
     @precondition(lambda oc: oc.tree is not None)
+    @precondition(lambda oc: oc.current_node is not None)
     def node_data_sorted(self):
         node = self.current_node
-        positions = node.data.positions
+        positions = node.data.positions[node.node_start : node.node_end + 1]
         box = node.box
         mortons = octree.morton(positions=positions, box=box)
+        note(node)
+        note(box)
+        note(positions)
+        note(mortons)
         assert is_sorted(mortons)
 
 
-TestOctreeComparison = OctreeComparison.TestCase
+TestPythonOctreeComparison = PythonOctreeComparison.TestCase
