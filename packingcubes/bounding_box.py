@@ -101,7 +101,7 @@ class BoundingBoxError(ValueError):
         super().__init__(self.messages)
 
 
-def check_valid(box: BoxLike, *, raise_error: bool = True):
+def check_valid(box: BoxLike, *, raise_error: bool = True) -> BoundingBoxValidFlag:
     """
     Check if a bounding box array is valid
 
@@ -226,7 +226,10 @@ def max_depth(bbox: BoundingBox) -> int:
     return np.ceil(np.log2(np.min(bbox.box[3:] / min_box_sizes))).astype(int)
 
 
-def normalize_to_box(coordinates: ArrayLike, bbox: BoxLike) -> ArrayLike:
+def normalize_to_box(
+    bbox: BoxLike,
+    coordinates: ArrayLike,
+) -> ArrayLike:
     """
     Rescale and shift the coordinates such that they are bounded by the unit cube
     """
