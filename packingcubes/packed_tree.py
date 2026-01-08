@@ -5,6 +5,7 @@ from array import array
 from collections.abc import Buffer, Generator, Iterable, Iterator
 from dataclasses import dataclass
 from functools import partial
+from typing import TYPE_CHECKING
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
@@ -195,14 +196,17 @@ class PackedTree(octree.Octree):
 
     data: Dataset
     """ Backing dataset """
-    tree: memoryview
-    """ Tree representation in memory """
+    tree: memoryview | array
+    """ 
+    Tree representation in memory. Note: array typing is only allowed for during 
+    tree construction. 
+    """
 
     def __init__(
         self,
         data: Dataset,
         *,
-        source: Buffer | None,
+        source: Buffer | None = None,
         particle_threshold: int | None = None,
         show_pbar: bool = False,
     ) -> None:
@@ -223,8 +227,9 @@ class PackedTree(octree.Octree):
 
         if not source:
             # initialize to unsigned longs
-            self.tree = memoryview(array(FIELD_FORMAT))
+            self.tree = array(FIELD_FORMAT)
             self._construct_tree(pbar)
+            self.tree = memoryview(self.tree)
         else:
             self.tree = memoryview(source)
             if self.tree.format in "bBc":
@@ -234,20 +239,94 @@ class PackedTree(octree.Octree):
             pbar.close()
         pass
 
-    def _construct_tree(self, pbar: tqdm | None):
-        # self.current = PackedNode(
-        #     node_end=len(self.data) - 1, box=self.data.bounding_box
-        # )
-        # self.root = self.current.copy()
-        self.current_node = CurrentNode(
-            index=0,
+    def _construct_tree(self, pbar: tqdm | None = None):
+        node = CurrentNode(
             node_start=0,
-            node_end=len(self.data),
-            box=self.data.bounding_box,
+            node_end=len(self.data) - 1,
+            index=0,
+            child_flag=0,
+            my_index=0,
+            level=1,
+            empty=0,
             tag=[],
+            box=self.data.bounding_box,
         )
 
-        raise NotImplementedError
+        self._max_depth = bbox.max_depth(node.box)  # BoundingBox
+
+        self._construct_node(node, 0, pbar)
+
+    def _construct_node(
+        self, node: CurrentNode, parent_index: int, pbar: tqdm | None = None
+    ) -> int:
+        if TYPE_CHECKING:
+            if isinstance(self.tree, memoryview):
+                raise octree.OctreeError("Attempting to build a read-only tree!")
+
+        # we need to cache various properties for when we recurse
+        index = node.index
+        node_start = node.node_start
+        node_end = node.node_end
+        num_particles = node_end - node_start + 1
+        my_index = node.my_index
+        level = node.level
+        empty = node.empty
+        # All nodes have the following 4 fields, plus parent_offset
+        # but we don't know the skip_length, child_flag, or parent_offset field
+        # values for internal nodes yet. Put placeholders for now, they'll be
+        # updated later
+        self.tree.append(5)
+        self.tree.append(node_start)
+        self.tree.append(node_end)
+        self.tree.append(octree.pack_node_metadata(0, my_index, level, empty))
+
+        # base case: fewer than particle threshold or reached depth limit
+        if num_particles <= self.particle_threshold or node.level >= self._max_depth:
+            self.tree.append(index - parent_index)
+            # print(_convert_list_to_tag_str(node.tag), index, parent_index)
+            self._move_to_parent(node)
+            if pbar is not None:
+                pbar.update(num_particles)
+            return index + 5
+
+        # Need to partition and do each child one-by-one
+        # This partitioning is why we need to keep track of the box
+        # need node_end + 1 because we have child2 - 1 below
+        child_list = np.array(
+            octree._partition_data(self.data, node.box, node_start, node_end)
+        )
+
+        # update metadata since we can compute the child flag now
+        child_flag = int(
+            np.packbits(child_list[:8] < child_list[1:], bitorder="little")
+        )
+        self.tree[index + 3] = octree.pack_node_metadata(
+            child_flag, my_index, level, empty
+        )
+
+        child_index = index + 4
+        for i in range(1, 9):
+            child1 = child_list[i - 1]
+            child2 = child_list[i]
+
+            if child1 >= child2:
+                continue
+            # can't use _move_to_child, since the data doesn't exist yet (we
+            # don't even know how many children there are to skip over!)
+            # need to manually change
+            node.index = child_index
+            node.node_start = child1
+            node.node_end = child2 - 1
+            node.my_index = i
+            node.level += 1
+            _update_node_state(node, i, 0)  # old_my_index is unused
+            child_index = self._construct_node(node, index, pbar)
+
+        self.tree[index] = child_index + 1 - index
+        self.tree.append(index - parent_index)
+        self._move_to_parent(node)
+
+        return child_index + 1
 
     @classmethod
     def _print_packed(cls, packed: memoryview | array, *, expected_node_start=0):
