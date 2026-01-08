@@ -108,7 +108,7 @@ def _partition_data(
     [lo,*child_list[0:i-1]]
     """
     midplane = bbox.midplane(box)
-    child_list = [-1, -1, -1, -1, -1, -1, -1]
+    child_list = [-1, -1, -1, -1, -1, -1, -1, -1, -1]
     # child_list is defined such that data in c0 (child node 1) is prior to
     # child_list[0], c1 data is between child_list[0] and child_list[1], etc.
     # i.e.
@@ -160,14 +160,15 @@ def _partition_data(
     #     f"z:{zsplit} y3:{xsplit3} x2:{ysplit2} y4:{xsplit4}"
     # )
 
-    # child_list[-1] = lo #    indices of child_0 (morton=1): lo, xsplit1-1
-    child_list[0] = xsplit1  # indices of child_1 (morton=2): xsplit1, ysplit1-1
-    child_list[1] = ysplit1  # indices of child_2 (morton=3): ysplit1, xsplit2-1
-    child_list[2] = xsplit2  # indices of child_3 (morton=4): xsplit2, zsplit-1
-    child_list[3] = zsplit  #  indices of child_4 (morton=5): zsplit, ysplit3-1
-    child_list[4] = xsplit3  # indices of child_5 (morton=6): xsplit3, ysplit2-1
-    child_list[5] = ysplit2  # indices of child_6 (morton=7): ysplit2, xsplit4-1
-    child_list[6] = xsplit4  # indices of child_7 (morton=8): xsplit4, hi
+    child_list[0] = lo  #       indices of child_0 (morton=1): lo, xsplit1-1
+    child_list[1] = xsplit1  # indices of child_1 (morton=2): xsplit1, ysplit1-1
+    child_list[2] = ysplit1  # indices of child_2 (morton=3): ysplit1, xsplit2-1
+    child_list[3] = xsplit2  # indices of child_3 (morton=4): xsplit2, zsplit-1
+    child_list[4] = zsplit  #  indices of child_4 (morton=5): zsplit, ysplit3-1
+    child_list[5] = xsplit3  # indices of child_5 (morton=6): xsplit3, ysplit2-1
+    child_list[6] = ysplit2  # indices of child_6 (morton=7): ysplit2, xsplit4-1
+    child_list[7] = xsplit4  # indices of child_7 (morton=8): xsplit4, hi
+    child_list[8] = hi + 1
 
     # LOGGER.debug(f"{lo=} {hi=} {child_list}")
     return child_list
@@ -381,7 +382,7 @@ class PythonOctreeNode(OctreeNode):
         tag: str
         String of 1-based z-order indices describing the current box.
         E.g. if assuming the unit bounding box, the box
-        [0.25, 0.25, 0.75, 0.25, 0.25, 0.25] would be "51". Root node is "0"
+        [0.25, 0.25, 0.75, 0.25, 0.25, 0.25] would be "051". Root node is "0"
 
         children: List[OctreeNode]
         List of this node's children. Empty if leaf node
@@ -461,7 +462,7 @@ class PythonOctreeNode(OctreeNode):
             tag: str, optional
             String of 1-based z-order indices describing the current box.
             E.g. if assuming the unit bounding box, the box
-            [0.25, 0.25, 0.75, 0.25, 0.25, 0.25] would be "51". Defaults to "0"
+            [0.25, 0.25, 0.75, 0.25, 0.25, 0.25] would be "051". Defaults to "0"
             for the root node
 
             parent: OctreeNode, optional
@@ -565,10 +566,9 @@ class PythonOctreeNode(OctreeNode):
         # child[0] starts at node_start and ends at
         # node_start+child_list[0] -> child_list only
         children: list[PythonOctreeNode | None] = []
-        for i in range(8):
-            child1 = child_list[i - 1] if i > 0 else self.node_start
-            # need node_end + 1 because we have child2 - 1 below
-            child2 = child_list[i] if i < 7 else self.node_end + 1
+        for i in range(1, 9):
+            child1 = child_list[i - 1]
+            child2 = child_list[i]
 
             # append empty child as None
             if child1 >= child2:
@@ -576,7 +576,7 @@ class PythonOctreeNode(OctreeNode):
                 continue
 
             # recursing on child i not i-1!
-            child_box = bbox.get_child_box(self.box, i)
+            child_box = bbox.get_child_box(self.box, i - 1)
             # LOGGER.debug(
             #     f"Making child box{i + 1} for {child2}-{child1}"
             #     f"={child2 - child1} particles in box {child_box}"
@@ -586,7 +586,7 @@ class PythonOctreeNode(OctreeNode):
                 node_start=child1,
                 node_end=child2 - 1,
                 box=child_box,
-                tag=f"{self._tag}{i + 1}",
+                tag=self._tag + str(i),
                 parent=self,
                 particle_threshold=self._particle_threshold,
                 pbar=self._pbar,
