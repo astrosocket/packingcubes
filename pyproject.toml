@@ -102,6 +102,9 @@ omit=[
     "packingcubes/_version.py",
 ]
 
+[tool.coverage.report]
+skip_empty = true
+
 [tool.pixi.workspace]
 channels = ["conda-forge"]
 platforms = ["linux-64"]
