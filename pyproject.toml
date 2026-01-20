@@ -1,10 +1,12 @@
 [build-system]
-requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
+requires = [
+    "setuptools",
+    "setuptools-scm>=8.1",
+]
 
 [project]
 name = "packingcubes"
-version = "0.0.1a1"
 requires-python = ">=3.12"
 dependencies = [
     "numpy",
@@ -12,6 +14,14 @@ dependencies = [
     "unyt",
     "tqdm",
 ]
+license = "MIT"
+license-files = ["LICENSE.txt"]
+dynamic = ["version","readme"]
+
+[project.urls]
+home = "https://github.com/astrosocket/packingcubes"
+source = "https://github.com/astrosocket/packingcubes"
+issues = "https://github.com/astrosocket/packingcubes/issues/new"
 
 [project.optional-dependencies]
 viz = [
@@ -31,8 +41,7 @@ test = [
     "hypothesis"
 ]
 profile = [
-    "scalene",
-    "pyinstrument",
+    "pyinstrument", "scalene>=1.5.55,<2",
 ]
 viz = [
     "matplotlib",
@@ -50,8 +59,16 @@ dev = [
     {include-group = "test"},
     {include-group = "profile"},
     {include-group = "viz"},
-    {include-group = "jupyter"}
+    {include-group = "jupyter"},
 ]
+
+[tool.setuptools.dynamic]
+readme = {file = ["README.md"]}
+
+[tool.setuptools_scm]
+version_scheme = "guess-next-dev"
+local_scheme = "dirty-tag"
+write_to = "packingcubes/_version.py"
 
 [tool.ruff.lint]
 select = [
@@ -81,6 +98,12 @@ unfixable = ["B"]
 source = [
     "packingcubes",
 ]
+omit=[
+    "packingcubes/_version.py",
+]
+
+[tool.coverage.report]
+skip_empty = true
 
 [tool.pixi.workspace]
 channels = ["conda-forge"]
@@ -92,7 +115,8 @@ packingcubes = { path = ".", editable = true }
 [tool.pixi.environments]
 default = { solve-group = "default" }
 dev = { features = ["test","viz","jupyter","dev","profile"], solve-group = "default" }
-test = { features = ["test","viz"], solve-group = "default" }
+test = { features = ["test","viz", "jupyter"], solve-group = "default" }
+viz = { features = ["viz", "jupyter"], solve-group = "default" }
 
 [tool.pixi.tasks]
 
@@ -101,20 +125,21 @@ test = "pytest --cov=packingcubes"
 
 [tool.pixi.feature.dev.dependencies]
 ipykernel = ">=7.1.0,<8"
-pyinstrument = ">=5.1.1,<6"
 unyt = ">=3.0.4,<4"
 pytest-cov = ">=7.0.0,<8"
 ruff = ">=0.14.8,<0.15"
 pre-commit = ">=4.5.0,<5"
 coverage = ">=7.12.0,<8"
+mypy = ">=1.19.0,<2"
+types-tqdm = ">=4.67.0.20250809,<5"
 
 [tool.pixi.feature.test.dependencies]
 pytest = "*"
 hypothesis = ">=6.148.6,<7"
 
 [tool.pixi.feature.profile.dependencies]
-scalene = ">=1.5.51,<2"
 pyinstrument = ">=5.1.1,<6"
+pympler = ">=1.1,<2"
 
 [tool.pixi.feature.viz.dependencies]
 matplotlib = "*"
@@ -128,6 +153,4 @@ ipywidgets = ">=8.1.8,<9"
 numpy = "*"
 h5py = ">=3.15.1,<4"
 tqdm = ">=4.67.1,<5"
-matplotlib = ">=3.10.8,<4"
 unyt = ">=3.0.4,<4"
-ipywidgets = ">=8.1.8,<9"

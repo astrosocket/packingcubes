@@ -1,0 +1,14 @@
+[general]
+# Ignore rules, reference them by id or name (comma-separated)
+ignore=body-is-missing
+
+# Enable specific community contributed rules
+# contrib=
+
+# Set path to search for user-defined rules
+# extra-path=
+
+### Configuring rules ###
+# Specify configuration options for individual rules here
+[body-changed-file-mention]
+files=README.md, pyproject.toml

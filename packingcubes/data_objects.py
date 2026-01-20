@@ -2,11 +2,10 @@ import contextlib
 import logging
 import warnings
 from pathlib import Path
-from typing import Any
 
-import h5py
+import h5py  # type: ignore
 import numpy as np
-from numpy.typing import ArrayLike
+from numpy.typing import NDArray
 
 import packingcubes.bounding_box as bbox
 
@@ -25,12 +24,12 @@ class DatasetWarning(UserWarning):
 class Dataset:
     name: str
     filepath: Path
-    _data: Any
+    _positions: np.ndarray
 
     def __init__(
         self,
         *,
-        name: str = None,
+        name: str | None = None,
         filepath: str | Path,
     ) -> None:
         filepath = Path(filepath)
@@ -43,7 +42,7 @@ class Dataset:
         self._box = bbox.BoundingBox(np.array([0, 0, 0, 1, 1, 1], dtype=float))
 
     @property
-    def positions(self) -> ArrayLike:
+    def positions(self) -> NDArray:
         return self._positions
 
     def _setup_index(self):
@@ -59,7 +58,7 @@ class Dataset:
         self._index_dirty = False
 
     @property
-    def index(self) -> ArrayLike:
+    def index(self) -> NDArray:
         if not hasattr(self, "_index"):
             self._setup_index()
         return self._index
@@ -80,8 +79,8 @@ class Dataset:
         return f"Dataset with {len(self)} particles and box {self.bounding_box}"
 
     @property
-    def bounding_box(self):
-        return self._box
+    def bounding_box(self) -> bbox.BoundingBox:
+        return self._box.copy()
 
 
 class HDF5Dataset(Dataset):
@@ -100,7 +99,7 @@ class HDF5Dataset(Dataset):
     def __init__(
         self,
         *,
-        name: str = None,
+        name: str | None = None,
         filepath: str | Path,
     ):
         super().__init__(name=name, filepath=filepath)

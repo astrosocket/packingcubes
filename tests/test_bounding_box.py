@@ -159,7 +159,7 @@ def test_max_depth_valid_box(bounding_box):
 @given(ct.valid_positions(), ct.valid_boxes())
 @pytest.mark.filterwarnings("ignore: overflow encountered")
 def test_normalize_to_box(coordinates, box):
-    normal_coords = bbox.normalize_to_box(coordinates, box)
+    normal_coords = bbox.normalize_to_box(box, coordinates)
 
     assert np.all((0 <= normal_coords) & (normal_coords <= 1))
     assert normal_coords == pytest.approx(

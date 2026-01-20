@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import InitVar, dataclass
 from enum import Flag, auto
 
 import numpy as np
-from numpy.typing import ArrayLike
+from numpy.typing import ArrayLike, NDArray
 
 LOGGER = logging.getLogger(__name__)
 
@@ -20,6 +21,15 @@ class BoundingBox:
     def __post_init__(self, force_skip_check):
         if not force_skip_check:
             check_valid(self.box)
+
+    def copy(self) -> BoundingBox:
+        return self.__deepcopy__(None)
+
+    def __copy__(self) -> BoundingBox:
+        return BoundingBox(self.box)
+
+    def __deepcopy__(self, memo) -> BoundingBox:
+        return BoundingBox(self.box.copy())
 
 
 type BoxLike = ArrayLike | BoundingBox
@@ -47,13 +57,15 @@ class BoundingBoxValidFlag(Flag):
         lambda box: "This box is valid",
     )
 
-    def __new__(cls, value: int, message_fun: callable):
+    message_fun: Callable
+
+    def __new__(cls, value: int, message_fun: Callable):
         obj = object.__new__(cls)
         obj._value_ = value
         obj.message_fun = message_fun
         return obj
 
-    def get_messages(self, box: ArrayLike):
+    def get_messages(self, box: BoxLike):
         """
         Obtain the test results from this flag assuming the provided box
         """
@@ -70,12 +82,12 @@ class BoundingBoxError(ValueError):
 
     def __init__(
         self,
-        box: ArrayLike,
+        box: BoxLike,
         errortype: BoundingBoxValidFlag,
     ):
         """
         Args:
-            box: ArrayLike
+            box: BoxLike
             The invalid box responsible
 
             errortype: BoundingBoxValidFlag
@@ -89,7 +101,7 @@ class BoundingBoxError(ValueError):
         super().__init__(self.messages)
 
 
-def check_valid(box: np.ndarray, *, raise_error: bool = True):
+def check_valid(box: BoxLike, *, raise_error: bool = True) -> BoundingBoxValidFlag:
     """
     Check if a bounding box array is valid
 
@@ -165,7 +177,7 @@ def make_valid(bbox: BoxLike) -> BoundingBox:
     return BoundingBox(np.atleast_1d(np.squeeze(np.asanyarray(bbox))))
 
 
-def in_box(bbox: BoxLike, xyz: ArrayLike) -> np.ndarray:
+def in_box(bbox: BoxLike, xyz: ArrayLike) -> NDArray[np.bool_]:
     """
     Check if points are inside box
 
@@ -177,7 +189,7 @@ def in_box(bbox: BoxLike, xyz: ArrayLike) -> np.ndarray:
         Array of points with shape Nx3 to test. (3,) arrays will be converted
 
     Returns:
-        in_box: ndarray[bool]
+        in_box: NDArray[np.bool_]
         Boolean array where True means point is inside box
     """
     bbox = make_valid(bbox)
@@ -185,7 +197,7 @@ def in_box(bbox: BoxLike, xyz: ArrayLike) -> np.ndarray:
     return np.all((bbox.box[:3] <= xyz) & (xyz <= bbox.box[:3] + bbox.box[3:]), axis=1)
 
 
-def midplane(bbox: BoxLike) -> ArrayLike:
+def midplane(bbox: BoxLike) -> tuple[float, float, float]:
     """
     Return the 3 coordinates specifying the midplane of the box
     """
@@ -214,7 +226,10 @@ def max_depth(bbox: BoundingBox) -> int:
     return np.ceil(np.log2(np.min(bbox.box[3:] / min_box_sizes))).astype(int)
 
 
-def normalize_to_box(coordinates: ArrayLike, bbox: BoxLike) -> ArrayLike:
+def normalize_to_box(
+    bbox: BoxLike,
+    coordinates: ArrayLike,
+) -> ArrayLike:
     """
     Rescale and shift the coordinates such that they are bounded by the unit cube
     """
@@ -232,7 +247,7 @@ def normalize_to_box(coordinates: ArrayLike, bbox: BoxLike) -> ArrayLike:
     )
 
 
-def get_neighbor_boxes(bbox: BoxLike) -> ArrayLike:
+def get_neighbor_boxes(bbox: BoxLike) -> NDArray:
     """
     Return the 26 boxes that would be the neighbors of this box in a uniform grid
 
@@ -289,7 +304,7 @@ def get_child_box(bbox: BoundingBox, ind: int) -> BoundingBox:
     return BoundingBox(child_box, force_skip_check=True)
 
 
-def get_box_center(bbox: BoxLike) -> ArrayLike:
+def get_box_center(bbox: BoxLike) -> NDArray:
     """
     Return the coordinates of the center of the box
     """
@@ -297,7 +312,7 @@ def get_box_center(bbox: BoxLike) -> ArrayLike:
     return bbox.box[:3] + bbox.box[3:] / 2
 
 
-def get_box_vertex(bbox: BoxLike, index: int, *, jitter: float = 0) -> ArrayLike:
+def get_box_vertex(bbox: BoxLike, index: int, *, jitter: float = 0) -> NDArray:
     """
     Return the coordinates of the vertex at z-order index (1-based)
 
@@ -336,7 +351,7 @@ def get_box_vertex(bbox: BoxLike, index: int, *, jitter: float = 0) -> ArrayLike
     return coord
 
 
-def get_box_vertices(bbox: BoxLike, *, jitter: float = 0) -> ArrayLike:
+def get_box_vertices(bbox: BoxLike, *, jitter: float = 0) -> NDArray:
     """
     Return the coordinates of the 8 box vertices in z-order
 
@@ -364,15 +379,44 @@ def get_box_vertices(bbox: BoxLike, *, jitter: float = 0) -> ArrayLike:
 
     jitter_amount = np.sign(jitter) * bbox.box[3:] / 100
 
-    for k in range(2):
-        for j in range(2):
-            for i in range(2):
-                ind = i + 2 * j + 4 * k
-                vertices[ind, :] = [
-                    bbox.box[0] + i * bbox.box[3] + jitter_amount[0] * (-1) ** i,
-                    bbox.box[1] + j * bbox.box[4] + jitter_amount[1] * (-1) ** j,
-                    bbox.box[2] + k * bbox.box[5] + jitter_amount[2] * (-1) ** k,
-                ]
+    x0 = bbox.box[0] + jitter_amount[0]
+    x1 = bbox.box[0] + bbox.box[3] - jitter_amount[0]
+    y0 = bbox.box[1] + jitter_amount[1]
+    y1 = bbox.box[1] + bbox.box[4] - jitter_amount[1]
+    z0 = bbox.box[2] + jitter_amount[2]
+    z1 = bbox.box[2] + bbox.box[5] - jitter_amount[2]
+
+    vertices[0, 0] = x0
+    vertices[0, 1] = y0
+    vertices[0, 2] = z0
+
+    vertices[1, 0] = x1
+    vertices[1, 1] = y0
+    vertices[1, 2] = z0
+
+    vertices[2, 0] = x0
+    vertices[2, 1] = y1
+    vertices[2, 2] = z0
+
+    vertices[3, 0] = x1
+    vertices[3, 1] = y1
+    vertices[3, 2] = z0
+
+    vertices[4, 0] = x0
+    vertices[4, 1] = y0
+    vertices[4, 2] = z1
+
+    vertices[5, 0] = x1
+    vertices[5, 1] = y0
+    vertices[5, 2] = z1
+
+    vertices[6, 0] = x0
+    vertices[6, 1] = y1
+    vertices[6, 2] = z1
+
+    vertices[7, 0] = x1
+    vertices[7, 1] = y1
+    vertices[7, 2] = z1
 
     return vertices
 
@@ -382,7 +426,7 @@ def project_point_on_box(
     xyz: ArrayLike,
     *,
     jitter: float = 0,
-) -> np.ndarray:
+) -> NDArray:
     """
     Return coordinates of projection of (x, y, z) on nearest box face.
 
