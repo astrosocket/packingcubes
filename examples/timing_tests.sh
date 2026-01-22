@@ -1,27 +1,31 @@
+DECIMATION_FACTOR=1
 
-# echo "Data resetting"
-# python -m timeit -s "import timing_tests;ds = timing_tests.load_data();" "ds = timing_tests.reset_data(ds)"
+echo "Timing description:"
+python -c "import timing_tests;ds = timing_tests.load_data($DECIMATION_FACTOR);print(f'Testing {len(ds):.1e} particles')"
 
-# echo "packingcubes.PythonOctree creation"
-# python -m timeit -s "import timing_tests;ds = timing_tests.load_data();" "ds = timing_tests.reset_data(ds);timing_tests.python_octree_creation(ds)"
+echo "Data resetting"
+python -m timeit -s "import timing_tests;ds = timing_tests.load_data($DECIMATION_FACTOR);" "ds = timing_tests.reset_data(ds)"
 
-# echo "packingcubes.PythonOctree search"
-# python -m timeit -s "import timing_tests;ds = timing_tests.load_data();tree = timing_tests.python_octree_creation(ds)" "timing_tests.python_octree_query_ball_point(tree)"
+echo "packingcubes.PythonOctree creation"
+python -m timeit -s "import timing_tests;ds = timing_tests.load_data($DECIMATION_FACTOR);timing_tests.precompile()" "ds = timing_tests.reset_data(ds);timing_tests.python_octree_creation(ds)"
 
-# echo "packingcubes.PackedOctree creation"
-# python -m timeit -s "import timing_tests;ds = timing_tests.load_data();" "ds = timing_tests.reset_data(ds);timing_tests.packed_octree_creation(ds)"
+echo "packingcubes.PythonOctree search"
+python -m timeit -s "import timing_tests;ds = timing_tests.load_data($DECIMATION_FACTOR);timing_tests.precompile();tree = timing_tests.python_octree_creation(ds)" "timing_tests.python_octree_query_ball_point(tree)"
 
-# echo "packingcubes.PackedOctree search"
-# python -m timeit -s "import timing_tests;ds = timing_tests.load_data();tree = timing_tests.packed_octree_creation(ds)" "timing_tests.packed_octree_query_ball_point(tree)"
+echo "packingcubes.PackedOctree creation"
+python -m timeit -s "import timing_tests;ds = timing_tests.load_data($DECIMATION_FACTOR);timing_tests.precompile();" "ds = timing_tests.reset_data(ds);timing_tests.packed_octree_creation(ds)"
 
-# echo "scipy.spatial.kdtree creation"
-# python -m timeit -s "import timing_tests;ds = timing_tests.load_data();" "ds = timing_tests.reset_data(ds);timing_tests.kdtree_creation(ds)"
+echo "packingcubes.PackedOctree search"
+python -m timeit -s "import timing_tests;ds = timing_tests.load_data($DECIMATION_FACTOR);timing_tests.precompile();tree = timing_tests.packed_octree_creation(ds)" "timing_tests.packed_octree_query_ball_point(tree)"
 
-# echo "scipy.spatial.kdtree search"
-# python -m timeit -s "import timing_tests;ds = timing_tests.load_data();tree = timing_tests.kdtree_creation(ds)" "timing_tests.kdtree_query_ball_point(tree)"
+echo "scipy.spatial.kdtree creation"
+python -m timeit -s "import timing_tests;ds = timing_tests.load_data($DECIMATION_FACTOR);" "ds = timing_tests.reset_data(ds);timing_tests.kdtree_creation(ds)"
+
+echo "scipy.spatial.kdtree search"
+python -m timeit -s "import timing_tests;ds = timing_tests.load_data($DECIMATION_FACTOR);tree = timing_tests.kdtree_creation(ds)" "timing_tests.kdtree_query_ball_point(tree)"
 
 echo "yt creation"
-python -m timeit -s "import timing_tests;ytdata = timing_tests.yt_setup();" "sph = timing_tests.yt_creation(ytdata)"
+python -m timeit -s "import timing_tests;ytdata = timing_tests.yt_setup($DECIMATION_FACTOR);" "sph = timing_tests.yt_creation(ytdata)"
 
 echo "yt search"
-python -m timeit -s "import timing_tests;ytdata = timing_tests.yt_setup();sph = timing_tests.yt_creation(ytdata)" "timing_tests.yt_search(sph)"
+python -m timeit -s "import timing_tests;ytdata = timing_tests.yt_setup($DECIMATION_FACTOR);sph = timing_tests.yt_creation(ytdata)" "timing_tests.yt_search(sph)"

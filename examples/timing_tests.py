@@ -17,9 +17,9 @@ center = np.array([15000, 10000, 12500])
 radius = 1000
 
 
-def load_data():
+def load_data(decimation_factor=10):
     ds = data_objects.GadgetishHDF5Dataset(name=simname, filepath=snapfile)
-    ds._positions = ds._positions[: int(len(ds) / 1), :]
+    ds._positions = ds._positions[: int(len(ds) / decimation_factor), :]
     ds._setup_index()
     return ds
 
@@ -60,6 +60,11 @@ def packed_octree_query_ball_point(tree: optree.PackedTree):
     )
 
 
+# we want the PackedTree stuff to be pre-compiled
+def precompile():
+    packed_octree_query_ball_point(packed_octree_creation(load_data(1e4)))
+
+
 def kdtree_creation(ds):
     return KDTree(data=ds.positions, leafsize=octree._DEFAULT_PARTICLE_THRESHOLD)
 
@@ -68,8 +73,8 @@ def kdtree_query_ball_point(tree: KDTree):
     sph_inds = tree.query_ball_point(x=center, r=radius)
 
 
-def yt_setup():
-    ds = load_data()
+def yt_setup(decimation_factor=10):
+    ds = load_data(decimation_factor=decimation_factor)
     yt.set_log_level("warning")
     ppx, ppy, ppz = ds.positions[:, 0], ds.positions[:, 1], ds.positions[:, 2]
     data = {
