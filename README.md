@@ -18,13 +18,21 @@ We use ruff for formatting. When you go to commit your code, it will automatical
 
 Tests are performed using pytest.
 ### pixi
-**Untested**
-Theoretically, you can also develop with just 
+Using with pixi is pretty easy, simply
+```sh
+pixi shell
 ```
-pixi init --format pyproject.toml
+To look at visualizations, run tests, or develop, simply specify the corresponding environment
+```sh
+# visualizations
+pixi shell -e viz
+# testing (also includes viz)
+pixi shell -e test
+# developing (also includes viz & test)
+pixi shell -e dev
 ```
-and run tests using
-```
+and e.g. to run tests, say
+```sh
 pixi run test
 ```
 which runs `pytest  --cov=packingcubes`.
