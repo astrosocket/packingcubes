@@ -159,15 +159,17 @@ def remove_problem_classes_from_state(self):
 def tree_sizes(decimation_factor=10):
     # print(".Precompiling") # noqa
     # precompile()
-    print(".Loading data")  # noqa
+    # print(".Loading data")  # noqa
     ds = load_data(decimation_factor=decimation_factor)
+    b = pickle.dumps(ds.positions)
+    print(f"Positions: {len(b)}")  # noqa
 
     tcf_dict = {
         "python": python_octree_creation,
         "packed": packed_octree_creation,
         "kdtree": kdtree_creation,
     }
-    print(".Creating trees and computing memory usage")  # noqa
+    # print(".Creating trees and computing memory usage")  # noqa
     for name, tree_creation_func in tcf_dict.items():
         tree = tree_creation_func(ds)
         match name:
