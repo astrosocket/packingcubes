@@ -1,3 +1,6 @@
+import pickle
+from functools import partial
+
 import numpy as np
 import yt
 from scipy.spatial import KDTree
@@ -22,7 +25,8 @@ radii = []
 
 def load_data(decimation_factor=10):
     ds = data_objects.GadgetishHDF5Dataset(name=simname, filepath=snapfile)
-    ds._positions = ds._positions[: int(len(ds) / decimation_factor), :]
+    # ds._positions = ds._positions[: int(len(ds) / decimation_factor), :]
+    ds._positions = ds._positions[:: int(decimation_factor), :]
     ds._setup_index()
     min_bounds = np.min(ds.positions, axis=0)
     max_bounds = np.max(ds.positions, axis=0)
@@ -115,3 +119,62 @@ def yt_creation(ytdata):
 
 def yt_search(sph):
     sph_inds = sph["io", "particle_mass"]
+
+
+def remove_problem_classes_from_state(self):
+    state = self.__dict__.copy()
+    data_keys = [
+        n
+        for n, v in state.items()
+        if isinstance(v, (data_objects.Dataset, data_objects.DataContainer))
+    ]
+    for k in data_keys:
+        del state[k]
+    fixed_jitclass_sizes = {
+        "BoundingBox": 48 + 184,
+    }
+    jitclass_keys = {
+        n: str(type(v))
+        for n, v in state.items()
+        if isinstance(v, (bbox.BoundingBox, optree.PackedTreeNumba))
+    }
+    for k, v in jitclass_keys.items():
+        # v looks something like "<class 'numba.XXX.YYY.BoundingBox'>"
+        # so using a regex would be better, but this is fine
+        name = v.split(".")[-1][:-2]
+        if name in fixed_jitclass_sizes:
+            # bytes has a minimum of 4 elements = 4 bytes + 33 bytes overhead
+            state[k] = bytes(np.maximum(fixed_jitclass_sizes[name] - 33, 0))
+        elif name == "PackedTreeNumba":
+            # PackedTreeNumba has 3 fields:
+            #   particle_threshold - 4 byte int,
+            #   tree - 128 bytes + 4 bytes*length
+            #   data - not included
+            tree_len = len(state[k].tree)
+            state[k] = bytes(np.maximum(4 + (128 + 4 * tree_len) - 33, 0))
+
+    return state
+
+
+def tree_sizes(decimation_factor=10):
+    # print(".Precompiling") # noqa
+    # precompile()
+    print(".Loading data")  # noqa
+    ds = load_data(decimation_factor=decimation_factor)
+
+    tcf_dict = {
+        "python": python_octree_creation,
+        "packed": packed_octree_creation,
+        "kdtree": kdtree_creation,
+    }
+    print(".Creating trees and computing memory usage")  # noqa
+    for name, tree_creation_func in tcf_dict.items():
+        tree = tree_creation_func(ds)
+        match name:
+            case "python":
+                for node in tree:
+                    node.__getstate__ = partial(remove_problem_classes_from_state, node)
+            case "packed":
+                tree.__getstate__ = partial(remove_problem_classes_from_state, tree)
+        b = pickle.dumps(tree)
+        print(f"{name}: {len(b)}")  # noqa

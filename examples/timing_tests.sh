@@ -24,8 +24,11 @@ python -m timeit -s "import timing_tests;ds = timing_tests.load_data($DECIMATION
 echo "scipy.spatial.kdtree search"
 python -m timeit -s "import timing_tests;ds = timing_tests.load_data($DECIMATION_FACTOR);tree = timing_tests.kdtree_creation(ds)" "timing_tests.kdtree_query_ball_point(tree)"
 
-echo "yt creation"
-python -m timeit -s "import timing_tests;ytdata = timing_tests.yt_setup($DECIMATION_FACTOR);" "sph = timing_tests.yt_creation(ytdata)"
+# echo "yt creation"
+# python -m timeit -s "import timing_tests;ytdata = timing_tests.yt_setup($DECIMATION_FACTOR);" "sph = timing_tests.yt_creation(ytdata)"
 
-echo "yt search"
-python -m timeit -s "import timing_tests;ytdata = timing_tests.yt_setup($DECIMATION_FACTOR);sph = timing_tests.yt_creation(ytdata)" "timing_tests.yt_search(sph)"
+# echo "yt search"
+# python -m timeit -s "import timing_tests;ytdata = timing_tests.yt_setup($DECIMATION_FACTOR);sph = timing_tests.yt_creation(ytdata)" "timing_tests.yt_search(sph)"
+
+echo "Tree sizes:"
+python -c "import timing_tests;timing_tests.tree_sizes($DECIMATION_FACTOR)"
