@@ -1,5 +1,10 @@
+if [ -z "$1" ]
+then
 DECIMATION_FACTOR=1
-
+else
+DECIMATION_FACTOR=$1
+fi
+echo "Running with df=$DECIMATION_FACTOR"
 echo "Timing description:"
 python -c "import timing_tests;ds = timing_tests.load_data($DECIMATION_FACTOR);print(f'Testing {len(ds):.1e} particles')"
 
