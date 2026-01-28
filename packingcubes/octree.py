@@ -273,7 +273,6 @@ def morton(positions: NDArray, box: bbox.BoxLike) -> NDArray[np.int_]:
     ).astype(int)
 
 
-@njit
 def full_morton(positions: NDArray, box: bbox.BoxLike) -> NDArray[np.uint64]:
     """
     Return the full morton indices of positions in box
