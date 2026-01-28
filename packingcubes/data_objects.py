@@ -5,6 +5,9 @@ from pathlib import Path
 
 import h5py  # type: ignore
 import numpy as np
+from numba import boolean, float32, int64  # type: ignore
+from numba.experimental import jitclass
+from numba.extending import as_numba_type
 from numpy.typing import NDArray
 
 import packingcubes.bounding_box as bbox
@@ -19,6 +22,68 @@ class DatasetError(Exception):
 
 class DatasetWarning(UserWarning):
     pass
+
+
+@jitclass(
+    [
+        ("_positions", float32[:, :]),
+        ("_index", int64[:]),
+        ("_box", bbox.bbn_type),
+        ("_index_dirty", boolean),
+    ]
+)
+class DataContainer:
+    _positions: NDArray
+    _index: NDArray
+    _box: bbox.BoundingBox
+    _index_dirty: bool
+
+    def __init__(self, positions: NDArray, index: NDArray, box: bbox.BoundingBox):
+        self._positions = positions
+        self._index = index
+        self._box = box
+        self._index_dirty = False
+
+    @property
+    def positions(self) -> NDArray[np.float64]:
+        return self._positions
+
+    def _setup_index(self):
+        if not hasattr(self, "_positions"):
+            raise DatasetError("Dataset has no data!")
+        if hasattr(self, "_index"):
+            warnings.warn(
+                "Dataset already has an index. Overwriting!",
+                DatasetWarning,
+                stacklevel=2,
+            )
+        self._index = np.arange(len(self.positions))
+        self._index_dirty = False
+
+    @property
+    def index(self) -> NDArray[np.int_]:
+        if not hasattr(self, "_index"):
+            self._setup_index()
+        return self._index
+
+    def _swap(self, first: int, second: int) -> None:
+        temp = self._positions[first, :].copy()
+        self._positions[first, :] = self._positions[second, :]
+        self._positions[second, :] = temp
+        temp = self._index[first]
+        self._index[first] = self._index[second]
+        self._index[second] = temp
+        self._index_dirty = True
+
+    def __len__(self) -> int:
+        return len(self._positions)
+
+    @property
+    def bounding_box(self) -> bbox.BoundingBox:
+        return self._box.copy()
+
+
+dc_type = as_numba_type(DataContainer)
 
 
 class Dataset:
@@ -39,7 +104,7 @@ class Dataset:
         self.name = name
 
         # the following will need to be set by the data loader
-        self._box = bbox.BoundingBox(np.array([0, 0, 0, 1, 1, 1], dtype=float))
+        self._box = bbox.make_bounding_box(np.array([0, 0, 0, 1, 1, 1], dtype=float))
 
     @property
     def positions(self) -> NDArray:
@@ -82,6 +147,10 @@ class Dataset:
     def bounding_box(self) -> bbox.BoundingBox:
         return self._box.copy()
 
+    @property
+    def data_container(self) -> DataContainer:
+        return DataContainer(self._positions.astype(np.float32), self._index, self._box)
+
 
 class HDF5Dataset(Dataset):
     """
@@ -120,7 +189,9 @@ class HDF5Dataset(Dataset):
         # sadly no numpy extrema function...
         min_bounds = np.min(self.positions, axis=0)
         max_bounds = np.max(self.positions, axis=0)
-        self._box = bbox.BoundingBox(np.hstack((min_bounds, max_bounds - min_bounds)))
+        self._box = bbox.make_bounding_box(
+            np.hstack((min_bounds, max_bounds - min_bounds))
+        )
 
     @property
     def particle_type(self):
@@ -222,7 +293,7 @@ class GadgetishHDF5Dataset(HDF5Dataset):
                         "Don't know how to deal with a header "
                         f"BoxSize of {len(boxSize)}!",
                     )
-            self._box = bbox.BoundingBox(box)
+            self._box = bbox.make_bounding_box(box)
         else:
             super()._set_bounding_box()
 
