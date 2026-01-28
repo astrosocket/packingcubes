@@ -1,3 +1,4 @@
+import contextlib
 import pickle
 from functools import partial
 
@@ -16,6 +17,7 @@ data_path = get_test_data_dir_path()
 simname = "IllustrisTNG"
 ill_path = data_path / simname
 snapfile = ill_path / "snapshot_090.hdf5"
+particle_type = "PartType0"
 
 rng = np.random.default_rng(0xBA55ADE89)
 
@@ -26,6 +28,9 @@ radii = []
 def load_data(decimation_factor=10):
     ds = data_objects.GadgetishHDF5Dataset(name=simname, filepath=snapfile)
     # ds._positions = ds._positions[: int(len(ds) / decimation_factor), :]
+    if ds.particle_type != particle_type:
+        with contextlib.suppress(data_objects.DatasetError):
+            ds.particle_type = particle_type
     ds._positions = ds._positions[:: int(decimation_factor), :]
     ds._setup_index()
     min_bounds = np.min(ds.positions, axis=0)
