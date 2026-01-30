@@ -67,9 +67,16 @@ class DataContainer:
         return self._index
 
     def _swap(self, first: int, second: int) -> None:
-        temp = self._positions[first, :].copy()
-        self._positions[first, :] = self._positions[second, :]
-        self._positions[second, :] = temp
+        # unrolling loop, to use faster numba code
+        temp = self._positions[first, 0]
+        self._positions[first, 0] = self._positions[second, 0]
+        self._positions[second, 0] = temp
+        temp = self._positions[first, 1]
+        self._positions[first, 1] = self._positions[second, 1]
+        self._positions[second, 1] = temp
+        temp = self._positions[first, 2]
+        self._positions[first, 2] = self._positions[second, 2]
+        self._positions[second, 2] = temp
         temp = self._index[first]
         self._index[first] = self._index[second]
         self._index[second] = temp

@@ -228,7 +228,9 @@ def _update_node_state(node: CurrentNode, child_index: int, old_my_index: int):
         node.box.box[1] -= node.box.box[4] * ((curr_child_index & 2) >> 1)
         node.box.box[2] -= node.box.box[5] * ((curr_child_index & 4) >> 2)
         # need to grow box _after_ moving
-        node.box.box[3:] *= 2
+        node.box.box[3] *= 2
+        node.box.box[4] *= 2
+        node.box.box[5] *= 2
     else:
         # 1-based index is stored
         if node.my_index != child_index:
@@ -238,7 +240,9 @@ def _update_node_state(node: CurrentNode, child_index: int, old_my_index: int):
             )
         node.tag.append(child_index)
         # need to shrink box _before_ moving
-        node.box.box[3:] /= 2
+        node.box.box[3] /= 2
+        node.box.box[4] /= 2
+        node.box.box[5] /= 2
         # need zero-based for positions
         child_index -= 1
         node.box.box[0] += node.box.box[3] * (child_index & 1)
