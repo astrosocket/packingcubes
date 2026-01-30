@@ -3,7 +3,7 @@ import logging
 import conftest as ct
 import numpy as np
 import pytest
-from hypothesis import example, given, note
+from hypothesis import assume, example, given, note, settings
 from hypothesis import strategies as st
 from numpy.typing import ArrayLike
 
@@ -73,64 +73,97 @@ def test_check_valid_valid_box(box: ArrayLike):
 
 
 #############################
-# Test make_valid
+# Test BoundingVolume
+#############################
+@given(ct.valid_positions())
+def test_BoundingVolume(xyz: ArrayLike):
+    bv = bbox.BoundingVolume()
+    with pytest.raises(NotImplementedError):
+        bv.contains(xyz)
+
+
+#############################
+# Test make_bounding_box
 #############################
 @given(ct.invalid_boxes())
-def test_make_valid_invalid_boxes(box):
+def test_make_bounding_box_invalid_boxes(box):
     with pytest.raises(bbox.BoundingBoxError):
-        bbox.make_valid(box)
+        bbox.make_bounding_box(box)
     # error information already checked in test_check_valid
 
 
-@given(ct.valid_boxes())
-def test_make_valid_valid_boxes(box):
-    valid_box = bbox.make_valid(box)
-
-    assert np.all(valid_box.box == box)
+@given(ct.valid_boxes() | ct.valid_bounding_boxes())
+def test_make_bounding_box_valid_boxes(box):
+    valid_box = bbox.make_bounding_box(box)
+    if isinstance(box, bbox.BoundingBox):
+        assert np.all(valid_box.box == box.box)
+    else:
+        assert np.all(valid_box.box == box)
 
 
 #############################
-# Test in_box
+# Test properties
 #############################
-@given(
-    ct.invalid_boxes(),
-    ct.valid_positions(),
-)
-def test_in_box_invalid_box(box: ArrayLike, xyz: ArrayLike):
-    with pytest.raises(bbox.BoundingBoxError):
-        bbox.in_box(box, xyz)
+@given(ct.valid_bounding_boxes())
+def test_properties(bounding_box: bbox.BoundingBox):
+    assert bounding_box.box[0] == bounding_box.x
+    assert bounding_box.box[1] == bounding_box.y
+    assert bounding_box.box[2] == bounding_box.z
+    assert bounding_box.box[3] == bounding_box.dx
+    assert bounding_box.box[4] == bounding_box.dy
+    assert bounding_box.box[5] == bounding_box.dz
+    assert np.all(bounding_box.box[:3] == bounding_box.position)
+    assert np.all(bounding_box.box[3:] == bounding_box.size)
 
 
-@given(ct.valid_boxes(), ct.invalid_positions())
-def test_in_box_invalid_point(box: ArrayLike, xyz: ArrayLike):
-    assert not np.any(bbox.in_box(box, xyz))
+#############################
+# Test copy
+#############################
+@given(ct.valid_bounding_boxes())
+def test_copy(box: bbox.BoundingBox):
+    copy = box.copy()
+
+    assert np.all(copy.box == box.box)
+    for i in range(6):
+        copy.box[i] = 1 if box.box[i] == 0 else 0
+        assert copy.box[i] != box.box[i]
 
 
-@given(ct.valid_boxes(), ct.valid_positions())
-def test_in_box_valid(box: ArrayLike, xyz: ArrayLike):
+#############################
+# Test BoundingBox contains
+#############################
+@given(ct.valid_bounding_boxes(), ct.invalid_positions())
+def test_bbox_contains_invalid_point(box: bbox.BoundingBox, xyz: ArrayLike):
+    assert not np.any(box.contains(xyz))
+
+
+@given(ct.valid_bounding_boxes(), ct.valid_positions())
+def test_bbox_contains_valid(bounding_box: bbox.BoundingBox, xyz: ArrayLike):
     inside_box = np.ones((1, len(xyz)), dtype=bool)
+    box = bounding_box.box
     for i in range(3):
         inside_box &= (box[i] <= xyz[:, i]) & (xyz[:, i] <= box[i] + box[i + 3])
-    assert np.all(inside_box == bbox.in_box(box, xyz))
+    assert np.all(inside_box == bounding_box.contains(xyz))
 
 
 #############################
 # Test midplane
 #############################
-@given(ct.valid_boxes())
-def test_midplane(box: ArrayLike):
-    midplane = bbox.midplane(box)
+@given(ct.valid_bounding_boxes())
+def test_midplane(box: bbox.BoundingBox):
+    midplane = box.midplane()
 
     for i, m in enumerate(midplane):
-        assert m == box[i] + box[i + 3] / 2
+        assert m == box.box[i] + box.box[i + 3] / 2
 
 
 #############################
 # Test max_depth
 #############################
 @given(ct.valid_bounding_boxes())
-def test_max_depth_valid_box(bounding_box):
-    max_depth = bbox.max_depth(bounding_box)
+@settings(deadline=None)
+def test_max_depth_valid_box(bounding_box: bbox.BoundingBox):
+    max_depth = bounding_box.max_depth()
     note(f"{max_depth=}")
 
     smallest_dx = 2.0 ** (-max_depth) * bounding_box.box[3:]
@@ -156,43 +189,43 @@ def test_max_depth_valid_box(bounding_box):
 #############################
 # Test normalize_to_box
 #############################
-@given(ct.valid_positions(), ct.valid_boxes())
+@given(ct.valid_positions(), ct.valid_bounding_boxes())
 @pytest.mark.filterwarnings("ignore: overflow encountered")
-def test_normalize_to_box(coordinates, box):
-    normal_coords = bbox.normalize_to_box(box, coordinates)
+@settings(deadline=None)
+def test_normalize_to_box(coordinates: ArrayLike, bounding_box: bbox.BoundingBox):
+    normal_coords = bounding_box.normalize_to_box(coordinates)
 
     assert np.all((0 <= normal_coords) & (normal_coords <= 1))
     assert normal_coords == pytest.approx(
-        np.clip((coordinates - box[:3]) / box[3:], a_min=0, a_max=1),
+        np.clip(
+            (coordinates - bounding_box.box[:3]) / bounding_box.box[3:],
+            a_min=0,
+            a_max=1,
+        ),
     )
 
 
 #############################
 # Test _get_neighbor_boxes
 #############################
-@given(ct.invalid_boxes())
-def test_get_neighbor_boxes_invalid(box: ArrayLike):
-    with pytest.raises(bbox.BoundingBoxError):
-        bbox.get_box_vertices(box, jitter=0)
-
-
-@given(ct.valid_boxes())
-def test_get_neighbor_boxes(box: ArrayLike):
+@given(ct.valid_bounding_boxes())
+@settings(deadline=None)
+def test_get_neighbor_boxes(bounding_box: bbox.BoundingBox):
     expected_neighbors = np.zeros((26, 6))
     # initialize to 26 copies of box
     for i in range(26):
-        expected_neighbors[i, :] = box
+        expected_neighbors[i, :] = bounding_box.box
 
     index = 0
-    for dz in [-box[5], 0, box[5]]:
-        for dy in [-box[4], 0, box[4]]:
-            for dx in [-box[3], 0, box[3]]:
+    for dz in [-bounding_box.box[5], 0, bounding_box.box[5]]:
+        for dy in [-bounding_box.box[4], 0, bounding_box.box[4]]:
+            for dx in [-bounding_box.box[3], 0, bounding_box.box[3]]:
                 if dz == 0 and dy == 0 and dx == 0:
                     continue
                 expected_neighbors[index, :3] += [dx, dy, dz]
                 index += 1
 
-    neighbors = bbox.get_neighbor_boxes(box)
+    neighbors = bounding_box.get_neighbor_boxes()
 
     assert expected_neighbors == pytest.approx(neighbors)
 
@@ -204,12 +237,13 @@ def test_get_neighbor_boxes(box: ArrayLike):
     ct.valid_bounding_boxes(),
     st.integers().filter(lambda i: i < 0 or i > 7) | st.floats(),
 )
+@settings(deadline=None)
 def test_get_child_box_invalid_index(
     bounding_box: bbox.BoundingBox,
     index: int | float,
 ):
-    with pytest.raises(ValueError, match="invalid index"):
-        bbox.get_child_box(bounding_box, index)
+    with pytest.raises((OverflowError, ValueError), match="invalid index|int too big"):
+        bounding_box.get_child_box(index)
 
 
 @given(ct.valid_bounding_boxes())
@@ -229,7 +263,7 @@ def test_get_child_box_valid(bounding_box: bbox.BoundingBox):
     ]
     dxbox = [dx2, dy2, dz2]
     for i in range(8):
-        child_box = bbox.get_child_box(bounding_box, i)
+        child_box = bounding_box.get_child_box(i)
         assert child_box.box[:3] == pytest.approx(child_boxes[i])
         assert child_box.box[3:] == pytest.approx(dxbox)
 
@@ -237,65 +271,58 @@ def test_get_child_box_valid(bounding_box: bbox.BoundingBox):
 #############################
 # Test get_box_center
 #############################
-@given(ct.invalid_boxes())
-def test_get_box_center_invalid(box: ArrayLike):
-    with pytest.raises(bbox.BoundingBoxError):
-        bbox.get_box_center(box)
+@given(ct.valid_bounding_boxes())
+def test_get_box_center_valid(bounding_box: bbox.BoundingBox):
+    center = bounding_box.get_box_center()
 
-
-@given(ct.valid_boxes())
-def test_get_box_center_valid(box: ArrayLike):
-    center = bbox.get_box_center(box)
-
-    assert center == pytest.approx(box[:3] + box[3:] / 2)
+    assert center == pytest.approx(bounding_box.box[:3] + bounding_box.box[3:] / 2)
 
 
 #############################
 # Test get_box_vertex
 #############################
-@given(ct.invalid_boxes())
-def test_get_box_vertex_invalid_boxes(box: ArrayLike):
-    for index in range(8):
-        with pytest.raises(bbox.BoundingBoxError):
-            bbox.get_box_vertex(box, index=index)
-
-
 @given(
-    ct.valid_boxes(),
-    st.floats() | st.integers().filter(lambda i: i < 1 or 8 < i),
+    ct.valid_bounding_boxes(),
+    st.floats() | st.integers().filter(lambda i: i < 0 or 7 < i),
     st.floats(allow_infinity=False, allow_nan=False),
 )
+@settings(deadline=None)
 def test_get_box_vertex_invalid_indices(
-    box: ArrayLike,
+    bounding_box: bbox.BoundingBox,
     index: int | float,
     jitter: float,
 ):
-    with pytest.raises(ValueError, match="out of bounds|must be an int|must be finite"):
-        bbox.get_box_vertex(box, index=index, jitter=jitter)
+    with pytest.raises(
+        (OverflowError, ValueError),
+        match=("int too big|out of bounds|must be an int|must be finite"),
+    ):
+        bounding_box.get_box_vertex(index, jitter)
 
 
-@example(np.array([0, 0, 0, 1, 1, 1]), 1, np.nan).xfail(
+@example(bbox.make_bounding_box([0, 0, 0, 1, 1, 1]), 1, np.nan).xfail(
     reason="Jitter must be a number",
     raises=ValueError,
 )
-@example(np.array([0, 0, 0, 1, 1, 1]), 1, np.inf).xfail(
+@example(bbox.make_bounding_box([0, 0, 0, 1, 1, 1]), 1, np.inf).xfail(
     reason="Jitter must be finite",
     raises=ValueError,
 )
-@example(np.array([0, 0, 0, 1, 1, 1]), 1, -np.inf).xfail(
+@example(bbox.make_bounding_box([0, 0, 0, 1, 1, 1]), 1, -np.inf).xfail(
     reason="Jitter must be finite",
     raises=ValueError,
 )
 @given(
-    ct.valid_boxes(),
+    ct.valid_bounding_boxes(),
     st.integers(min_value=1, max_value=8),
     st.floats(allow_infinity=False, allow_nan=False),
 )
-def test_get_box_vertex_valid(box: ArrayLike, index: int, jitter: float):
-    vertex = bbox.get_box_vertex(box, index, jitter=0)
-    vertex_w_jitter = bbox.get_box_vertex(box, index, jitter=jitter)
+def test_get_box_vertex_valid(
+    bounding_box: bbox.BoundingBox, index: int, jitter: float
+):
+    vertex = bounding_box.get_box_vertex(index, 0)
+    vertex_w_jitter = bounding_box.get_box_vertex(index, jitter)
 
-    x, y, z, dx, dy, dz = box
+    x, y, z, dx, dy, dz = bounding_box.box
 
     match index:
         case 1:
@@ -317,37 +344,31 @@ def test_get_box_vertex_valid(box: ArrayLike, index: int, jitter: float):
 
     if jitter:
         assert np.all(vertex_w_jitter != vertex)
-        assert bbox.in_box(box, vertex_w_jitter) != (jitter < 0)
+        assert bounding_box.contains(vertex_w_jitter) != (jitter < 0)
 
 
 #############################
 # Test get_box_vertices
 #############################
-@given(ct.invalid_boxes())
-def test_get_box_vertices_invalid_boxes(box: ArrayLike):
-    with pytest.raises(bbox.BoundingBoxError):
-        bbox.get_box_vertices(box, jitter=0)
-
-
-@example(np.array([0, 0, 0, 1, 1, 1]), np.nan).xfail(
+@example(bbox.make_bounding_box([0, 0, 0, 1, 1, 1]), np.nan).xfail(
     reason="NaNs/Infs not valid jitters",
     raises=ValueError,
 )
-@example(np.array([0, 0, 0, 1, 1, 1]), np.inf).xfail(
+@example(bbox.make_bounding_box([0, 0, 0, 1, 1, 1]), np.inf).xfail(
     reason="NaNs/Infs not valid jitters",
     raises=ValueError,
 )
-@example(np.array([0, 0, 0, 1, 1, 1]), -np.inf).xfail(
+@example(bbox.make_bounding_box([0, 0, 0, 1, 1, 1]), -np.inf).xfail(
     reason="NaNs/Infs not valid jitters",
     raises=ValueError,
 )
 @given(
-    ct.valid_boxes(),
+    ct.valid_bounding_boxes(),
     st.floats(allow_infinity=False, allow_nan=False),
 )
-def test_get_box_vertices_valid(box: ArrayLike, jitter: float):
+def test_get_box_vertices_valid(bounding_box: bbox.BoundingBox, jitter: float):
     expected_vertices = np.zeros((8, 3))
-    x, y, z, dx, dy, dz = box
+    x, y, z, dx, dy, dz = bounding_box.box
 
     expected_vertices[0, :] = [x, y, z]
     expected_vertices[1, :] = [x + dx, y, z]
@@ -358,8 +379,8 @@ def test_get_box_vertices_valid(box: ArrayLike, jitter: float):
     expected_vertices[6, :] = [x, y + dy, z + dz]
     expected_vertices[7, :] = [x + dx, y + dy, z + dz]
 
-    vertices = bbox.get_box_vertices(bbox=box, jitter=0)
-    vertices_w_jitter = bbox.get_box_vertices(bbox=box, jitter=jitter)
+    vertices = bounding_box.get_box_vertices(0)
+    vertices_w_jitter = bounding_box.get_box_vertices(jitter)
 
     # check without jitter
     assert expected_vertices == pytest.approx(vertices)
@@ -370,63 +391,139 @@ def test_get_box_vertices_valid(box: ArrayLike, jitter: float):
             # need a better test here
             note(
                 f"{i=} w/o jitter: {v} w/ jitter:{vj} "
-                f"{'inside' if jitter > 0 else 'outside'}?:{bbox.in_box(box, vj)}",
+                f"{'inside' if jitter > 0 else 'outside'}?:{bounding_box.contains(vj)}",
             )
             assert np.all(v != vj)
-            assert bbox.in_box(box, vj) != (jitter < 0)
+            assert bounding_box.contains(vj) != (jitter < 0)
 
 
 #############################
 # Test project_point_on_box
 #############################
-@given(ct.invalid_boxes(), ct.valid_positions(), st.floats())
-def test_project_point_on_box_invalid_box(
-    box: ArrayLike,
-    xyz: ArrayLike,
-    jitter: float,
-):
-    with pytest.raises(bbox.BoundingBoxError):
-        bbox.project_point_on_box(box, xyz, jitter=jitter)
-
-
 @given(
-    ct.valid_boxes(),
+    ct.valid_bounding_boxes(),
     ct.invalid_positions().filter(lambda a: np.any(np.isnan(a))),
     st.floats(),
 )
+@settings(deadline=None)
 def test_project_point_on_box_invalid_point_nan(
-    box: ArrayLike,
+    bounding_box: bbox.BoundingBox,
     xyz: ArrayLike,
     jitter: float,
 ):
     with pytest.raises(ValueError, match="contains NaN"):
-        bbox.project_point_on_box(box, xyz, jitter=jitter)
+        bounding_box.project_point_on_box(xyz, jitter)
 
 
-@example(np.array([0, 0, 0, 1, 1, 1]), np.array([0, 0, 0]), np.nan).xfail(
+@example(
+    bbox.make_bounding_box([0, 0, 0, 1, 1, 1]), np.array([0.0, 0.0, 0.0]), np.nan
+).xfail(
     reason="Jitter must be a number",
     raises=ValueError,
 )
-@example(np.array([0, 0, 0, 1, 1, 1]), np.array([0, 0, 0]), -1).xfail(
+@example(
+    bbox.make_bounding_box([0, 0, 0, 1, 1, 1]), np.array([0.0, 0.0, 0.0]), -1
+).xfail(
     reason="Negative jitter not supported yet",
     raises=NotImplementedError,
 )
 # infinite points are allowed
-@example(np.array([0, 0, 0, 1, 1, 1]), np.array([np.inf, 0, 0]), 1)
-@given(ct.valid_boxes(), ct.valid_positions(), st.floats(min_value=0, allow_nan=False))
-def test_project_point_on_box_valid(box: ArrayLike, xyz: ArrayLike, jitter: float):
-    pxyz = bbox.project_point_on_box(box, xyz, jitter=0)
-    pxyz_w_jitter = bbox.project_point_on_box(box, xyz, jitter=jitter)
+@example(bbox.make_bounding_box([0, 0, 0, 1, 1, 1]), np.array([np.inf, 0, 0]), 1)
+@given(
+    ct.valid_bounding_boxes(),
+    ct.valid_positions(),
+    st.floats(min_value=0, allow_nan=False),
+)
+@settings(deadline=None)
+def test_project_point_on_box_valid(
+    bounding_box: bbox.BoundingBox, xyz: ArrayLike, jitter: float
+):
+    pxyz = bounding_box.project_point_on_box(xyz, 0)
+    pxyz_w_jitter = bounding_box.project_point_on_box(xyz, jitter)
 
-    assert np.all(bbox.in_box(box, pxyz))
+    assert np.all(bounding_box.contains(pxyz))
 
     xyzs = np.atleast_2d(xyz)
     pxyzs = np.atleast_2d(pxyz)
     pxyz_w_jitters = np.atleast_2d(pxyz_w_jitter)
     for txyz, tpxyz, tpxyz_w_jitter in zip(xyzs, pxyzs, pxyz_w_jitters, strict=True):
         # test we didn't mess up already contained points
-        if bbox.in_box(box, txyz):
+        if bounding_box.contains(txyz):
             assert txyz == pytest.approx(tpxyz)
         elif jitter:  # if xyz in box then jitter is ignored
             assert np.any((tpxyz != tpxyz_w_jitter) | np.isinf(txyz))
-            assert np.all(bbox.in_box(box, tpxyz_w_jitter)) != (jitter < 0)
+            assert np.all(bounding_box.contains(tpxyz_w_jitter)) != (jitter < 0)
+
+
+#############################
+# Test make_bounding_sphere
+#############################
+@given(ct.invalid_spheres())
+def test_make_bounding_sphere_invalid_sphere(invalid_sph):
+    center, radius = invalid_sph
+
+    center = np.atleast_1d(center).astype(float)
+    if len(center.flatten()) == 3:
+        with np.errstate(invalid="ignore"):
+            box = np.array(
+                [
+                    center[0] - radius,
+                    center[1] - radius,
+                    center[2] - radius,
+                    radius * 2,
+                    radius * 2,
+                    radius * 2,
+                ]
+            )
+        if bbox.check_valid(box, raise_error=False):
+            note(box)
+        assume(not bbox.check_valid(box, raise_error=False))
+
+    with pytest.raises((bbox.BoundingBoxError, ValueError)):
+        bbox.make_bounding_sphere(radius=radius, center=center)
+
+
+@given(ct.valid_spheres())
+def test_make_bounding_sphere_valid(valid_sphere):
+    center, radius = valid_sphere
+
+    default_center = bbox.make_bounding_sphere(radius)
+
+    full_sphere = bbox.make_bounding_sphere(radius, center=center)
+
+    assert isinstance(default_center, bbox.BoundingSphere)
+    assert np.all(default_center.center == np.array([0, 0, 0]))
+    assert default_center.radius == radius
+
+    assert isinstance(full_sphere, bbox.BoundingSphere)
+    assert np.all(full_sphere.center == center)
+    assert full_sphere.radius == radius
+
+
+#############################
+# Test BoundingSphere contains
+#############################
+@given(ct.valid_bounding_spheres(), ct.invalid_positions())
+@settings(deadline=None)
+def test_bsph_contains_invalid_point(sph: bbox.BoundingSphere, xyz: ArrayLike):
+    assert not np.any(sph.contains(xyz))
+
+
+@given(ct.valid_bounding_spheres(), ct.valid_positions())
+def test_bsph_contains_valid(sph: bbox.BoundingSphere, xyz: ArrayLike):
+    center, radius = sph.center, sph.radius
+    dist = np.sqrt(np.sum((xyz - center) ** 2, axis=1))
+    inside_sph = dist <= radius
+    assert np.all(inside_sph == sph.contains(xyz))
+
+
+#############################
+# Test BoundingSphere bounding_box
+#############################
+@given(ct.valid_bounding_spheres())
+def test_bsph_bounding_box(sph: bbox.BoundingSphere):
+    box = sph.bounding_box
+    center, radius = sph.center, sph.radius
+
+    assert np.all(box.box[:3] == center - radius)
+    assert np.all(box.box[3:] == radius * 2)

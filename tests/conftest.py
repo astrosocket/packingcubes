@@ -10,7 +10,11 @@ from hypothesis import strategies as st
 from hypothesis.extra import numpy as hypnp
 from numpy.random import RandomState
 
-from packingcubes.bounding_box import BoundingBox
+from packingcubes.bounding_box import (
+    BoundingBox,
+    make_bounding_box,
+    make_bounding_sphere,
+)
 from packingcubes.data_objects import Dataset
 
 LOGGER = logging.getLogger(__name__)
@@ -46,6 +50,19 @@ def make_basic_data():
 
 
 #############################
+# Numba pre-compilation
+#############################
+@pytest.fixture(scope="package", autouse=True)
+def basic_bounding_box():
+    return make_bounding_box([0, 0, 0, 1, 1, 1])
+
+
+@pytest.fixture(scope="package", autouse=True)
+def basic_bounding_sphere():
+    return make_bounding_sphere(1, center=[0, 0, 0])
+
+
+#############################
 # Hypothesis strategies
 #############################
 def valid_coord():
@@ -78,6 +95,13 @@ def valid_boxes(draw):
         ),
     )
     return np.array(box_pos + box_dx)
+
+
+@st.composite
+def valid_sphere_radius(draw, center):
+    # use largest |coordinate| to specify radius
+    large_coord = np.max(np.abs(center))
+    return draw(valid_dx(x=large_coord))
 
 
 @st.composite
@@ -121,8 +145,58 @@ def invalid_boxes(draw):
 
 
 @st.composite
+def invalid_spheres(draw):
+    error_type = draw(st.integers(min_value=1, max_value=4))
+    use_bad_center = error_type == 2 or error_type == 4
+    use_bad_radii = error_type >= 3
+
+    if error_type == 1:
+        return draw(
+            st.tuples(
+                hypnp.arrays(
+                    float, hypnp.array_shapes().filter(lambda a: np.prod(a) != 3)
+                ),
+                st.just(1),
+            )
+        )
+
+    good_center = draw(valid_positions(max_particles=1))
+    center = draw(invalid_positions(max_particles=1)) if use_bad_center else good_center
+    center = center[0]
+
+    @st.composite
+    def bad_radii(draw, center):
+        ind = draw(st.integers(min_value=0, max_value=2))
+        return draw(
+            st.just(np.inf)
+            | st.just(np.nan)
+            | st.just(center[ind] * np.finfo(float).eps / 16)
+            | st.just(center[ind] / np.finfo(float).eps * 16)
+        )
+
+    if use_bad_radii:
+        radii = draw(bad_radii(center=center))
+    else:
+        radii = draw(valid_sphere_radius(center=good_center[0]))
+    return (center, radii)
+
+
+@st.composite
 def valid_bounding_boxes(draw):
-    return BoundingBox(draw(valid_boxes()))
+    return make_bounding_box(draw(valid_boxes()))
+
+
+@st.composite
+def valid_spheres(draw):
+    center = np.array(draw(st.tuples(valid_coord(), valid_coord(), valid_coord())))
+    radius = draw(valid_sphere_radius(center=center))
+    return (center, radius)
+
+
+@st.composite
+def valid_bounding_spheres(draw):
+    center, radius = draw(valid_spheres())
+    return make_bounding_sphere(radius=radius, center=center)
 
 
 def valid_positions(max_particles=3e2):
