@@ -310,7 +310,7 @@ class BoundingBox(BoundingVolume):
 
         Args:
             ind: int
-            Z-order index (0-indexed) of child box
+            Z-order index (0-indexed) of child box (i.e. 0<=ind<=7)
 
         Returns:
             child_box: BoundingBox
