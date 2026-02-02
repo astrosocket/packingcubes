@@ -17,7 +17,7 @@ jobs:
   build:
     strategy:
       matrix:
-        ox: [ubuntu-latest] #, macos-latest]
+        ox: [ubuntu-latest, macos-latest]
     #     python-version: ["3.12", "3.13"]
     runs-on: ${{ matrix.os }}
     name: CI/CD testing
