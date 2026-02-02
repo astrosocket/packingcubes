@@ -30,8 +30,6 @@ jobs:
           pixi-version: v0.63.2
           cache: true
           cache-write: ${{ github.event_name == 'push' && github.ref_name == 'main' }}
-          auth-host: prefix.dev
-          auth-token: ${{ secrets.PREFIX_DEV_TOKEN }}
       - run: pixi run python -c "import sys; print(sys.version)"
       - run: pixi run test --cov-report=xml --cov-report=html
     # - name: Set up Python ${{ matrix.python-version }}
