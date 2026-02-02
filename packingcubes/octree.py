@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING, Protocol
 import numpy as np
 from numba import njit  # type: ignore
 from numpy.typing import ArrayLike, NDArray
-from tqdm.auto import tqdm
 
 import packingcubes.bounding_box as bbox
 from packingcubes.configuration import FIELD_FORMAT
@@ -540,7 +539,6 @@ class PythonOctreeNode(OctreeNode):
         tag: str | None = None,
         parent: PythonOctreeNode | None = None,
         particle_threshold: int = 1,
-        pbar: tqdm | None = None,
     ) -> None:
         """
         Args:
@@ -570,8 +568,6 @@ class PythonOctreeNode(OctreeNode):
             leaf before splitting into subtrees. Note that currently particle
             sorting stops at this level. Default 1.
 
-            pbar: tqdm, optional
-            A tqdm() instance for optional progress updates
         """
         particle_threshold = int(particle_threshold)
         if particle_threshold <= 0:
@@ -612,8 +608,6 @@ class PythonOctreeNode(OctreeNode):
                 "Attempted to create an OctreeNode with negative max depth!",
             )
 
-        self._pbar = pbar
-
         # begin recursion
         self._construct()
 
@@ -652,8 +646,6 @@ class PythonOctreeNode(OctreeNode):
                     OctreeWarning,
                     stacklevel=1,
                 )
-            if self._pbar is not None:
-                self._pbar.update(len(self))
             return
 
         # Loop through children sections and recurse.
@@ -686,14 +678,11 @@ class PythonOctreeNode(OctreeNode):
                 tag=self._tag + str(i),
                 parent=self,
                 particle_threshold=self._particle_threshold,
-                pbar=self._pbar,
             )
             children.append(node)
         # Only _keep_ children if above _particle_threshold
         if len(self) > self._particle_threshold:
             self._children.extend(children)
-        if self._pbar is not None and self.is_leaf:
-            self._pbar.update(len(self))
 
     @property
     def node_start(self) -> int:
@@ -876,7 +865,6 @@ class PythonOctree(Octree):
         dataset: Dataset,
         *,
         particle_threshold: int | None = None,
-        show_pbar: bool = False,
     ) -> None:
         """
         Args:
@@ -886,16 +874,9 @@ class PythonOctree(Octree):
             particle_threshold: int, optional
             Number of particles allowed in a leaf before splitting. Defaults to
             _DEFAULT_PARTICLE_THRESHOLD
-
-            show_pbar: bool, optional
-            Show a progress bar during tree construction
         """
         if particle_threshold is None:
             particle_threshold = _DEFAULT_PARTICLE_THRESHOLD
-
-        pbar = None
-        if show_pbar:
-            pbar = tqdm(total=len(dataset), miniters=1000)
 
         data = dataset.data_container
 
@@ -903,11 +884,7 @@ class PythonOctree(Octree):
             data=data,
             box=data.bounding_box,
             particle_threshold=particle_threshold,
-            pbar=pbar,
         )
-
-        if pbar is not None:
-            pbar.close()
 
     def get_leaves(self) -> list[PythonOctreeNode]:
         """

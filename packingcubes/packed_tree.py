@@ -452,7 +452,6 @@ def _construct_node_recursive(
     parent_index: int,
     max_depth: int,
     particle_threshold: int = octree._DEFAULT_PARTICLE_THRESHOLD,
-    # pbar: tqdm | None = None
 ) -> int:
     # we need to cache various properties for when we recurse
     index = node.index
@@ -476,8 +475,6 @@ def _construct_node_recursive(
         tree.append(index - parent_index)
         # print(_convert_list_to_tag_str(node.tag), index, parent_index)
         _move_to_parent(tree, node)
-        # if pbar is not None:
-        #     pbar.update(num_particles)
         return index + 5
 
     # Need to partition and do each child one-by-one
@@ -510,7 +507,6 @@ def _construct_node_recursive(
         node.my_index = i
         node.level += 1
         _update_node_state(node, i, 0)  # old_my_index is unused
-        # child_index = self._construct_node(node, index, pbar)
         child_index = _construct_node_recursive(
             data, tree, node, index, max_depth, particle_threshold
         )
