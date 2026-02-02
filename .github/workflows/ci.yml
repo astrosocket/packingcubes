@@ -15,11 +15,12 @@ on:
 
 jobs:
   build:
-    strategy:
-      matrix:
-        ox: [ubuntu-latest, macos-latest]
+    # strategy:
+    #   matrix:
+    #     ox: [ubuntu-latest, macos-latest]
     #     python-version: ["3.12", "3.13"]
-    runs-on: ${{ matrix.os }}
+    # runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     name: CI/CD testing
     steps:
       - uses: actions/checkout@v4
