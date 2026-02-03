@@ -1,7 +1,6 @@
 import conftest as ct
 import numpy as np
-import pytest
-from hypothesis import example, given
+from hypothesis import example, given, note
 from hypothesis import strategies as st
 
 
@@ -32,10 +31,22 @@ def test_bounding_box(basic_data):
     box = basic_data.bounding_box
     positions = basic_data.positions
 
-    assert np.all(box.box[:3] == np.min(positions, axis=0))
-    assert box.box[3:] == pytest.approx(
-        np.max(positions, axis=0) - box.box[:3],
+    note(f"Bounding Box: {box.box}")
+    extrema = np.vstack((np.min(positions, axis=0), np.max(positions, axis=0)))
+    note(f"Extrema: {extrema}")
+
+    assert np.all(box.contains(positions))
+
+    margin = (
+        4
+        * np.maximum(box.box[3:], np.maximum(np.abs(box.box[:3]), 1))
+        * np.finfo(np.float32).eps
     )
+    note(f"Margin: {margin}")
+    note(extrema[0] - box.box[:3])
+    note(box.box[:3] + box.box[3:] - extrema[1])
+    assert np.all(extrema[0] - box.box[:3] <= margin)
+    assert np.all(box.box[:3] + box.box[3:] - extrema[1] <= margin)
 
 
 @given(st.integers(min_value=1, max_value=5e5))

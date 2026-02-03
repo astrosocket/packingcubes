@@ -154,6 +154,27 @@ class Dataset:
     def bounding_box(self) -> bbox.BoundingBox:
         return self._box.copy()
 
+    def _set_bounding_box(self):
+        """
+        Compute bounding box from data
+        """
+        if len(self.positions):
+            # sadly no numpy extrema function...
+            extremes = np.array(
+                [np.min(self.positions, axis=0), np.max(self.positions, axis=0)]
+            )
+            box = np.zeros(6)
+            box[:3] = extremes[0, :] - np.abs(extremes[0, :]) * np.finfo(np.float32).eps
+            box[3:] = extremes[1, :] - extremes[0, :]
+            box[3:] += (
+                np.maximum(box[3:], np.maximum(np.abs(box[:3]), 1))
+                * 2
+                * np.finfo(np.float32).eps
+            )
+        else:
+            box = np.array([0, 0, 0, 1, 1, 1])
+        self._box = bbox.make_bounding_box(box)
+
     @property
     def data_container(self) -> DataContainer:
         return DataContainer(self._positions.astype(np.float32), self._index, self._box)
@@ -187,17 +208,6 @@ class HDF5Dataset(Dataset):
     def _preload(self):
         raise NotImplementedError(
             "You are trying to instantiate a base HDF5 class.\nUse a subclass instead.",
-        )
-
-    def _set_bounding_box(self):
-        """
-        Compute bounding box from data
-        """
-        # sadly no numpy extrema function...
-        min_bounds = np.min(self.positions, axis=0)
-        max_bounds = np.max(self.positions, axis=0)
-        self._box = bbox.make_bounding_box(
-            np.hstack((min_bounds, max_bounds - min_bounds))
         )
 
     @property

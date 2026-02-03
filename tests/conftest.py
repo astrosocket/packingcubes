@@ -6,13 +6,11 @@ import warnings
 
 import numpy as np
 import pytest
-from hypothesis import assume
 from hypothesis import strategies as st
 from hypothesis.extra import numpy as hypnp
 from numpy.random import RandomState
 
 from packingcubes.bounding_box import (
-    BoundingBox,
     make_bounding_box,
     make_bounding_sphere,
 )
@@ -253,23 +251,9 @@ def invalid_positions(draw, max_particles=3e2):
 def basic_data_strategy(draw, max_particles=3e2):
     ds = Dataset(name="basic_strategy", filepath="")
     positions = draw(valid_positions(max_particles=max_particles))
-    extremes = np.array([np.min(positions, axis=0), np.max(positions, axis=0)])
-    if len(positions) == 0:
-        box = np.array([0, 0, 0, 1, 1, 1])
-    elif len(positions) == 1:
-        box = np.zeros(6)
-        box[:3] = positions
-        box[3:] = ((box[:3] == 0) + (box[:3] != 0) * np.abs(box[:3])) * np.finfo(
-            float,
-        ).eps
-    else:
-        box = np.zeros(6)
-        box[:3] = extremes[0, :]
-        box[3:] = extremes[1, :] - extremes[0, :]
-    assume(np.all(box[3:] > np.abs(box[:3]) / 1e10))
-    ds._box = BoundingBox(box)
 
     ds._positions = positions
+    ds._set_bounding_box()
 
     ds._setup_index()
 
