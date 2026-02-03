@@ -5,6 +5,7 @@ import numpy as np
 import pytest
 from hypothesis import assume, example, given, note, settings
 from hypothesis import strategies as st
+from hypothesis.extra import numpy as hypnp
 from hypothesis.stateful import (
     RuleBasedStateMachine,
     initialize,
@@ -360,7 +361,7 @@ def make_worst_case_duplicate() -> Dataset:
 @given(data=ct.data_with_duplicates(max_particles=3))
 # This will cause the test to take a long time but is
 # required for make_worst_case_duplicate
-@settings(deadline=700, print_blob=True)
+@settings(deadline=None, print_blob=True)
 @pytest.mark.filterwarnings("::packingcubes.octree.OctreeWarning::")
 @pytest.mark.filterwarnings("error")
 def test_PythonOctreeNode_duplicate_data(data: Dataset):
@@ -456,6 +457,131 @@ class PythonOctreeComparison(RuleBasedStateMachine):
         note(positions)
         note(mortons)
         assert is_sorted(mortons)
+
+    @rule()
+    @precondition(lambda oc: oc.tree is not None)
+    def get_leaves(self):
+        leaves = self.tree.get_leaves()
+        assert len(leaves)
+
+    @rule()
+    @precondition(lambda oc: oc.tree is not None)
+    def iter(self):
+        for _ in self.tree:
+            assert True
+
+    @rule(
+        normal_point=hypnp.arrays(
+            float, 3, elements=st.floats(min_value=0, max_value=1)
+        )
+    )
+    @precondition(lambda oc: oc.tree is not None)
+    def get_containing_node(self, normal_point):
+        box = self.tree.root.box.box
+        point = box[3:] * normal_point + box[:3]
+
+        with pytest.raises(ValueError, match="bottom-up"):
+            self.tree._get_containing_node_of_point(point, top_down=False)
+
+        node = self.tree._get_containing_node_of_point(point)
+
+        assert node.box.contains(point)
+
+        node1 = self.tree._get_containing_node_of_point(
+            point, top_down=False, start_node=node
+        )
+
+        assert node == node1
+
+        nan_point = np.array([np.nan, np.nan, np.nan])
+        node_nan = self.tree._get_containing_node_of_point(nan_point)
+        assert node_nan is None
+        node_nan = self.tree._get_containing_node_of_point(
+            nan_point, top_down=False, start_node=node
+        )
+        assert node_nan is None
+
+    @rule(
+        normal_points=hypnp.arrays(
+            float,
+            st.tuples(st.integers(min_value=1, max_value=10), st.just(3)),
+            elements=st.floats(min_value=0, max_value=1),
+        )
+    )
+    @precondition(lambda oc: oc.tree is not None)
+    def get_containing_node_pointlist(self, normal_points):
+        box = self.tree.root.box.box
+        points = box[3:] * normal_points + box[:3]
+
+        node = self.tree._get_containing_node_of_pointlist(points)
+
+        assert np.all(node.box.contains(points))
+
+        node1 = self.tree._get_containing_node_of_pointlist(
+            points, top_down=False, start_node=node
+        )
+
+        assert node == node1
+
+    @rule(search_box=ct.valid_bounding_boxes())
+    @precondition(lambda oc: oc.tree is not None)
+    def get_particle_indices_in_box(self, search_box):
+        positions = self.tree.root.data.positions
+
+        ind_tuples = self.tree.get_particle_indices_in_box(box=search_box)
+        note("Returned tuples:")
+        note(ind_tuples)
+        # this returns a list of particle index tuples
+        # We don't actually need to know if any of the returned particles are
+        # in the sphere, we only need to check that we're not missing any
+        actual = np.where(search_box.contains(positions))[0]
+        note("Actual contained indices:")
+        note(actual)
+        if len(actual):
+            assert len(ind_tuples)
+            tuple_arr = np.atleast_2d(np.array(ind_tuples))
+            for pt in actual:
+                assert np.any((tuple_arr[:, 0] <= pt) & (pt <= tuple_arr[:, 1]))
+
+    @rule(
+        normal_center=hypnp.arrays(
+            float, 3, elements=st.floats(min_value=0, max_value=1)
+        ),
+        normal_radius=st.floats(min_value=4 * np.finfo(np.float32).eps, max_value=2),
+    )
+    @precondition(lambda oc: oc.tree is not None)
+    def get_particle_indices_in_sphere(self, normal_center, normal_radius):
+        box = self.tree.root.box.box
+        center = box[3:] * normal_center + box[:3]
+        dist = np.maximum(
+            np.sqrt(np.sum((center - box[:3]) ** 2)),
+            np.finfo(np.float32).eps * np.max(np.abs(box[:3])),
+        )
+        radius = np.maximum(normal_radius * dist, np.finfo(np.float32).eps)
+        note(f"Center: {center}")
+        note(f"Radius: {radius}")
+        note(f"dist: {dist}")
+
+        sph = bbox.make_bounding_sphere(radius, center=center)
+
+        positions = self.tree.root.data.positions
+
+        ind_tuples = self.tree.get_particle_indices_in_sphere(
+            center=center, radius=radius
+        )
+        note("Returned tuples:")
+        note(ind_tuples)
+        # this returns a list of particle index tuples
+        # We don't actually need to know if any of the returned particles are
+        # in the sphere, we only need to check that we're not missing any
+        actual = np.where(sph.contains(positions))[0]
+        note("Actual contained indices:")
+        note(actual)
+        if len(actual):
+            assert len(ind_tuples)
+            tuple_arr = np.atleast_2d(np.array(ind_tuples))
+            for pt in actual:
+                assert np.any((tuple_arr[:, 0] <= pt) & (pt <= tuple_arr[:, 1]))
 
 
 TestPythonOctreeComparison = PythonOctreeComparison.TestCase
