@@ -15,7 +15,7 @@ from numpy.typing import ArrayLike
 
 import packingcubes.bounding_box as bbox
 import packingcubes.octree as octree
-from packingcubes.data_objects import Dataset
+from packingcubes.data_objects import DataContainer, Dataset
 
 LOGGER = logging.getLogger(__name__)
 
@@ -24,8 +24,8 @@ LOGGER = logging.getLogger(__name__)
 # Test _partition
 #############################
 @st.composite
-def basic_data_with_invalid_bounds(draw):
-    basic_data = draw(ct.basic_data_strategy())
+def basic_data_container_with_invalid_bounds(draw):
+    basic_data = draw(ct.basic_data_container_strategy())
     lower = draw(st.integers(min_value=-10, max_value=0))
     upper = draw(
         st.integers(min_value=len(basic_data) - 1, max_value=len(basic_data) + 10),
@@ -35,26 +35,28 @@ def basic_data_with_invalid_bounds(draw):
 
 
 @st.composite
-def basic_data_with_valid_bounds(draw):
-    basic_data = draw(ct.basic_data_strategy())
+def basic_data_container_with_valid_bounds(draw):
+    basic_data = draw(ct.basic_data_container_strategy())
     lower = draw(st.integers(min_value=0, max_value=len(basic_data) - 1))
     upper = draw(st.integers(min_value=0, max_value=len(basic_data) - 1))
     return basic_data, lower, upper
 
 
-@given(basic_data_with_invalid_bounds())
+@given(basic_data_container_with_invalid_bounds())
 def test_partition_invalid_bounds(basic_data_with_bounds: tuple[Dataset, int, int]):
     basic_data, lower, upper = basic_data_with_bounds
-    midplane = bbox.midplane(basic_data.bounding_box)
+    midplane = basic_data.bounding_box.midplane()
 
     with pytest.raises(ValueError, match="out of bounds"):
         partition = octree._partition(basic_data, lower, upper, 0, midplane[0])
 
 
-@given(ct.basic_data_strategy(), st.integers().filter(lambda i: i < -3 or i >= 3))
+@given(
+    ct.basic_data_container_strategy(), st.integers().filter(lambda i: i < -3 or i >= 3)
+)
 def test_partition_axis_invalid(basic_data: Dataset, ax: int):
     positions = basic_data.positions
-    midplane = bbox.midplane(basic_data.bounding_box)
+    midplane = basic_data.bounding_box.midplane()
 
     with pytest.raises(IndexError):
         partition = octree._partition(
@@ -67,17 +69,17 @@ def test_partition_axis_invalid(basic_data: Dataset, ax: int):
 
 
 @given(
-    basic_data_with_valid_bounds(),
+    basic_data_container_with_valid_bounds(),
     st.integers(min_value=0, max_value=2),
     st.floats(-1, 2),
 )
 def test_partition_valid(
-    basic_data_with_bounds: tuple[Dataset, int, int],
+    basic_data_with_bounds: tuple[DataContainer, int, int],
     ax: int,
     midplane_scale: float,
 ):
     basic_data, lower, upper = basic_data_with_bounds
-    midplane = bbox.midplane(basic_data.bounding_box)
+    midplane = basic_data.bounding_box.midplane()
 
     positions = basic_data.positions
     note(f"x-values: {positions[lower : (upper + 1), ax]}")
@@ -107,7 +109,7 @@ def is_sorted(a: ArrayLike) -> bool:
     return np.all(a[:-1] <= a[1:])
 
 
-@given(ct.basic_data_strategy())
+@given(ct.basic_data_container_strategy())
 @settings(print_blob=True)
 def test_partition_data_full_box(
     basic_data,
@@ -117,7 +119,7 @@ def test_partition_data_full_box(
     note(f"Positions :{basic_data.positions[:2, :]}")
     note(
         f"Normalized: {
-            bbox.normalize_to_box(basic_data.bounding_box, basic_data.positions[:2, :])
+            basic_data.bounding_box.normalize_to_box(basic_data.positions[:2, :])
         }",
     )
     morton_inds = octree.morton(basic_data.positions, basic_data.bounding_box)
@@ -135,7 +137,7 @@ def test_partition_data_full_box(
     note("After partition")
     note(
         f"Normalized: {
-            bbox.normalize_to_box(basic_data.bounding_box, basic_data.positions[:2, :])
+            basic_data.bounding_box.normalize_to_box(basic_data.positions[:2, :])
         }",
     )
     morton_inds = octree.morton(basic_data.positions, basic_data.bounding_box)
@@ -156,7 +158,7 @@ def test_partition_data_full_box(
 
 @given(st.integers(min_value=1, max_value=8))
 def test_partition_data_sub_box(make_basic_data, child_ind: int):
-    basic_data = make_basic_data(num_particles=10)
+    basic_data = make_basic_data(num_particles=10).data_container
     # Only want to look at particles in sub-box of full
     # do original partitioning first
     lvl1_child_list = octree._partition_data(
@@ -175,7 +177,7 @@ def test_partition_data_sub_box(make_basic_data, child_ind: int):
     # i.e. child_list[1]:child_list[2]
     note(f"For child box {child_ind}")
     child_ind = child_ind - 1  # convert to 0-index
-    lvl1_child_box = bbox.get_child_box(basic_data.bounding_box, child_ind)
+    lvl1_child_box = basic_data.bounding_box.get_child_box(child_ind)
     note(f"{lvl1_child_box=}")
     lvl1_child_start = lvl1_child_list[child_ind - 1] if child_ind else 0
     lvl1_child_end = (
@@ -246,10 +248,11 @@ def test_box_neighbors_in_node():
 @example(np.array([[-1, -2e-60, -1]]), np.array([-1, -1, -1, 2, 2, 2]))
 @given(
     ct.valid_positions(),
-    ct.valid_boxes(),
+    ct.valid_boxes() | ct.valid_bounding_boxes(),
 )
 def test_morton(positions: ArrayLike, box: ArrayLike):
-    midplane = bbox.midplane(box)
+    box = bbox.make_bounding_box(box)
+    midplane = box.midplane()
     note(f"Midplane for this test is {midplane}")
 
     mortons = octree.morton(positions, box)
@@ -293,20 +296,20 @@ def test_morton(positions: ArrayLike, box: ArrayLike):
 #############################
 #############################
 @given(
-    data=ct.basic_data_strategy(),
+    data=ct.basic_data_container_strategy(),
     node_start=st.integers(),
     node_end=st.integers(),
-    box=ct.valid_boxes(),
-    tag=st.lists(st.sampled_from(octree.Octants)),
+    box=ct.valid_bounding_boxes(),
+    tag=st.text(alphabet="012345678", min_size=1, max_size=20),
     parent=st.none(),
     particle_threshold=st.integers(),
 )
 def test_PythonOctreeNode_invalid_ints(
-    data: Dataset,
+    data: DataContainer,
     node_start: int,
     node_end: int,
-    box: ArrayLike,
-    tag: list[octree.Octants],
+    box: bbox.BoundingBox,
+    tag: str,
     parent: None | octree.PythonOctreeNode,
     particle_threshold: int,
 ):
@@ -332,7 +335,7 @@ def test_PythonOctreeNode_invalid_ints(
 
 
 def test_PythonOctreeNode_empty_data(make_basic_data):
-    data = make_basic_data(0)
+    data = make_basic_data(0).data_container
 
     with pytest.raises(octree.OctreeError) as oerrinfo:
         octree.PythonOctreeNode(
@@ -341,7 +344,7 @@ def test_PythonOctreeNode_empty_data(make_basic_data):
             node_end=len(data) - 1,
             box=data.bounding_box,
         )
-    assert "Empty dataset" in str(oerrinfo.value)
+    assert "Empty DataContainer" in str(oerrinfo.value)
 
 
 def make_worst_case_duplicate() -> Dataset:
@@ -360,7 +363,7 @@ def make_worst_case_duplicate() -> Dataset:
                     positions.append([i, j, k])
     positions = np.array(positions, dtype=float)
 
-    data._box = bbox.BoundingBox(np.array([0, 0, 0, 1, 1, 1], dtype=float))
+    data._box = bbox.make_bounding_box([0, 0, 0, 1, 1, 1])
 
     data._positions = positions
     data._setup_index()
@@ -378,20 +381,22 @@ def make_worst_case_duplicate() -> Dataset:
 def test_PythonOctreeNode_duplicate_data(data: Dataset):
     note(f"{data.bounding_box=}")
     note(f"{data.positions=}")
-    note(f"{bbox.max_depth(data.bounding_box)}")
+    note(f"{data.bounding_box.max_depth()}")
 
     # if all particles are identical, then the box shouldn't support splitting
     # but we still want to test the recursion limit
-    if bbox.max_depth(data.bounding_box) < 1:
+    if data.bounding_box.max_depth() < 1:
         with pytest.raises(octree.OctreeError) as oeinfo:
-            node = octree.PythonOctreeNode(data=data, particle_threshold=1)
+            node = octree.PythonOctreeNode(
+                data=data.data_container, particle_threshold=1
+            )
         assert "negative max depth" in str(oeinfo.value)
     else:
         with pytest.warns(octree.OctreeWarning, match=r"Bad data detected"):  # noqa PT031
             # need to explicitly set the particle threshold since
             # data_with_duplicates is only guaranteed to produce 1 duplicate
             node = octree.PythonOctreeNode(
-                data=data,
+                data=data.data_container,
                 particle_threshold=1,
             )
             # if no warning was raised we want to know why
@@ -420,15 +425,17 @@ class PythonOctreeComparison(RuleBasedStateMachine):
         self.tree = None
         self.current_node = None
 
-    @initialize(data=ct.basic_data_strategy(), pt=st.none() | st.integers(min_value=1))
+    @initialize(
+        dataset=ct.basic_data_strategy(), pt=st.none() | st.integers(min_value=1)
+    )
     @pytest.mark.filterwarnings("ignore:Bad data")
-    def make_octree(self, data: Dataset, pt: int):
-        assume(bbox.max_depth(data.bounding_box) > 0)
+    def make_octree(self, dataset: Dataset, pt: int):
+        assume(dataset.bounding_box.max_depth() > 0)
         try:
-            self.tree = octree.PythonOctree(data=data, particle_threshold=pt)
+            self.tree = octree.PythonOctree(dataset=dataset, particle_threshold=pt)
         except octree.OctreeError as oerr:
-            if len(data) <= 10:
-                note(data.positions)
+            if len(dataset) <= 10:
+                note(dataset.positions)
             raise oerr
         self.pt = pt if pt is not None else octree._DEFAULT_PARTICLE_THRESHOLD
         self.current_node = self.tree.root
