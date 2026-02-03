@@ -1119,8 +1119,8 @@ class PackedTree(octree.Octree):
             A Dataset containing particle data
 
             source: Buffer | None
-            Pre-computed packed buffer containing this tree. Will be computed
-            if present
+            Pre-computed packed buffer containing this tree. Leave out to
+            compute the tree from scratch.
 
             particle_threshold: int, optional
             Number of particles allowed in a leaf before splitting. Defaults to
