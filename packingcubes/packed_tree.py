@@ -876,8 +876,7 @@ class PackedTreeNumba:
         """
         Return lists of all nodes entirely inside and nodes partially inside sphere
 
-        Calls _get_nodes_in_shape with sphere's bounding box and
-        _point_in_sphere as the containment_test
+        Calls _get_nodes_in_shape using a BoundingSphere
 
         Args:
             center: NDArray

@@ -216,20 +216,6 @@ def test_partition_data_sub_box(make_basic_data, child_ind: int):
 
 
 #############################
-# Test _box_neighbors_in_node
-#############################
-@given(st.integers().filter(lambda i: i < 1 or i > 8))
-def test_box_neighbors_in_node_invalid(ind: int):
-    with pytest.raises(ValueError, match="Valid options"):
-        octree._box_neighbors_in_node(ind)
-
-
-@pytest.mark.skip(reason="Not implemented yet")
-def test_box_neighbors_in_node():
-    pass
-
-
-#############################
 # Test morton
 #############################
 
@@ -402,15 +388,6 @@ def test_PythonOctreeNode_duplicate_data(data: Dataset):
             note(f"{node=}")
             for child in node.children:
                 note(f"{child}")
-
-
-class PythonOctreeNodeComparison(RuleBasedStateMachine):
-    def __init__(self):
-        super().__init__()
-        self.data = Dataset()
-
-
-# TestPythonOctreeNode = PythonOctreeNodeComparison.TestCase
 
 
 #############################

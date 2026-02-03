@@ -4,7 +4,6 @@ import abc
 import logging
 import warnings
 from collections.abc import Iterable, Iterator, Sized
-from enum import IntEnum
 from typing import TYPE_CHECKING, Protocol
 
 import numpy as np
@@ -21,29 +20,12 @@ logging.captureWarnings(capture=True)
 _DEFAULT_PARTICLE_THRESHOLD = 400
 
 
-# Octants
-class Octants(IntEnum):
-    LEFTFRONTBOTTOM = 1
-    RIGHTFRONTBOTTOM = 2
-    LEFTBACKBOTTOM = 3
-    RIGHTBACKBOTTOM = 4
-    LEFTFRONTTOP = 5
-    RIGHTFRONTTOP = 6
-    LEFTBACKTOP = 7
-    RIGHTBACKTOP = 8
-
-
 class OctreeError(Exception):
     pass
 
 
 class OctreeWarning(UserWarning):
     pass
-
-
-class ContainmentFunc(Protocol):
-    def __call__(self, xyz: NDArray) -> NDArray[np.bool_]:
-        pass
 
 
 # Convenience functions
@@ -173,68 +155,6 @@ def _partition_data(
 
     # LOGGER.debug(f"{lo=} {hi=} {child_list}")
     return child_list
-
-
-def _box_neighbors_in_node(
-    box_ind: int,
-) -> list[Octants]:
-    """
-    Return the neighbor Octants that are in the same node.
-    """
-    # TODO: look into a case/control-flow free formula
-    match box_ind:
-        case Octants.LEFTFRONTBOTTOM:  # 1
-            return [
-                Octants.RIGHTFRONTBOTTOM,
-                Octants.LEFTBACKBOTTOM,
-                Octants.LEFTFRONTTOP,
-            ]  # [2,3,5]
-        case Octants.RIGHTFRONTBOTTOM:  # 2
-            return [
-                Octants.LEFTFRONTBOTTOM,
-                Octants.RIGHTBACKBOTTOM,
-                Octants.RIGHTFRONTTOP,
-            ]  # [1,4,6]
-        case Octants.LEFTBACKBOTTOM:  # 3
-            return [
-                Octants.LEFTFRONTBOTTOM,
-                Octants.RIGHTBACKBOTTOM,
-                Octants.LEFTBACKTOP,
-            ]  # [1,4,7]
-        case Octants.RIGHTBACKBOTTOM:  # 4
-            return [
-                Octants.RIGHTFRONTBOTTOM,
-                Octants.LEFTBACKBOTTOM,
-                Octants.RIGHTBACKTOP,
-            ]  # [2,3,8]
-        case Octants.LEFTFRONTTOP:  # 5
-            return [
-                Octants.LEFTFRONTBOTTOM,
-                Octants.LEFTBACKTOP,
-                Octants.RIGHTFRONTTOP,
-            ]  # [1,6,7]
-        case Octants.RIGHTFRONTTOP:  # 6
-            return [
-                Octants.RIGHTFRONTBOTTOM,
-                Octants.LEFTFRONTTOP,
-                Octants.RIGHTBACKTOP,
-            ]  # [2,5,8]
-        case Octants.LEFTBACKTOP:  # 7
-            return [
-                Octants.LEFTBACKBOTTOM,
-                Octants.LEFTFRONTTOP,
-                Octants.RIGHTBACKTOP,
-            ]  # [3,6,8]
-        case Octants.RIGHTBACKTOP:  # 8
-            return [
-                Octants.RIGHTBACKBOTTOM,
-                Octants.RIGHTFRONTTOP,
-                Octants.LEFTBACKTOP,
-            ]  # [4,6,7]
-        case _:
-            raise ValueError(
-                f"Invalid {box_ind=} specified! Valid options are in octree.Octants",
-            )
 
 
 def morton(positions: NDArray, box: bbox.BoxLike) -> NDArray[np.int_]:
@@ -791,18 +711,6 @@ def _bottom_up_containing_node(node: PythonOctreeNode, xyz: NDArray):
     return node if node.box.contains(xyz) else None
 
 
-@njit
-def _point_in_sphere(
-    point: NDArray, center: NDArray, radius: float
-) -> NDArray[np.bool_]:
-    """
-    Return true if point is closer than (<=) radius to center. Vectorizable
-    """
-    # We don't need to calculate the actual distance, we only need to compare dist^2
-    dist2 = np.sum(np.atleast_2d((point - center) ** 2), axis=1)
-    return dist2 <= radius**2
-
-
 class Octree(Iterable[OctreeNode], Protocol):
     """
     Public octree interface
@@ -1085,8 +993,7 @@ class PythonOctree(Octree):
         """
         Return lists of all nodes entirely inside and nodes partially inside sphere
 
-        Calls _get_nodes_in_shape with sphere's bounding box and
-        _point_in_sphere as the containment_test
+        Calls _get_nodes_in_shape using a BoundingSphere
 
         Args:
             center: NDArray
