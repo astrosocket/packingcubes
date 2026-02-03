@@ -5,7 +5,7 @@ from pathlib import Path
 
 import h5py  # type: ignore
 import numpy as np
-from numba import boolean, float32, int64  # type: ignore
+from numba import boolean, float64, int64  # type: ignore
 from numba.experimental import jitclass
 from numba.extending import as_numba_type
 from numpy.typing import NDArray
@@ -26,7 +26,7 @@ class DatasetWarning(UserWarning):
 
 @jitclass(
     [
-        ("_positions", float32[:, :]),
+        ("_positions", float64[:, :]),
         ("_index", int64[:]),
         ("_box", bbox.bbn_type),
         ("_index_dirty", boolean),
@@ -177,7 +177,9 @@ class Dataset:
 
     @property
     def data_container(self) -> DataContainer:
-        return DataContainer(self._positions.astype(np.float32), self._index, self._box)
+        return DataContainer(
+            self._positions.astype(np.float64, copy=False), self._index, self._box
+        )
 
 
 class HDF5Dataset(Dataset):
