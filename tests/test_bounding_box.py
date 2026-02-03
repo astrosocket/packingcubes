@@ -242,7 +242,10 @@ def test_get_child_box_invalid_index(
     bounding_box: bbox.BoundingBox,
     index: int | float,
 ):
-    with pytest.raises((OverflowError, ValueError), match="invalid index|int too big"):
+    with pytest.raises(
+        (OverflowError, ValueError),
+        match="invalid index|int too big|int value is too large",
+    ):
         bounding_box.get_child_box(index)
 
 
@@ -294,7 +297,7 @@ def test_get_box_vertex_invalid_indices(
 ):
     with pytest.raises(
         (OverflowError, ValueError),
-        match=("int too big|out of bounds|must be an int|must be finite"),
+        match=("int too big|too large|out of bounds|must be an int|must be finite"),
     ):
         bounding_box.get_box_vertex(index, jitter)
 
