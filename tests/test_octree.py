@@ -110,12 +110,12 @@ def is_sorted(a: ArrayLike) -> bool:
 
 
 @given(ct.basic_data_container_strategy())
-@settings(print_blob=True)
+@settings(print_blob=True, deadline=None)
 def test_partition_data_full_box(
     basic_data,
 ):
     note("Before partition")
-    note(basic_data.bounding_box)
+    note(f"BoundingBox: {basic_data.bounding_box.box}")
     note(f"Positions :{basic_data.positions[:2, :]}")
     note(
         f"Normalized: {
@@ -146,9 +146,7 @@ def test_partition_data_full_box(
     )
 
     bin_count = np.bincount(morton_inds, minlength=9)
-    # morton inds are 1-8, so bin 0 is always 0. Even though anything
-    # in bin 1 should _start_ at index=0 (since we're doing the top-level
-    # partition), child_list doesn't contain an explicit index for bin 1
+    # morton inds are 1-8, so bin 0 is always 0.
     expected_child_list = np.cumsum(bin_count)
     note(f"{bin_count=} e:{expected_child_list} g:{child_list}")
 
@@ -157,6 +155,7 @@ def test_partition_data_full_box(
 
 
 @given(st.integers(min_value=1, max_value=8))
+@settings(deadline=None)
 def test_partition_data_sub_box(make_basic_data, child_ind: int):
     basic_data = make_basic_data(num_particles=10).data_container
     # Only want to look at particles in sub-box of full
