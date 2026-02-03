@@ -2,6 +2,7 @@
 
 import copy
 import logging
+import warnings
 
 import numpy as np
 import pytest
@@ -16,6 +17,7 @@ from packingcubes.bounding_box import (
     make_bounding_sphere,
 )
 from packingcubes.data_objects import Dataset
+from packingcubes.packed_tree import PackedTree
 
 LOGGER = logging.getLogger(__name__)
 
@@ -41,7 +43,7 @@ def fake_basic_dataset(num_particles: int = 10, seed: int = 0xDEADBEEF) -> Datas
     return ds
 
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture(scope="package", autouse=True)
 def make_basic_data():
     def _basic_data(num_particles=10, seed=0xDEADBEEF):
         return fake_basic_dataset(num_particles, seed)
@@ -60,6 +62,18 @@ def basic_bounding_box():
 @pytest.fixture(scope="package", autouse=True)
 def basic_bounding_sphere():
     return make_bounding_sphere(1, center=[0, 0, 0])
+
+
+@pytest.fixture(scope="package", autouse=True)
+def basic_data_container(make_basic_data):
+    return make_basic_data().data_container
+
+
+@pytest.fixture(scope="package", autouse=True)
+def basic_optree(make_basic_data):
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        return PackedTree(make_basic_data(), particle_threshold=1)
 
 
 #############################
@@ -260,6 +274,12 @@ def basic_data_strategy(draw, max_particles=3e2):
     ds._setup_index()
 
     return ds
+
+
+@st.composite
+def basic_data_container_strategy(draw, max_particles=3e2):
+    ds = draw(basic_data_strategy(max_particles=max_particles))
+    return ds.data_container
 
 
 @st.composite
