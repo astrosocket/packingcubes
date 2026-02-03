@@ -951,7 +951,7 @@ class PythonOctree(Octree):
         # returned in z-order
         entire_nodes = []
         partial_leaves = []
-        child_queue = list(reversed(start_node.children))
+        child_queue: list[PythonOctreeNode | None] = [start_node]
         while len(child_queue):
             node = child_queue.pop()
 
