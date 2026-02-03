@@ -5,8 +5,15 @@ from array import array
 from collections.abc import Buffer, Iterable, Iterator, Sequence
 
 import numpy as np
-from numba import int64, njit, objmode, types, uint8, uint32  # type: ignore
-from numba.core.errors import TypingError
+from numba import (  # type: ignore
+    TypingError,
+    int64,
+    njit,
+    objmode,
+    types,
+    uint8,
+    uint32,
+)
 from numba.experimental import jitclass
 from numba.extending import as_numba_type, overload
 from numba.typed import List
@@ -121,7 +128,10 @@ class PackedNode(octree.OctreeNode):
         return PackedNode(self._node.copy())
 
 
-pack_node_type = as_numba_type(PackedNodeNumba)
+try:
+    pack_node_type = as_numba_type(PackedNodeNumba)
+except TypingError:
+    pack_node_type = type(PackedNodeNumba)
 
 
 @njit
@@ -209,7 +219,10 @@ class CurrentNode:
         self.empty = empty
 
 
-curr_node_type = as_numba_type(CurrentNode)
+try:
+    curr_node_type = as_numba_type(CurrentNode)
+except TypingError:
+    curr_node_type = type(CurrentNode)
 
 
 @njit
@@ -999,7 +1012,10 @@ class PackedTreeNumba:
         raise NotImplementedError
 
 
-packed_tree_type = as_numba_type(PackedTreeNumba)
+try:
+    packed_tree_type = as_numba_type(PackedTreeNumba)
+except TypingError:
+    packed_tree_type = type(PackedTreeNumba)
 
 
 def _print_packed(packed: memoryview | array, *, expected_node_start=0):

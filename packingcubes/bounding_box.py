@@ -6,7 +6,7 @@ from enum import Flag, auto
 from typing import TYPE_CHECKING
 
 import numpy as np
-from numba import float64, objmode, types  # type: ignore
+from numba import TypingError, float64, objmode, types  # type: ignore
 from numba.experimental import jitclass
 from numba.extending import as_numba_type
 from numpy.typing import ArrayLike, NDArray
@@ -469,7 +469,10 @@ class BoundingBox(BoundingVolume):
         ).astype(np.float64)
 
 
-bbn_type = as_numba_type(BoundingBox)
+try:
+    bbn_type = as_numba_type(BoundingBox)
+except TypingError:
+    bbn_type = type(BoundingBox)
 
 type BoxLike = ArrayLike | BoundingBox
 
@@ -541,7 +544,10 @@ class BoundingSphere(BoundingVolume):
         )
 
 
-bs_type = as_numba_type(BoundingSphere)
+try:
+    bs_type = as_numba_type(BoundingSphere)
+except TypingError:
+    bs_type = type(BoundingSphere)
 
 
 def make_bounding_sphere(

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import h5py  # type: ignore
 import numpy as np
-from numba import boolean, float64, int64  # type: ignore
+from numba import TypingError, boolean, float64, int64  # type: ignore
 from numba.experimental import jitclass
 from numba.extending import as_numba_type
 from numpy.typing import NDArray
@@ -90,7 +90,10 @@ class DataContainer:
         return self._box.copy()
 
 
-dc_type = as_numba_type(DataContainer)
+try:
+    dc_type = as_numba_type(DataContainer)
+except TypingError:
+    dc_type = type(DataContainer)
 
 
 class Dataset:
