@@ -128,7 +128,10 @@ def check_valid(box: BoxLike, *, raise_error: bool = True) -> BoundingBoxValidFl
             np.isfinite(box[:3])
             & np.isfinite(box[3:])
             & (box[3:] > 0)
-            & (box[3:] < (np.abs(box[:3]) + box[3:]) * np.finfo(float).eps),
+            & (
+                box[3:]
+                < (np.maximum(np.abs(box[:3]) + box[3:], 1.0)) * np.finfo(float).eps
+            ),
         ):
             flag ^= BoundingBoxValidFlag.PRECISION
     if raise_error and flag != BoundingBoxValidFlag.VALID:
