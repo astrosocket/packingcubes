@@ -15,7 +15,7 @@ from numba import (  # type: ignore
     uint32,
 )
 from numba.experimental import jitclass
-from numba.extending import as_numba_type, overload
+from numba.extending import as_numba_type
 from numba.typed import List
 from numba.types import ListType, string
 from numpy.typing import ArrayLike, NDArray
@@ -299,20 +299,6 @@ def _my_pack_bits(bool_array: NDArray) -> int:
     return out
 
 
-@overload(np.bitwise_count)
-def _my_bitwise_count(n: int):
-    """
-    Return the number of 1 bits in a number
-    """
-
-    def bitwise_count64(n: int) -> int:
-        return sum([1 for i in range(64) if np.uint64(n) & (np.uint64(1) << i)])
-
-    if isinstance(n, types.Integer):
-        return bitwise_count64
-    raise TypingError(f"Unsupported type: {n}")
-
-
 @njit
 def _update_current_node(
     tree: Sequence, index: int, node: CurrentNode, child_index: int
@@ -396,7 +382,11 @@ def _move_to_child(tree: Sequence, node: CurrentNode, child_ind: int) -> int:
     if not child_flag & (1 << child_ind):
         return 0
 
-    num_skip = np.bitwise_count((255 >> 8 - child_ind) & child_flag)
+    temp = int((255 >> 8 - child_ind) & child_flag)
+    num_skip = 0
+    while temp > 0:
+        temp &= temp - 1
+        num_skip += 1
 
     # children start at boundary + 4 fields
     current = old = node.index
