@@ -461,11 +461,17 @@ class BoundingBox(BoundingVolume):
         if jitter < 0:
             raise NotImplementedError()
 
-        jitter = np.sign(jitter) * self.box[3:] / 100
+        box_pos = self.box[:3]
+        box_size = self.box[3:]
+        assert len(box_pos) == 3
+        assert len(box_size) == 3
+        assert len(xyz) == 3
+        jitter = np.sign(jitter) * box_size / 100
+        assert len(jitter) == 3
         return np.clip(
             xyz,
-            a_min=self.box[:3] + jitter,
-            a_max=self.box[:3] + self.box[3:] - jitter,
+            a_min=box_pos + jitter,
+            a_max=box_pos + box_size - jitter,
         ).astype(np.float64)
 
 
