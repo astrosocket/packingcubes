@@ -466,12 +466,12 @@ class BoundingBox(BoundingVolume):
         assert len(box_pos) == 3
         assert len(box_size) == 3
         assert len(xyz) == 3
-        jitter = np.sign(jitter) * box_size / 100
-        assert len(jitter) == 3
+        jitter_arr = np.sign(jitter) * box_size / 100
+        assert len(jitter_arr) == 3
         return np.clip(
             xyz,
-            a_min=box_pos + jitter,
-            a_max=box_pos + box_size - jitter,
+            a_min=box_pos + jitter_arr,
+            a_max=box_pos + box_size - jitter_arr,
         ).astype(np.float64)
 
 
