@@ -442,7 +442,7 @@ class BoundingBox(BoundingVolume):
 
         Args:
             xyz: ArrayLike
-            Point to project onto nearest box face
+            Point to project onto nearest box face. Expected to be shape (3,)
 
             jitter: nonnegative float
             Flag to move projected point 1% into the box. Negative values to move

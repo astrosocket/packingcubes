@@ -434,13 +434,15 @@ def test_project_point_on_box_invalid_point_nan(
 @example(bbox.make_bounding_box([0, 0, 0, 1, 1, 1]), np.array([np.inf, 0, 0]), 1)
 @given(
     ct.valid_bounding_boxes(),
-    ct.valid_positions(),
+    ct.valid_positions(max_particles=1),
     st.floats(min_value=0, allow_nan=False),
 )
 @settings(deadline=None)
 def test_project_point_on_box_valid(
     bounding_box: bbox.BoundingBox, xyz: ArrayLike, jitter: float
 ):
+    xyz = np.atleast_2d(xyz)[0]
+    assert len(xyz) == 3
     pxyz = bounding_box.project_point_on_box(xyz, 0)
     pxyz_w_jitter = bounding_box.project_point_on_box(xyz, jitter)
 
