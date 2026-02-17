@@ -5,7 +5,7 @@ from pathlib import Path
 
 import h5py  # type: ignore
 import numpy as np
-from numba import TypingError, boolean, float64, int64  # type: ignore
+from numba import TypingError, boolean, float64, int64, njit  # type: ignore
 from numba.experimental import jitclass
 from numba.extending import as_numba_type
 from numpy.typing import NDArray
@@ -94,6 +94,15 @@ try:
     dc_type = as_numba_type(DataContainer)
 except TypingError:
     dc_type = type(DataContainer)
+
+
+@njit
+def subview(data: DataContainer, start_index: int, end_index: int) -> DataContainer:
+    return DataContainer(
+        data._positions[start_index:end_index],
+        data._index[start_index:end_index],
+        data._box,
+    )
 
 
 class Dataset:
