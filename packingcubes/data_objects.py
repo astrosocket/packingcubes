@@ -208,7 +208,7 @@ class HDF5Dataset(Dataset):
 
         self._preload()
         self._set_bounding_box()
-        self._setup_index()
+        self._load_positions()
 
     def _preload(self):
         raise NotImplementedError(
@@ -296,7 +296,7 @@ class GadgetishHDF5Dataset(HDF5Dataset):
                 file.create_dataset("Header", dtype=float)
 
         # set initial particle type and load data
-        self.particle_type = particle_types[0]
+        self._particle_type = particle_types[0]
 
     def _set_bounding_box(self):
         # Use BoxLen from header if provided
