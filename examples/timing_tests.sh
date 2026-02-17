@@ -37,3 +37,6 @@ python -m timeit -s "import timing_tests;ds = timing_tests.load_data($DECIMATION
 
 echo "Tree sizes:"
 python -c "import timing_tests;timing_tests.tree_sizes($DECIMATION_FACTOR)"
+
+echo "Cubing"
+python -m timeit -s "import timing_tests;setup = timing_tests.cubing_setup();timing_tests.cubing(setup);" "timing_tests.cubing(setup)"

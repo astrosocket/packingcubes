@@ -8,6 +8,7 @@ from scipy.spatial import KDTree
 from yt.units import Msun, kiloparsec
 
 import packingcubes.bounding_box as bbox
+import packingcubes.cubes as cubes
 import packingcubes.data_objects as data_objects
 import packingcubes.octree as octree
 import packingcubes.packed_tree as optree
@@ -32,7 +33,10 @@ def load_data(decimation_factor=10):
         with contextlib.suppress(data_objects.DatasetError):
             ds.particle_type = particle_type
     ds._positions = ds._positions[:: int(decimation_factor), :]
-    ds._setup_index()
+    try:
+        del ds._index
+    finally:
+        ds._setup_index()
     min_bounds = np.min(ds.positions, axis=0)
     max_bounds = np.max(ds.positions, axis=0)
     ds._box = bbox.make_bounding_box(np.hstack((min_bounds, max_bounds - min_bounds)))
@@ -185,3 +189,21 @@ def tree_sizes(decimation_factor=10):
                 tree.__getstate__ = partial(remove_problem_classes_from_state, tree)
         b = pickle.dumps(tree)
         print(f"{name}: {len(b)}")  # noqa
+
+
+def cubing_setup():
+    dataset = load_data(1)
+    args = cubes._process_args(["-t0", "--", str(dataset.filepath)])
+    box = cubes._process_box(dataset=dataset, args=args)
+    return (dataset, args, box)
+
+
+def cubing(setup):
+    dataset, args, box = setup
+    cubes.make_cubes(
+        dataset=dataset,
+        cubes_per_side=args.n,
+        cube_box=box,
+        particle_threshold=args.particle_threshold,
+        particle_types=args.particle_types,
+    )
