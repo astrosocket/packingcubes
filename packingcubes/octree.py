@@ -1265,21 +1265,23 @@ class PythonOctree(Octree):
 @njit
 def unpack_node_metadata(
     metadata: int,
-) -> tuple[int, int, int, int]:
+) -> tuple[np.uint8, np.uint8, np.uint8, np.uint8]:
     """
     Unpack a node metadata field into child_flag, my_index, level, and empty
     """
     return (
-        metadata >> 24,
-        (metadata >> 16) & 255,
-        (metadata >> 8) & 255,
-        metadata & 255,
+        np.uint8(metadata >> 24),
+        np.uint8((metadata >> 16) & 255),
+        np.uint8((metadata >> 8) & 255),
+        np.uint8(metadata & 255),
     )
 
 
 @njit
-def pack_node_metadata(child_flag: int, my_index: int, level: int, empty: int) -> int:
+def pack_node_metadata(
+    child_flag: int, my_index: int, level: int, empty: int
+) -> np.uint32:
     """
     Pack child_flag, my_index, level, and empty ints into a metadata int
     """
-    return (child_flag << 24) + (my_index << 16) + (level << 8) + empty
+    return np.uint32((child_flag << 24) + (my_index << 16) + (level << 8) + empty)

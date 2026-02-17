@@ -251,7 +251,7 @@ def _update_node_state(node: CurrentNode, child_index: int, old_my_index: int):
                 f"Child index ({child_index}) does not "
                 + f"match expected ({node.my_index})"
             )
-        node.tag.append(child_index)
+        node.tag.append(np.uint8(child_index))
         # need to shrink box _before_ moving
         node.box.box[3] /= 2
         node.box.box[4] /= 2
@@ -439,7 +439,7 @@ def _construct_tree(
         data=data,
         tree=tree,
         node=node,
-        parent_index=0,
+        parent_index=np.uint32(0),
         max_depth=max_depth,
         particle_threshold=particle_threshold,
     )
@@ -450,7 +450,7 @@ def _construct_tree(
 @njit
 def _construct_node_recursive(
     data: DataContainer,
-    tree: list[int],
+    tree: list[np.uint32],
     node: CurrentNode,
     parent_index: int,
     max_depth: int,
@@ -468,14 +468,14 @@ def _construct_node_recursive(
     # but we don't know the skip_length, child_flag, or parent_offset field
     # values for internal nodes yet. Put placeholders for now, they'll be
     # updated later
-    tree.append(5)
-    tree.append(node_start)
-    tree.append(node_end)
+    tree.append(np.uint32(5))
+    tree.append(np.uint32(node_start))
+    tree.append(np.uint32(node_end))
     tree.append(octree.pack_node_metadata(0, my_index, level, empty))
 
     # base case: fewer than particle threshold or reached depth limit
     if num_particles <= particle_threshold or node.level >= max_depth:
-        tree.append(index - parent_index)
+        tree.append(np.uint32(index - parent_index))
         # print(_convert_list_to_tag_str(node.tag), index, parent_index)
         _move_to_parent(tree, node)
         return index + 5
@@ -514,8 +514,8 @@ def _construct_node_recursive(
             data, tree, node, index, max_depth, particle_threshold
         )
 
-    tree[index] = child_index + 1 - index
-    tree.append(index - parent_index)
+    tree[index] = np.uint32(child_index + 1 - index)
+    tree.append(np.uint32(index - parent_index))
     _move_to_parent(tree, node)
 
     return child_index + 1
