@@ -40,6 +40,16 @@ logging.captureWarnings(capture=True)
     ]
 )
 class PackedNodeNumba:
+    """
+    Private representation of a node in a packed tree
+
+    This class is what should be emitted by PackedTreeNumba methods that return
+    nodes, rather than CurrentNode instances.
+
+    Note that this only represents the node at time of creation. Changes do
+    not propagate in either direction.
+    """
+
     def __init__(
         self,
         node_start: int,
@@ -75,7 +85,17 @@ class PackedNodeNumba:
         return node
 
 
+# Effectively, this class is just a python wrapper for a PackedNodeNumba
 class PackedNode(octree.OctreeNode):
+    """
+    Public representation of a node in the packed tree
+
+    Intended to be the equivalent of PythonOctreeNode for packed trees,
+    primarily for typing checks. Note that this only represents the node
+    at time of creation. Changes do not propagate in either direction.
+
+    """
+
     _node: PackedNodeNumba
 
     def __init__(self, node: PackedNodeNumba):
@@ -125,6 +145,7 @@ class PackedNode(octree.OctreeNode):
         return self._node.tag
 
     def copy(self) -> PackedNode:
+        """Return a deep copy of this node"""
         return PackedNode(self._node.copy())
 
 
@@ -144,6 +165,7 @@ def _convert_list_to_tag_str(tag: list[int]) -> str:
 
 @njit
 def _create_from_current_node(node: CurrentNode) -> PackedNodeNumba:
+    """Copy a CurrentNode instance into a PackedNodeNumba"""
     packed = PackedNodeNumba(
         int(node.node_start),
         int(node.node_end),
@@ -227,6 +249,13 @@ except TypingError:
 
 @njit
 def _update_node_state(node: CurrentNode, child_index: int, old_my_index: int):
+    """
+    Update the internal state of this node depending on tree taversal direction
+
+    This has been separated out of _update_current_node so that it can be used
+    by _construct_node_recursive, since these parts are not directly encoded in
+    the packed tree
+    """
     # Since some information, like the box and tag, are not stored in the
     # tree, we need to update the node's state. This is dependent on which
     # direction we're traveling: up the tree requires shortening the tag and
@@ -281,16 +310,25 @@ def get_children(node: CurrentNode) -> list[int]:
 
 @njit
 def is_leaf(node: CurrentNode) -> bool:
+    """
+    Return True if node is a leaf node
+    """
     return not bool(node.child_flag)
 
 
 @njit
 def is_root(node: CurrentNode) -> bool:
+    """
+    Return True if node is the root node
+    """
     return not node.index
 
 
 @njit
 def _my_pack_bits(bool_array: NDArray) -> int:
+    """
+    Private numba-compatible implementation of numpy's packbits
+    """
     if bool_array.shape != (8,):
         raise ValueError("Only (8,) arrays are supported.")
     out = 0
@@ -423,6 +461,30 @@ def _construct_tree(
     box: bbox.BoundingBox | None = None,
     particle_threshold: int = octree._DEFAULT_PARTICLE_THRESHOLD,
 ) -> NDArray:
+    """
+    Construct a packed tree, generating a node at a time recursively
+
+    Functions as the initial entry point into _construct_node_recursive.
+
+    Tip: if you know that all the particles are in a subregion of the data's
+    bounding box, specifying a smaller box can significantly speed up tree
+    construction and especially search.
+
+    Args:
+        data: DataContainer
+        The backing data of this tree
+
+        box: BoundingBox | None, optional
+        Bounding box of the tree. Defaults to the data's bounding box
+
+        particle_threshold: int, optional
+        The maximum number of particles a leaf node can hold before splitting
+        Defaults to octree._DEFAULT_PARTICLE_THRESHOLD
+
+    Returns:
+        tree: NDArray[uint32]
+        Array of uint32s representing the packed tree.
+    """
     # TODO: Ideally this would be kwargs-only, but the mix of kwargs and
     # default arguments is unsupported still per
     # https://github.com/numba/numba/issues/9251
@@ -471,6 +533,37 @@ def _construct_node_recursive(
     max_depth: int,
     particle_threshold: int = octree._DEFAULT_PARTICLE_THRESHOLD,
 ) -> int:
+    """
+    Construct a packed tree, generating a node at a time recursively
+
+    Args:
+        data: DataContainer
+        The backing data of this tree
+
+        tree: list[uint32]
+        List of uint32s representing the in-progress packed tree. Initial
+        call should pass an empty list.
+
+        node: CurrentNode
+        Pointer to the node this invocation is constructing. Initial call
+        should pass a node corresponding to the root
+
+        parent_index: int
+        Index of the current node's parent in the in-progress tree. Initial
+        call should pass 0
+
+        max_depth: int
+        The maximum depth supported by the bounding box of the data before
+        floating point errors will occur. A node with level >=max_depth is
+        required/guaranteed to be a leaf node
+
+        particle_threshold: int, optional
+        The maximum number of particles a leaf node can hold before splitting
+        Defaults to octree._DEFAULT_PARTICLE_THRESHOLD
+
+    Returns:
+        The index of the next node in the tree at the same level or higher
+    """
     # we need to cache various properties for when we recurse
     index = node.index
     node_start = node.node_start
@@ -579,6 +672,9 @@ class PackedTreeNumba:
         self.particle_threshold = particle_threshold
 
     def _make_root_node(self) -> CurrentNode:
+        """
+        Return a CurrentNode pointer at the tree root
+        """
         # child flag located at field 3
         child_flag, my_index, level, empty = octree.unpack_node_metadata(self.tree[3])
         # return CurrentNode(
@@ -640,6 +736,9 @@ class PackedTreeNumba:
     # Note this is not well documented - I think it's the same reasoning as
     # why we can't return a range object, but it's not specified as such
     def _get_nodes_numba(self) -> list[PackedNodeNumba]:
+        """
+        Return a list containing a "copy" of all nodes in the tree
+        """
         node = self._make_root_node()
         nodes = List([_create_from_current_node(node)])
 
@@ -668,9 +767,18 @@ class PackedTreeNumba:
     # return map(_create_from_current_node, filter(is_leaf, self._iterate_nodes()))
 
     def get_leaves(self) -> list[PackedNodeNumba]:
+        """
+        Return the list of PackedNodeNumba leaves
+
+        Note that the node objects are generated on the fly and are not backed
+        by the tree; any modifications will not propagate.
+        """
         return [n for n in self._get_nodes_numba() if n.is_leaf]
 
     def _get_current_node(self, tag: str) -> CurrentNode | None:
+        """
+        Get the CurrentNode object represented by tag or None if non-existent
+        """
         with objmode(int_tag=tagtype):
             if tag[0] == "0":
                 tag = tag[1:]
@@ -687,6 +795,12 @@ class PackedTreeNumba:
         return node
 
     def get_node(self, tag: str) -> PackedNodeNumba | None:
+        """
+        Get a PackedNodeNumba object represented by tag or None if non-existent
+
+        Note that this object is effectively a copy; any modifications will not
+        propagate.
+        """
         node = self._get_current_node(tag)
         return _create_from_current_node(node)
 
@@ -796,12 +910,9 @@ class PackedTreeNumba:
             bounding_box: BoundingBox
             Shape bounding box
 
-            containment_test: callable, optional
-            Function to test if point(s) are inside shape. Should have the
-            signature
-            containment_test(point: NDArray) -> NDArray[bool]
-            Defaults to testing if point(s) are inside the provided bounding
-            box
+            containment_obj: BoundingVolume
+            Object with bounding box specified by bounding_box. Provides
+            a more exact containment test (e.g. contained within a sphere).
 
         Returns:
             entirely_in: Iterable[OctreeNode]
@@ -922,12 +1033,9 @@ class PackedTreeNumba:
             bounding_box: BoundingBox
             Shape bounding box
 
-            containment_test: Callable[NDArray], optional
-            Function to test if point(s) are inside shape. Should have the
-            (vectorized) signature
-            containment_test(point: NDArray) -> NDArray[bool]
-            Defaults to testing if point(s) are inside the provided bounding
-            box
+            containment_obj: BoundingVolume
+            Object with bounding box specified by bounding_box. Provides
+            a more exact containment test (e.g. contained within a sphere).
 
         Returns:
             indices: list[tuple[int]]
@@ -991,6 +1099,17 @@ class PackedTreeNumba:
         self,
         box: bbox.BoxLike,
     ) -> list[tuple[int, int]]:
+        """
+        Return all particles contained within the box
+
+        Args:
+            box: BoxLike
+            Box to check
+
+        Returns:
+            indices: list[tuple[int, int]]
+            List of particle start-stop indices contained within sphere
+        """
         with objmode(numba_box=bbox.bbn_type):
             numba_box = bbox.make_bounding_box(box)
         return self._get_particle_indices_in_shape(numba_box.copy(), numba_box)
@@ -1000,6 +1119,20 @@ class PackedTreeNumba:
         center: NDArray,
         radius: float,
     ) -> list[tuple[int, int]]:
+        """
+        Return all particles contained within the sphere defined by center and radius
+
+        Args:
+            center: NDArray
+            Center point of the sphere
+
+            radius: float
+            Radius of the sphere
+
+        Returns:
+            indices: list[tuple[int, int]]
+            List of particle start-stop indices contained within sphere
+        """
         with objmode(sph=bbox.bs_type):
             sph = bbox.make_bounding_sphere(center=center, radius=radius)
 
@@ -1013,6 +1146,34 @@ class PackedTreeNumba:
         xyz: ArrayLike,
         check_neighbors: bool = True,  # noqa: FBT001, FBT002
     ) -> tuple[np.int_, float]:
+        """
+        Get nearest particle index (and distance) to point
+
+        Steps:
+          1. Find smallest node contaning point
+          2. Find closest particle in this node
+          3. Check if neighboring nodes have closer particles
+              1. Check if neighboring node is closer than closest particle
+              2. Compare particles in neighbor node to closest
+
+        Args:
+            xyz: ArrayLike
+            Coordinates of point to check
+
+            check_neighbors: bool, optional
+            Flag to check whether we should look at neighbors of the smallest
+            containing node. Default True
+
+        Returns:
+            closest_ind: int
+            Absolute index of closest particle
+
+            closest_dist: float
+            Distance to closest particle
+
+        Raises:
+            NotImplementedError
+        """
         raise NotImplementedError
 
 
