@@ -922,12 +922,10 @@ class PythonOctree(Octree):
             bounding_box: BoundingBox
             Shape bounding box
 
-            containment_test: callable, optional
-            Function to test if point(s) are inside shape. Should have the
-            signature
-            containment_test(point: ArrayLike) -> NDArray[bool]
-            Defaults to testing if point(s) are inside the provided bounding
-            box
+            containment_obj: BoundingVolume, optional
+            Object with bounding box specified by bounding_box. Set to provide
+            a more exact containment test (e.g. contained within a sphere).
+            Defaults to bounding_box
 
         Returns:
             entirely_in: List[OctreeNode]
