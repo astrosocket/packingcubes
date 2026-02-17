@@ -1,3 +1,22 @@
+# Packed Format Design Specification
+
+Version 1.0.0
+
+This file documents the format used to describe a PackedTree data structure.
+
+A packed tree is composed of two parts: an initial header containing tree
+metadata (e.g. tree checksum, bounding box, etc), and the actual tree structure
+in memory. 
+
+The basic unit of the packed format is the `field`, currently defined as a
+`uint32`. Thus, the entire packed tree can be considered an array of `uint32`,
+and internally is stored as a numpy array of such.
+
+
+# Tree Metadata
+
+
+
 # Tree Data Structure
 
 ## Internal Node:
@@ -8,7 +27,7 @@
 | `5+sum([c.skip_length for c in children])` |     |    | CN is present if `child_flag & (2**N)=1` | Which child is this (0 if root) | What level node is this. root is 0 |        |     |     |     |     |     | `skip_length + sum([c.skip_length for c in siblings if c < self])` |
 | field 0      | field 1     | field 2   | field 3      |          |       |        | *   | *   | *   | *   | *   | field 4        |
 
-
+For the present case, `child_flag` would be 227 ($=2^0 + 2^1 + 2^5 + 2^6 + 2^7$). If all 5 nodes were leaves, then `skip_length`=30.
 ## Leaf Node:
 Size = 5 fields = 20 bytes
 
