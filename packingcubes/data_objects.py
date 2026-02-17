@@ -138,6 +138,10 @@ class Dataset:
             self._setup_index()
         return self._index
 
+    def reorder(self, new_order):
+        self._positions = self._positions[new_order, :]
+        self._index = self._index[new_order]
+
     def _swap(self, first: int, second: int) -> None:
         temp = self._positions[first, :].copy()
         self._positions[first, :] = self._positions[second, :]
