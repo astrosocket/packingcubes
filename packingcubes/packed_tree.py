@@ -417,18 +417,33 @@ def _move_to_parent(tree: Sequence, node: CurrentNode):
     return pl
 
 
+@njit
 def _construct_tree(
-    data: DataContainer, particle_threshold: int = octree._DEFAULT_PARTICLE_THRESHOLD
+    data: DataContainer,
+    box: bbox.BoundingBox | None = None,
+    particle_threshold: int = octree._DEFAULT_PARTICLE_THRESHOLD,
 ) -> NDArray:
+    # TODO: Ideally this would be kwargs-only, but the mix of kwargs and
+    # default arguments is unsupported still per
+    # https://github.com/numba/numba/issues/9251
     node = CurrentNode(
-        node_start=0,
-        node_end=len(data) - 1,
-        index=0,
-        child_flag=0,
-        my_index=0,
-        level=1,
-        empty=0,
-        box=data.bounding_box,
+        # node_start=0,
+        # node_end=len(data) - 1,
+        # index=0,
+        # child_flag=0,
+        # my_index=0,
+        # level=1,
+        # empty=0,
+        # box=data.bounding_box if box is None else box,
+        data.bounding_box if box is None else box,
+        0,
+        0,
+        len(data) - 1,
+        None,
+        0,
+        0,
+        1,
+        0,
     )
 
     max_depth = node.box.max_depth()  # BoundingBox
@@ -444,7 +459,7 @@ def _construct_tree(
         particle_threshold=particle_threshold,
     )
 
-    return np.array(tree, dtype=np.uint32)
+    return np.array([b for b in tree], dtype=np.uint32)  # noqa: C416
 
 
 @njit
