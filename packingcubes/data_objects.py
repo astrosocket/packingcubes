@@ -243,6 +243,13 @@ class HDF5Dataset(Dataset):
         """
         return self._particle_types
 
+    @property
+    def particle_numbers(self):
+        """
+        Map of particle types to numbers in this dataset
+        """
+        return self._particle_numbers
+
     def _load_positions(self):
         """
         Load particle positions from file for the current particle type
@@ -297,6 +304,11 @@ class GadgetishHDF5Dataset(HDF5Dataset):
 
         # set initial particle type and load data
         self._particle_type = particle_types[0]
+        self._particle_numbers = self._header["NumPart_Total"]
+        self._particle_numbers = self._particle_numbers[self._particle_numbers > 0]
+        self._particle_numbers = dict(
+            zip(self._particle_types, self._particle_numbers, strict=True)
+        )
 
     def _set_bounding_box(self):
         # Use BoxLen from header if provided
