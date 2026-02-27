@@ -24,6 +24,7 @@ from packingcubes.data_objects import (
     Dataset,
     GadgetishHDF5Dataset,
     HDF5Dataset,
+    MultiParticleDataset,
     subview,
 )
 from packingcubes.octree import _DEFAULT_PARTICLE_THRESHOLD
@@ -326,7 +327,7 @@ def _make_trees(
 
 def make_cubes(
     *,
-    dataset: HDF5Dataset,
+    dataset: MultiParticleDataset,
     cubes_per_side: int = 3,
     cube_box: BoundingBox | None = None,
     particle_threshold: int = _DEFAULT_PARTICLE_THRESHOLD,
