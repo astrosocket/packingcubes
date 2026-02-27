@@ -5,6 +5,7 @@ import logging
 import sys
 from collections.abc import Collection
 
+import h5py  # type: ignore
 import numpy as np
 from numba import (  # type:ignore
     get_num_threads,
@@ -448,35 +449,46 @@ def _get_particle_indices_in_shape(
     return flattened_indices
 
 
-class Cubes:
-    dataset: HDF5Dataset
+class ParticleCubes:
+    """
+    The cubes for a single particle type
+    """
+
     cube_indices: NDArray
+    """ Array if cube indices into the dataset """
     cube_boxes: List[BoundingBox]
+    """ The bounding boxes for each cube """
     cube_trees: list[PackedTree]
+    """ The packed trees for each cube """
     _numba_trees: List[PackedTreeNumba]
+    """ The PackedTreeNumba for each cube """
 
     def __init__(
         self,
-        dataset: HDF5Dataset,
+        *,
         cube_indices: NDArray,
         cube_boxes: List[BoundingBox],
         cube_trees: list[NDArray] | list[PackedTree],
         **kwargs,
     ):
-        self.dataset = dataset
+        particle_threshold = getattr(
+            kwargs, "particle_threshold", _DEFAULT_PARTICLE_THRESHOLD
+        )
         self.cube_indices = cube_indices
         self.cube_boxes = cube_boxes
 
-        if isinstance(cube_trees[0], PackedTree):
-            self.cube_trees = []
-            for t in cube_trees:
-                if not isinstance(t, PackedTree):
-                    raise TypeError("Cannot mix PackedTrees and non-PackedTrees")
+        self.cube_trees = []
+        for t, b in zip(cube_trees, cube_boxes, strict=True):
+            if isinstance(t, PackedTree):
                 self.cube_trees.append(t)
-        else:
-            self.cube_trees = [
-                PackedTree(dataset=self.dataset, source=np.array(t)) for t in cube_trees
-            ]
+                continue
+            self.cube_trees.append(
+                PackedTree(
+                    bounding_box=b,
+                    source=np.array(t),
+                    particle_threshold=particle_threshold,
+                )
+            )
 
         self._numba_trees = List([t._tree for t in self.cube_trees])
 
@@ -509,6 +521,147 @@ class Cubes:
             shape_box=sph.bounding_box,
             shape=sph,
         )
+
+
+def has_cubes(dataset: MultiParticleDataset):
+    """Return true if the dataset contains a packingcubes structure"""
+    # TODO: This whole function probably needs to be refactored somewhere else
+    if dataset is None:
+        raise ValueError("Need a dataset to check!")
+    if isinstance(dataset, HDF5Dataset):
+        return "cubes" in dataset._top_level_groups
+    return False
+
+
+def save_cube(
+    dataset: Dataset,
+    pt: str,
+    cube_indices: NDArray,
+    cube_boxes: list[bbox.BoundingBox],
+    cube_trees: list[PackedTree],
+):
+    with h5py.File(dataset.filepath, "a") as file:
+        cubes = file.create_group(f"cubes/{pt}")
+        cubes["indices"] = cube_indices
+        cubes["number"] = len(cube_indices)
+        for i, (box, tree) in enumerate(zip(cube_boxes, cube_trees, strict=True)):
+            cubes[f"box_{i}"] = box.box
+            cubes[f"tree_{i}"] = tree.packed_form
+
+
+class Cubes:
+    cubes_dict: dict[str, ParticleCubes]
+    """ Mapping from particle type to ParticleCubes for this dataset """
+
+    def __init__(
+        self,
+        dataset: MultiParticleDataset,
+        cubes_dict: dict[str, dict] | None = None,
+        **kwargs,
+    ):
+        if has_cubes(dataset) and cubes_dict is None:
+            cubes_dict = Cubes._load(dataset)
+        self._make_cubes(dataset=dataset, cubes_dict=cubes_dict, **kwargs)
+
+    @classmethod
+    def _load(cls, dataset: MultiParticleDataset) -> dict[str, dict]:
+        raise NotImplementedError
+
+    def _make_cubes(
+        self,
+        *,
+        dataset: MultiParticleDataset,
+        cubes_dict: dict[str, dict] | None,
+        cube_indices: NDArray | None = None,
+        cube_boxes: List[BoundingBox] | None = None,
+        cube_trees: list[NDArray] | list[PackedTree] | None = None,
+        **kwargs,
+    ):
+        if cubes_dict is None:
+            cubes_dict = make_cubes(dataset=dataset, **kwargs)
+        self.cubes_dict = {}
+        for pt, cubes in cubes_dict.items():
+            cube_indices = cubes["cube_indices"]
+            cube_boxes = cubes["cube_boxes"]
+            if not hasattr(cubes, "cube_trees"):
+                particle_threshold = getattr(
+                    kwargs, "particle_threshold", _DEFAULT_PARTICLE_THRESHOLD
+                )
+                cube_trees = _make_trees(
+                    data=dataset.data_container,
+                    cube_indices=cube_indices,
+                    cube_boxes=cube_boxes,
+                    particle_threshold=particle_threshold,
+                )
+            else:
+                cube_trees = cubes["cube_trees"]
+            self.cubes_dict[pt] = ParticleCubes(
+                cube_indices=cube_indices,
+                cube_boxes=cube_boxes,
+                cube_trees=cube_trees,
+                **kwargs,
+            )
+
+    def get_particle_indices_in_box(
+        self,
+        particle_types: str | Collection[str],
+        box: bbox.BoxLike,
+    ) -> dict[str, list[tuple[int, int]]]:
+        """
+        Return all particles contained within the box
+
+        Args:
+            particle_types: str | Collection[str]
+            Particle type(s) to include
+
+            box: BoxLike
+            Box to check
+
+        Returns:
+            indices: dict[str, list[tuple[int, int]][
+            Dictionary of lists of particle start-stop indices contained
+            within box, organized by particle type
+        """
+        if isinstance(particle_types, str):
+            particle_types = [particle_types]
+        inds = {}
+        for pt in particle_types:
+            inds[pt] = self.cubes_dict[pt].get_particle_indices_in_box(box)
+        return inds
+
+    def get_particle_indices_in_sphere(
+        self,
+        particle_types: str | Collection[str],
+        center: NDArray,
+        radius: float,
+    ) -> dict[str, list[tuple[int, int]]]:
+        """
+        Return all particles contained within the sphere defined by center and radius
+
+        Args:
+            particle_types: str | Collection[str]
+            Particle type(s) to include
+
+            center: NDArray
+            Center point of the sphere
+
+            radius: float
+            Radius of the sphere
+
+        Returns:
+            indices: dict[str, list[tuple[int, int]][
+            Dictionary of lists of particle start-stop indices contained
+            within sphere, organized by particle type
+        """
+
+        if isinstance(particle_types, str):
+            particle_types = [particle_types]
+        inds = {}
+        for pt in particle_types:
+            inds[pt] = self.cubes_dict[pt].get_particle_indices_in_sphere(
+                center, radius
+            )
+        return inds
 
 
 if __name__ == "__main__":
