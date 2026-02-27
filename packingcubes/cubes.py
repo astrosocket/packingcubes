@@ -326,15 +326,15 @@ def _make_trees(
 def make_cubes(
     *,
     dataset: HDF5Dataset,
-    cubes_per_side: int,
-    cube_box: BoundingBox,
-    particle_threshold: int,
-    particle_types: Collection | None = None,
+    cubes_per_side: int = 3,
+    cube_box: BoundingBox | None = None,
+    particle_threshold: int = _DEFAULT_PARTICLE_THRESHOLD,
+    particle_types: Collection[str] | None = None,
 ):
     cubes = {}
 
     if particle_types is None:
-        requested_types = dataset.particle_types
+        requested_types = set(dataset.particle_types)
         particle_numbers = np.array(list(dataset.particle_numbers.values()))
         LOGGER.info(f"Found particle types: {dataset.particle_types}")
     else:
@@ -350,6 +350,8 @@ def make_cubes(
         particle_numbers = np.array(
             [dataset.particle_numbers[i] for i in requested_types]
         )
+
+    cube_box = dataset.bounding_box if cube_box is None else cube_box
 
     num_cubes = cubes_per_side**3 + 1
     if np.any(particle_numbers / num_cubes > 2**31):
@@ -385,10 +387,20 @@ def make_cubes(
         LOGGER.info("Making trees")
         trees = _make_trees(data, cube_indices, cube_boxes, particle_threshold)
 
+        LOGGER.info("Converting to PackedTrees")
+        ptrees = [
+            PackedTree(
+                source=t,
+                particle_threshold=particle_threshold,
+                bounding_box=b,
+            )
+            for t, b in zip(trees, cube_boxes, strict=True)
+        ]
+
         cubes[pt] = {
             "cube_indices": cube_indices,
             "cube_boxes": cube_boxes,
-            "cube_trees": trees,
+            "cube_trees": ptrees,
         }
         LOGGER.info(f"Done with {pt}")
 
