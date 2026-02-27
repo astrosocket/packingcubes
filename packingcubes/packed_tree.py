@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import datetime
 import logging
 from array import array
 from collections.abc import Buffer, Iterable, Iterator, Sequence
+from typing import NamedTuple
 
 import numpy as np
 from numba import (  # type: ignore
@@ -19,6 +21,7 @@ from numba.extending import as_numba_type
 from numba.typed import List
 from numba.types import ListType, string
 from numpy.typing import ArrayLike, NDArray
+from xxhash import xxh3_64_intdigest
 
 import packingcubes.bounding_box as bbox
 import packingcubes.octree as octree
@@ -1241,7 +1244,191 @@ def _print_packed(packed: memoryview | array, *, expected_node_start=0):
     print(f"remaining: {packed[position:]}")  # noqa
 
 
-# TODO: add tree metadata when saving/loading
+class TreeMeta(NamedTuple):
+    """The metadata for a PackedTree"""
+
+    creation_timestamp: np.float64
+    """ Creation time as a UTC timestamp"""
+    checksum: int
+    """ Actual checksum """
+    bounding_box: bbox.BoundingBox
+    """ Bounding box used when creating the tree """
+    particle_threshold: int = octree._DEFAULT_PARTICLE_THRESHOLD
+    """ Particle threshold used when creating the tree """
+    meta_size: int = 144
+    """ Header size in bytes """
+    field_type: np.dtype = np.dtype(np.uint32)
+    """ Field type (e.g. uint32)"""
+    packed_spec_version: str = "1.0.0"
+    """ Current version of the packed metadata standard in semver format"""
+    checksum_method: str = "xxh3_64_intdigest"
+    """ Method for computing the checksum """
+
+
+class TreeMetaError(Exception):
+    pass
+
+
+def create_metadata(
+    box: bbox.BoundingBox,
+    packed: NDArray[np.uint32],
+    particle_threshold: int = octree._DEFAULT_PARTICLE_THRESHOLD,
+):
+    """
+    Create a tree metadata object from the provided info
+
+    Args:
+        box: BoundingBox
+        The bounding box used to create the tree
+
+        packed: NDArray[uint32]
+        The packed tree data
+
+        particle_threshold: int, optional
+        The particle threshold to split leaves. Defaults to
+        optree._DEFAULT_PARTICLE_THRESHOLD
+
+    Returns:
+        A TreeMeta object containing the tree's metadata
+    """
+    creation = np.float64(datetime.datetime.now(tz=datetime.UTC).timestamp())
+    checksum = xxh3_64_intdigest(bytes(packed))
+    return TreeMeta(
+        field_type=packed.dtype,
+        creation_timestamp=creation,
+        checksum=checksum,
+        bounding_box=box,
+        particle_threshold=particle_threshold,
+    )
+
+
+def pack_metadata(
+    metadata: TreeMeta, packed_tree: NDArray[np.uint32]
+) -> NDArray[np.uint32]:
+    """
+    Pack tree metadata
+
+    Args:
+        metadata: TreeMeta
+        The metadata of the tree
+
+        packed_tree: NDArray
+        The packed tree data
+
+    Returns:
+        Packed metadata
+    """
+    packed_meta: NDArray = np.zeros(
+        (int(metadata.meta_size / np.dtype(metadata.field_type).itemsize),),
+        dtype=metadata.field_type,
+    )
+    packed_meta[0] = metadata.meta_size
+    version = np.array(
+        [np.uint8(v) for v in metadata.packed_spec_version.split(".")], dtype=np.uint32
+    )
+    packed_meta[1] = np.uint32(
+        (np.uint32(np.int8(4)) << 24)
+        | (version[0] << 16)
+        | (version[1] << 8)
+        | (version[2])
+    )
+
+    def to_field(
+        x: np.float32 | np.float64 | np.int64 | np.uint64 | NDArray,
+    ) -> NDArray:
+        return np.frombuffer(x.tobytes(), dtype=metadata.field_type.type)
+
+    ft = metadata.field_type.type
+    packed_meta[2:4] = to_field(
+        np.float64(datetime.datetime.now(tz=datetime.UTC).timestamp())
+    )
+    packed_meta[4:21] = to_field(np.array(metadata.checksum_method))
+    packed_meta[21:23] = to_field(np.uint64(xxh3_64_intdigest(packed_tree)))
+    packed_meta[23:35] = to_field(metadata.bounding_box.box)
+    packed_meta[35] = np.uint32(metadata.particle_threshold)
+    return packed_meta
+
+
+def extract_metadata(source: Buffer) -> tuple[TreeMeta, NDArray[np.uint32]]:
+    """
+    Extract the metadata and packed tree information from a buffer
+
+    Args:
+        source: Buffer
+        A Buffer containing the packed data
+
+    Returns:
+        metadata
+        The tree's metadata
+
+        packed_tree
+        The actual packed tree data as a numpy array
+
+    Raises:
+        ValueError
+        If the metadata does not match an expected format
+
+        NotImplementedError
+        If an unimplemented data format is specified (currently only uint32)
+
+        OctreeError
+        If the metadata checksum does not match the computed checksum
+    """
+    combined = np.frombuffer(source, dtype=np.uint32)
+    meta_size = combined[0]
+    if meta_size != 144:
+        # need to check endianness
+        dts = np.dtype(np.uint32).newbyteorder("S")
+        meta_size = np.asarray(meta_size, dtype=dts)
+        if meta_size != 144:
+            raise TreeMetaError(
+                "Unknown metadata format! Expected first "
+                f"field to be equal to 144, got {meta_size}"
+            )
+        combined = np.asarray(combined, dtype=dts)
+    # extract field type and packed specification version
+    ft_version = combined[1]
+    ft = np.int8(ft_version >> 24)
+    if ft != 4:
+        raise NotImplementedError(
+            f"Only uint32 (ft=4) is currently available (provided {ft})"
+        )
+    version_list = [0xFF & (ft_version >> i) for i in range(16, -1, -8)]
+    version = f"{version_list[0]}.{version_list[1]}.{version_list[2]}"
+
+    def from_field(x: NDArray, dt: np.dtype) -> NDArray:
+        return np.frombuffer(x.tobytes(), dtype=dt)
+
+    creation_time = np.float64(from_field(combined[2:4], np.dtype(np.float64)))
+    checksum_method = str(from_field(combined[4:21], np.dtype("U17"))[0])
+    if checksum_method != "xxh3_64_intdigest":
+        LOGGER.warning(
+            f"Unknown checksum method: {checksum_method}. Expected xxh3_64_intdigest"
+        )
+    checksum = int(from_field(combined[21:23], np.dtype(np.uint64)))
+    box_array = from_field(combined[23:35], np.dtype(np.float64))
+    box = bbox.make_bounding_box(box_array)
+    particle_threshold = combined[35]
+    packed_tree = combined[36:]
+    computed_checksum = xxh3_64_intdigest(packed_tree)
+    if checksum != computed_checksum:
+        raise octree.OctreeError(
+            f"Packed tree checksum {computed_checksum}"
+            f" does not match header ({checksum})!"
+        )
+    metadata = TreeMeta(
+        meta_size=meta_size,
+        field_type=np.dtype(np.uint32),
+        creation_timestamp=creation_time,
+        checksum=checksum,
+        bounding_box=box,
+        particle_threshold=particle_threshold,
+        checksum_method=checksum_method,
+        packed_spec_version=version,
+    )
+    return metadata, packed_tree
+
+
 class PackedTree(octree.Octree):
     """
     Public packed octree interface
@@ -1263,6 +1450,10 @@ class PackedTree(octree.Octree):
     The actual in-memory representation of the tree as a numba-fied class
     object
     """
+    metadata: TreeMeta
+    """
+    The metadata for this packed tree
+    """
     particle_threshold: int
     """
     The maximum leaf size before splitting, used in tree construction
@@ -1270,51 +1461,104 @@ class PackedTree(octree.Octree):
 
     def __init__(
         self,
-        dataset: Dataset,
         *,
+        dataset: NDArray | Dataset | None = None,
         source: Buffer | None = None,
         particle_threshold: int | None = None,
+        bounding_box: bbox.BoxLike | None = None,
     ):
         """
+        Note: must provide either dataset or source. If provided source does
+        not include metadata, must additionally provide either dataset or
+        bounding_box.
+
         Args:
             dataset: Dataset
             A Dataset containing particle data
 
-            source: Buffer | None
+            source: Buffer | None, optional
             Pre-computed packed buffer containing this tree. Leave out to
             compute the tree from scratch.
 
             particle_threshold: int, optional
             Number of particles allowed in a leaf before splitting. Defaults to
             octree._DEFAULT_PARTICLE_THRESHOLD
+
+            bounding_box: BoxLike, optional
+            Bounding box of the tree. Required if metadata needs to be created
+            and dataset is not provided.
+            Will override the dataset bounding box.
         """
         if particle_threshold is None:
             particle_threshold = octree._DEFAULT_PARTICLE_THRESHOLD
 
         self.particle_threshold = particle_threshold
 
-        data = dataset.data_container
-        bounding_box = data.bounding_box
-
         # from some empirical testing. doesn't need to be exact anyway
         # estimated_size_in_bytes = (
-        #     len(self.data) / 10 ** (np.floor(np.log10(self.particle_threshold))) * 1.2
+        #     len(data) / 10 ** (np.floor(np.log10(self.particle_threshold))) * 1.2
         # ).astype(int) * 20
         # self.tree = np.array((estimated_size_in_bytes,), dtype=np.bytes_)
 
-        if source is None:
-            packed = _construct_tree(data, particle_threshold=particle_threshold)
+        metadata = None
+        if source is not None:
+            try:
+                metadata, packed = extract_metadata(source)
+            except TreeMetaError as ve:
+                packed = np.frombuffer(source, dtype=np.uint32)
+        elif dataset is not None:
+            data = dataset.data_container
+            bounding_box = (
+                data.bounding_box
+                if bounding_box is None
+                else bbox.make_bounding_box(bounding_box)
+            )
+            packed = _construct_tree(
+                data, box=bounding_box, particle_threshold=particle_threshold
+            )
         else:
-            packed = np.array(source, dtype=np.uint32)
+            raise ValueError("Must provide one of dataset or source")
 
-        self._tree = PackedTreeNumba(bounding_box, packed, particle_threshold)
+        if metadata is None:
+            if bounding_box is not None:
+                box = bbox.make_bounding_box(bounding_box)
+            elif dataset is not None:
+                box = dataset.bounding_box
+            else:
+                raise ValueError("Metadata creation requires dataset or bounding_box")
+            metadata = create_metadata(
+                box=box,
+                packed=packed,
+                particle_threshold=particle_threshold,
+            )
+        self.metadata = metadata
+        self._tree = PackedTreeNumba(
+            self.metadata.bounding_box, packed, self.metadata.particle_threshold
+        )
 
     @property
-    def packed(self) -> memoryview:
+    def packed_tree(self) -> memoryview:
         """
         Return a memoryview of the tree's backing byte array
         """
         return memoryview(self._tree.tree)
+
+    @property
+    def packed_meta(self) -> memoryview:
+        """
+        Return a memoryview of the tree's packed metadata
+        """
+        packed_meta = pack_metadata(self.metadata, self._tree.tree)
+        return memoryview(packed_meta)
+
+    @property
+    def packed_form(self) -> NDArray[np.uint32]:
+        """
+        Return this tree in full packed form
+        """
+        packed_meta = np.frombuffer(self.packed_meta, dtype=np.uint32)
+        packed_tree = np.frombuffer(self.packed_tree, dtype=np.uint32)
+        return np.hstack((packed_meta, packed_tree))
 
     def __iter__(self) -> Iterator[octree.OctreeNode]:
         """
