@@ -317,14 +317,14 @@ n = [
 creation = {
     "data resetting": [2.4e-3, 0.0407, 0.325, 5.05, 25.8],
     "python": [0.180, 0.866, 11, 101, 1100],
-    "packed": [0.104, 0.731, 9.61, 87, 941],
+    "packed": [0.104, 0.731, 9.61, 17.5, 941],
     "cubes": [np.nan, np.nan, np.nan, np.nan, np.nan],
-    "kdtree": [0.0402, 0.393, 4.79, 51.4, 427],
+    "kdtree": [0.0402, 0.393, 4.79, 38, 427],
 }
 
 search = {
     "python": [2.5, 8.7, 61, 208, 850],
-    "packed": [1.65, 3.23, 10, 38.7, 184],
+    "packed": [1.65, 3.23, 10, 17.5, 184],
     "cubes": [np.nan, np.nan, np.nan, np.nan, np.nan],
     "kdtree": [0.643, 4.23, 66.6, 463, 5060],
 }
@@ -341,7 +341,7 @@ extra = {
         "Run on nvdimm, snapshot 6",
         "Run on nvdimm, snapshot 6",
         "Run on nvdimm, snapshot 6",
-        "Run on nvdimm, snapshot 6",
+        "Run on nvdimm(DR,PyOct creation & search)/icx otherwise, snapshot 6",
         "Run on nvdimm(creation)/icx(search/size) with snapshot 6",
     ]
 }
