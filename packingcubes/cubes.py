@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import logging
 import sys
 from collections.abc import Collection
+from typing import cast
 
 import h5py  # type: ignore
 import numpy as np
@@ -339,7 +341,7 @@ def make_cubes(
     cube_box: BoundingBox | None = None,
     particle_threshold: int = _DEFAULT_PARTICLE_THRESHOLD,
     particle_types: Collection[str] | None = None,
-):
+) -> dict[str, dict[str, NDArray | list[bbox.BoundingBox] | list[PackedTree]]]:
     cubes = {}
 
     if particle_types is None:
@@ -574,40 +576,65 @@ def save_cube(
             cubes[f"tree_{i}"] = tree.packed_form
 
 
+def load_cubes(
+    dataset: MultiParticleDataset,
+) -> dict[str, dict]:
+    cubes_dict = {}
+    if not isinstance(dataset, HDF5Dataset):
+        raise NotImplementedError("We can only load Cubes from HDF5 datasets")
+    if not has_cubes(dataset):
+        raise ValueError("No cubes in provided dataset")
+    with h5py.File(
+        dataset.filepath,
+    ) as file:
+        cubes_group = file["cubes"]
+        pts = list(cubes_group.keys())
+        for pt in pts:
+            cubes = cubes_group[pt]
+            cube_indices = cubes["indices"]
+            number = cubes["number"]
+            cube_boxes = []
+            cube_trees = []
+            for i in range(number):
+                cube_boxes.append(bbox.make_bounding_box(cubes[f"box_{i}"]))
+                cube_trees.append(PackedTree(source=cubes[f"tree_{i}"]))
+            cubes_dict[pt] = {
+                "cube_indices": cube_indices,
+                "cube_boxes": cube_boxes,
+                "cube_trees": cube_trees,
+            }
+    return cubes_dict
+
+
 class Cubes:
     cubes_dict: dict[str, ParticleCubes]
     """ Mapping from particle type to ParticleCubes for this dataset """
 
     def __init__(
         self,
+        *,
         dataset: MultiParticleDataset,
         cubes_dict: dict[str, dict] | None = None,
         **kwargs,
     ):
-        if has_cubes(dataset) and cubes_dict is None:
-            cubes_dict = Cubes._load(dataset)
+        if cubes_dict is None:
+            with contextlib.suppress(NotImplementedError, ValueError):
+                cubes_dict = load_cubes(dataset)
         self._make_cubes(dataset=dataset, cubes_dict=cubes_dict, **kwargs)
-
-    @classmethod
-    def _load(cls, dataset: MultiParticleDataset) -> dict[str, dict]:
-        raise NotImplementedError
 
     def _make_cubes(
         self,
         *,
         dataset: MultiParticleDataset,
         cubes_dict: dict[str, dict] | None,
-        cube_indices: NDArray | None = None,
-        cube_boxes: List[BoundingBox] | None = None,
-        cube_trees: list[NDArray] | list[PackedTree] | None = None,
         **kwargs,
     ):
         if cubes_dict is None:
             cubes_dict = make_cubes(dataset=dataset, **kwargs)
         self.cubes_dict = {}
         for pt, cubes in cubes_dict.items():
-            cube_indices = cubes["cube_indices"]
-            cube_boxes = cubes["cube_boxes"]
+            cube_indices = cast(NDArray, cubes["cube_indices"])
+            cube_boxes = cast(list[bbox.BoundingBox], cubes["cube_boxes"])
             if not hasattr(cubes, "cube_trees"):
                 particle_threshold = getattr(
                     kwargs, "particle_threshold", _DEFAULT_PARTICLE_THRESHOLD
@@ -619,7 +646,10 @@ class Cubes:
                     particle_threshold=particle_threshold,
                 )
             else:
-                cube_trees = cubes["cube_trees"]
+                cube_trees = cast(
+                    list[PackedTree] | list[NDArray] | list[PackedTree | NDArray],
+                    cubes["cube_trees"],
+                )
             self.cubes_dict[pt] = ParticleCubes(
                 cube_indices=cube_indices,
                 cube_boxes=cube_boxes,
@@ -688,6 +718,41 @@ class Cubes:
             )
         return inds
 
+    def save(
+        self,
+        dataset: str | HDF5Dataset,
+        *,
+        force_overwrite: bool = False,
+    ) -> HDF5Dataset:
+        if isinstance(dataset, str):
+            dataset = HDF5Dataset(filepath=dataset)
+
+        if "cubes" in dataset._top_level_groups and not force_overwrite:
+            old_filepath = dataset.filepath
+            new_filepath = (
+                old_filepath.parent / f"{old_filepath.stem}_cubes{old_filepath.suffix}"
+            )
+            LOGGER.info(
+                f"Dataset {dataset.filepath} already contains cubes structure."
+                f"Saving to {new_filepath} instead."
+            )
+            dataset = HDF5Dataset(filepath=new_filepath)
+        elif "cubes" in dataset._top_level_groups:
+            LOGGER.warning(
+                f"Dataset {dataset.filepath} already "
+                "contains cubes structure. Overwriting!"
+            )
+
+        for pt, cubes in self.cubes_dict.items():
+            save_cube(
+                dataset,
+                pt=pt,
+                cube_indices=cubes.cube_indices,
+                cube_boxes=cubes.cube_boxes,
+                cube_trees=cubes.cube_trees,
+            )
+        return dataset
+
 
 if __name__ == "__main__":
     logging.basicConfig()
@@ -702,4 +767,4 @@ if __name__ == "__main__":
         particle_types=args.particle_types,
     )
     LOGGER.info(cubes_dict.keys())
-    cubes = Cubes(dataset=dataset, **cubes_dict)
+    cubes = Cubes(dataset=dataset, cubes_dict=cubes_dict)
