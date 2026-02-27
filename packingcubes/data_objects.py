@@ -419,19 +419,3 @@ class GadgetishHDF5Dataset(HDF5Dataset):
             self._box = bbox.make_bounding_box(box)
         else:
             super()._set_bounding_box()
-
-
-class TranslatedHDF5Dataset(HDF5Dataset):
-    """
-    Already translated HDF5 dataset
-
-    Represents an HDF5 dataset that has already been translated by the
-    translation function. Thus it is guaranteed to already have certain
-    fields.
-
-    """
-
-    def _preload(self):
-        raise NotImplementedError(
-            "Not yet implemented. Use GadgetishHDF5Dataset for now.",
-        )
