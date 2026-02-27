@@ -87,7 +87,9 @@ def packed_octree_query_ball_point(tree: optree.PackedTree):
 
 # we want the PackedTree stuff to be pre-compiled
 def precompile():
-    packed_octree_query_ball_point(packed_octree_creation(load_data(1e4)))
+    packed_octree_query_ball_point(
+        packed_octree_creation(data_objects.InMemory(positions=np.array([0, 0, 0])))
+    )
 
 
 def kdtree_creation(ds):
