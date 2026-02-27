@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.18.1
+#       jupytext_version: 1.19.1
 #   kernelspec:
 #     display_name: packingcubes-jupyter
 #     language: python
@@ -60,14 +60,8 @@ snapfile = ill_path / "snapshot_090.hdf5"
 # %% [markdown]
 # ## Load dataset
 
-# %% [markdown]
-# We'll only use the first 10% of the data so everything runs faster
-
 # %%
 ds = HDF5Dataset(name=simname, filepath=snapfile)
-# decimate the data so it loads/runs faster
-ds._positions = ds._positions[: int(len(ds) / 10), :]
-ds._setup_index()
 
 # %% [markdown]
 # # Create tree
@@ -102,6 +96,7 @@ def node_filling_amount(tree, *, normalized=True):
 
 
 normalized = True
+cumulative = True
 bins = node_filling_amount(tree, normalized=normalized)
 
 plt.figure(figsize=(10, 4))
@@ -109,7 +104,7 @@ plt.bar(
     np.linspace(1, tree.particle_threshold, num=tree.particle_threshold)
     / tree.particle_threshold
     * 100,
-    bins,
+    np.cumsum(bins) if cumulative else bins,
     width=100 / tree.particle_threshold,
 )
 plt.xlabel("Filling Fraction (%)")
@@ -117,5 +112,56 @@ if normalized:
     plt.ylabel("Fraction of Nodes")
 else:
     plt.ylabel("Number of Nodes")
+
+
+# %% [markdown]
+# # Plot as image
+# For fun, since the tree is just a simple array of uint32, with the last four
+# field representing a length (so omittable if necessary), we can treat it as an
+# image directly.
+
+
+# %%
+def find_best_size(array_len):
+    """
+    Given integer l, find the closest height and width such that width*height<l
+    and height < width < 2*height. If the second condition doesn't hold, just
+    do the best we can
+    """
+    # start with the square root, since that's the best we can do
+    width = int(np.ceil(np.sqrt(array_len)))
+    min_width = width / 2
+    while width > min_width:
+        height = width
+        lg = width * height
+        while lg >= array_len - 1:
+            height -= 1
+            lg = width * height
+        if array_len - 1 <= lg <= array_len:
+            break
+        width -= 1
+    return width, height
+
+
+w, h = find_best_size(len(tree._tree.tree))
+img = np.reshape(tree.packed_form[: (w * h)].copy(), (w, h))
+a = 255 - ((img & 0xFF_00_00_00) >> 24)
+r = (img & 0xFF_00_00) >> 16
+g = (img & 0xFF_00) >> 8
+b = img & 0xFF
+rgba = np.dstack((r, g, b, a))
+print(rgba.shape)
+ratio = w / h
+figscale = 8
+fig = plt.figure(figsize=(figscale * ratio, figscale))
+ax = fig.add_axes([0, 0, 1, 1])
+ax.set_axis_off()
+ax.imshow(
+    rgba,
+    vmin=0,
+)
+plt.show()
+
+# %%
 
 # %%
