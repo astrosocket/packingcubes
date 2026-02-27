@@ -651,7 +651,7 @@ class PackedTreeNumba:
 
     """
 
-    data: DataContainer
+    box: bbox.BoundingBox
     """ Backing dataset """
     tree: NDArray
     """ 
@@ -664,11 +664,11 @@ class PackedTreeNumba:
 
     def __init__(
         self,
-        data: DataContainer,
+        box: bbox.BoundingBox,
         tree: NDArray,
         particle_threshold: int = octree._DEFAULT_PARTICLE_THRESHOLD,
     ):
-        self.data = data
+        self.box = box
         self.tree = tree
         self.particle_threshold = particle_threshold
 
@@ -686,11 +686,11 @@ class PackedTreeNumba:
         #     my_index=my_index,
         #     level=level,
         #     empty=empty,
-        #     box=self.data.bounding_box,
+        #     box=self.box,
         # )
         # kwargs aren't supported
         return CurrentNode(
-            self.data.bounding_box,
+            self.box,
             0,
             self.tree[1],
             self.tree[2],
@@ -1258,10 +1258,6 @@ class PackedTree(octree.Octree):
 
     """
 
-    dataset: Dataset
-    """
-    The dataset backing this octree
-    """
     _tree: PackedTreeNumba
     """
     The actual in-memory representation of the tree as a numba-fied class
@@ -1297,8 +1293,8 @@ class PackedTree(octree.Octree):
 
         self.particle_threshold = particle_threshold
 
-        self.dataset = dataset
         data = dataset.data_container
+        bounding_box = data.bounding_box
 
         # from some empirical testing. doesn't need to be exact anyway
         # estimated_size_in_bytes = (
@@ -1311,7 +1307,7 @@ class PackedTree(octree.Octree):
         else:
             packed = np.array(source, dtype=np.uint32)
 
-        self._tree = PackedTreeNumba(data, packed, particle_threshold)
+        self._tree = PackedTreeNumba(bounding_box, packed, particle_threshold)
 
     @property
     def packed(self) -> memoryview:
