@@ -631,6 +631,7 @@ def _construct_node_recursive(
 
 # treetype = MemoryView(uint32, 1, "C")
 _index_tuple_type = types.UniTuple(uint32, 2)
+_list_index_tuple = types.ListType(_index_tuple_type)
 
 
 @jitclass([("data", dc_type), ("tree", uint32[:]), ("particle_threshold", int64)])
