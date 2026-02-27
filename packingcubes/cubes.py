@@ -559,7 +559,7 @@ def has_cubes(dataset: MultiParticleDataset):
 
 
 def save_cube(
-    dataset: Dataset,
+    dataset: HDF5Dataset,
     pt: str,
     cube_indices: NDArray,
     cube_boxes: list[bbox.BoundingBox],
