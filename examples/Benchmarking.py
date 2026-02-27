@@ -77,6 +77,7 @@ search = {
         1.85,
         4.06,
     ],
+    "pack_list": [np.nan, np.nan, np.nan],
     "cubes": [
         np.nan,
         np.nan,
@@ -167,6 +168,7 @@ search = {
         2.07,
         4.66,
     ],
+    "pack_list": [np.nan, np.nan, np.nan],
     "cubes": [
         np.nan,
         np.nan,
@@ -257,6 +259,7 @@ search = {
         4.68,
         12.2,
     ],
+    "pack_list": [np.nan, np.nan, np.nan],
     "cubes": [
         np.nan,
         np.nan,
@@ -325,6 +328,7 @@ creation = {
 search = {
     "python": [2.5, 8.7, 61, 208, 850],
     "packed": [1.65, 3.23, 10, 17.5, 184],
+    "pack_list": [np.nan, np.nan, np.nan, 43.6, np.nan],
     "cubes": [np.nan, np.nan, np.nan, np.nan, np.nan],
     "kdtree": [0.643, 4.23, 66.6, 463, 5060],
 }
@@ -375,6 +379,7 @@ metrics = {
     "search": {
         "python": "tab:blue",
         "packed": "tab:orange",
+        "pack_list": "tab:brown",
         "cubes": "tab:purple",
         "kdtree": "tab:green",
     },
