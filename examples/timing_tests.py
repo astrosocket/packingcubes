@@ -200,10 +200,18 @@ def cubing_setup():
 
 def cubing(setup):
     dataset, args, box = setup
-    cubes.make_cubes(
+    return cubes.Cubes(
         dataset=dataset,
         cubes_per_side=args.n,
         cube_box=box,
         particle_threshold=args.particle_threshold,
         particle_types=args.particle_types,
     )
+
+
+def cubes_query_ball_points(cubes):
+    for c, r in zip(centers, radii, strict=True):
+        sph_inds = cubes.get_particle_indices_in_sphere(
+            center=c,
+            radius=r,
+        )

@@ -23,13 +23,13 @@ python -m timeit -s "import timing_tests;ds = timing_tests.load_data($DECIMATION
 # echo "yt creation"
 # python -m timeit -s "import timing_tests;ytdata = timing_tests.yt_setup($DECIMATION_FACTOR);" "sph = timing_tests.yt_creation(ytdata)"
 
-echo "packingcubes.PythonOctree search"
+echo "packingcubes.PythonOctree search (divide by 100)"
 python -m timeit -s "import timing_tests;ds = timing_tests.load_data($DECIMATION_FACTOR);timing_tests.precompile();tree = timing_tests.python_octree_creation(ds)" "timing_tests.python_octree_query_ball_point(tree)"
 
-echo "packingcubes.PackedOctree search"
+echo "packingcubes.PackedOctree search (divide by 100)"
 python -m timeit -s "import timing_tests;ds = timing_tests.load_data($DECIMATION_FACTOR);timing_tests.precompile();tree = timing_tests.packed_octree_creation(ds)" "timing_tests.packed_octree_query_ball_point(tree)"
 
-echo "scipy.spatial.kdtree search"
+echo "scipy.spatial.kdtree search (divide by 100)"
 python -m timeit -s "import timing_tests;ds = timing_tests.load_data($DECIMATION_FACTOR);tree = timing_tests.kdtree_creation(ds)" "timing_tests.kdtree_query_ball_point(tree)"
 
 # echo "yt search"
@@ -40,3 +40,6 @@ python -c "import timing_tests;timing_tests.tree_sizes($DECIMATION_FACTOR)"
 
 echo "Cubing"
 python -m timeit -s "import timing_tests;setup = timing_tests.cubing_setup();timing_tests.cubing(setup);" "timing_tests.cubing(setup)"
+
+echo "Cubes search (divide by 100)"
+python -m timeit -s "import timing_tests;setup = timing_tests.cubing_setup();cubes = timing_tests.cubing(setup);timing_tests.cubes_query_ball_points(cubes);" "timing_tests.cubes_query_ball_points(cubes)"
