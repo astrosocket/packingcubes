@@ -21,6 +21,7 @@ import packingcubes.bounding_box as bbox
 from packingcubes.bounding_box import BoundingBox, make_bounding_box
 from packingcubes.data_objects import (
     DataContainer,
+    Dataset,
     GadgetishHDF5Dataset,
     HDF5Dataset,
     subview,
@@ -145,7 +146,7 @@ def _process_args(argv=None):
     return args
 
 
-def _process_box(*, dataset: HDF5Dataset, args) -> BoundingBox:
+def _process_box(*, dataset: Dataset, args) -> BoundingBox:
     box = dataset.bounding_box.box
 
     for i, ax in enumerate("xyz"):
