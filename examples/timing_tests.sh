@@ -17,6 +17,9 @@ python -m timeit -s "import timing_tests;ds = timing_tests.load_data($DECIMATION
 echo "packingcubes.PackedOctree creation"
 python -m timeit -s "import timing_tests;ds = timing_tests.load_data($DECIMATION_FACTOR);timing_tests.precompile();" "ds = timing_tests.reset_data(ds);timing_tests.packed_octree_creation(ds)"
 
+echo "Cubing"
+python -m timeit -s "import timing_tests;setup = timing_tests.cubing_setup();timing_tests.cubing(setup);" "timing_tests.cubing(setup)"
+
 echo "scipy.spatial.kdtree creation"
 python -m timeit -s "import timing_tests;ds = timing_tests.load_data($DECIMATION_FACTOR);" "ds = timing_tests.reset_data(ds);timing_tests.kdtree_creation(ds)"
 
@@ -37,9 +40,6 @@ python -m timeit -s "import timing_tests;ds = timing_tests.load_data($DECIMATION
 
 echo "Tree sizes:"
 python -c "import timing_tests;timing_tests.tree_sizes($DECIMATION_FACTOR)"
-
-echo "Cubing"
-python -m timeit -s "import timing_tests;setup = timing_tests.cubing_setup();timing_tests.cubing(setup);" "timing_tests.cubing(setup)"
 
 echo "Cubes search (divide by 100)"
 python -m timeit -s "import timing_tests;setup = timing_tests.cubing_setup();cubes = timing_tests.cubing(setup);timing_tests.cubes_query_ball_points(cubes);" "timing_tests.cubes_query_ball_points(cubes)"
