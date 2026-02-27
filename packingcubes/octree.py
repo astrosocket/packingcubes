@@ -1259,6 +1259,10 @@ class PythonOctree(Octree):
                 nodes.extend(filter(None, reversed(children)))
         return packed.tobytes()
 
+    @classmethod
+    def from_packed(cls, packed: bytes):
+        raise NotImplementedError
+
 
 @njit
 def unpack_node_metadata(
