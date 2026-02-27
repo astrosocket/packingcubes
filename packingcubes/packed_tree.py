@@ -26,7 +26,7 @@ from xxhash import xxh3_64_intdigest
 import packingcubes.bounding_box as bbox
 import packingcubes.octree as octree
 from packingcubes.configuration import FIELD_FORMAT
-from packingcubes.data_objects import DataContainer, Dataset, dc_type
+from packingcubes.data_objects import DataContainer, Dataset, InMemory, dc_type
 
 LOGGER = logging.getLogger(__name__)
 logging.captureWarnings(capture=True)
@@ -1466,6 +1466,7 @@ class PackedTree(octree.Octree):
         source: Buffer | None = None,
         particle_threshold: int | None = None,
         bounding_box: bbox.BoxLike | None = None,
+        copy_data: bool = False,
     ):
         """
         Note: must provide either dataset or source. If provided source does
@@ -1473,8 +1474,8 @@ class PackedTree(octree.Octree):
         bounding_box.
 
         Args:
-            dataset: Dataset
-            A Dataset containing particle data
+            dataset: NDArray | Dataset, optional
+            An (N,3) array or Dataset containing particle data
 
             source: Buffer | None, optional
             Pre-computed packed buffer containing this tree. Leave out to
@@ -1488,11 +1489,18 @@ class PackedTree(octree.Octree):
             Bounding box of the tree. Required if metadata needs to be created
             and dataset is not provided.
             Will override the dataset bounding box.
+
+            copy_data: bool, optional
+            If dataset is just an array, flag to copy data prior to construction.
+            Defaults to False
         """
         if particle_threshold is None:
             particle_threshold = octree._DEFAULT_PARTICLE_THRESHOLD
 
         self.particle_threshold = particle_threshold
+
+        if dataset is not None and not isinstance(dataset, Dataset):
+            dataset = InMemory(positions=dataset.copy() if copy_data else dataset)
 
         # from some empirical testing. doesn't need to be exact anyway
         # estimated_size_in_bytes = (
