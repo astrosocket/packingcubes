@@ -496,6 +496,17 @@ class ParticleCubes:
         self,
         box: bbox.BoxLike,
     ) -> list[tuple[int, int]]:
+        """
+        Return all particles contained within the box
+
+        Args:
+            box: BoxLike
+            Box to check
+
+        Returns:
+            indices: list[tuple[int, int]]
+            List of particle start-stop indices contained within box
+        """
         with objmode(numba_box=bbox.bbn_type):
             numba_box = bbox.make_bounding_box(box)
         return _get_particle_indices_in_shape(
@@ -511,6 +522,20 @@ class ParticleCubes:
         center: NDArray,
         radius: float,
     ) -> list[tuple[int, int]]:
+        """
+        Return all particles contained within the sphere defined by center and radius
+
+        Args:
+            center: NDArray
+            Center point of the sphere
+
+            radius: float
+            Radius of the sphere
+
+        Returns:
+            indices: list[tuple[int, int]]
+            List of particle start-stop indices contained within sphere
+        """
         with objmode(sph=bbox.bs_type):
             sph = bbox.make_bounding_sphere(center=center, radius=radius)
 
