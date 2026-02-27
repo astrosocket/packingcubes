@@ -47,7 +47,7 @@ def _partition(data: DataContainer, lo: int, hi: int, ax: int, pivot: float) -> 
     if lo == hi:
         # return early to avoid unnecessary swap
         # ternary to avoid data cast
-        return lo + (1 if data.positions[lo, ax] < pivot else 0)
+        return lo + (1 if data._positions[lo, ax] < pivot else 0)
     if len(data) <= hi:
         # OOB upper index only an issue if we're actually going to use it
         raise ValueError(f"High index out of bounds, hi={hi}")
@@ -56,10 +56,10 @@ def _partition(data: DataContainer, lo: int, hi: int, ax: int, pivot: float) -> 
         # pivot is not guaranteed to be in data
         # need additional check to guard against out-of-bounds
         # access
-        while lo < r and data.positions[lo, ax] < pivot:
+        while lo < r and data._positions[lo, ax] < pivot:
             lo += 1
         # Don't want hi<=lo anyway, so don't need equivalent left edge constant
-        while hi > lo and data.positions[hi, ax] >= pivot:
+        while hi > lo and data._positions[hi, ax] >= pivot:
             hi -= 1
         data._swap(lo, hi)
     if lo >= hi:
@@ -70,7 +70,7 @@ def _partition(data: DataContainer, lo: int, hi: int, ax: int, pivot: float) -> 
     # this is equivalent to the single element case
     # if lo == r:
     #     return r + (1 if data.positions[lo, ax] < pivot else 0)
-    return lo + (1 if data.positions[lo, ax] < pivot else 0)
+    return lo + (1 if data._positions[lo, ax] < pivot else 0)
 
 
 @njit
