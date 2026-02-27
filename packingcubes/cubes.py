@@ -179,12 +179,12 @@ def _cube_position(x: float, y: float, z: float, cubes_per_side: int, box: Bound
     # TODO: add zoom bins
     num_cubes = cubes_per_side**3 + 1
     # note: can't use normalize_to_box because it clips the coordinates
-    cube_x = np.floor((x - box.x) / box.dx * cubes_per_side)
-    cube_x = cubes_per_side - 1 if x == box.x + box.dx else cube_x
-    cube_y = np.floor((y - box.y) / box.dy * cubes_per_side)
-    cube_y = cubes_per_side - 1 if y == box.y + box.dy else cube_y
-    cube_z = np.floor((z - box.z) / box.dz * cubes_per_side)
-    cube_z = cubes_per_side - 1 if z == box.z + box.dz else cube_z
+    cube_x = np.floor((x - box.box[0]) / box.box[3] * cubes_per_side)
+    cube_x = cubes_per_side - 1 if x == box.box[0] + box.box[3] else cube_x
+    cube_y = np.floor((y - box.box[1]) / box.box[4] * cubes_per_side)
+    cube_y = cubes_per_side - 1 if y == box.box[1] + box.box[4] else cube_y
+    cube_z = np.floor((z - box.box[2]) / box.box[5] * cubes_per_side)
+    cube_z = cubes_per_side - 1 if z == box.box[2] + box.box[5] else cube_z
     if (
         (cube_x < 0 or cube_x >= cubes_per_side)
         or (cube_y < 0 or cube_y >= cubes_per_side)
