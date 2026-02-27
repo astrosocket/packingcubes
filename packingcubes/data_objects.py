@@ -1,6 +1,9 @@
+from __future__ import annotations
+
 import contextlib
 import logging
 import warnings
+from abc import ABC, abstractmethod
 from pathlib import Path
 
 import h5py  # type: ignore
@@ -198,7 +201,55 @@ class Dataset:
         )
 
 
-class HDF5Dataset(Dataset):
+class MultiParticleDataset(Dataset, ABC):
+    @property
+    @abstractmethod
+    def particle_type(self) -> str: ...
+    @particle_type.setter
+    @abstractmethod
+    def particle_type(self, new_type: str): ...
+    @property
+    @abstractmethod
+    def particle_types(self) -> list[str]: ...
+    @property
+    @abstractmethod
+    def particle_numbers(self) -> dict[str, int]: ...
+
+
+class InMemory(MultiParticleDataset):
+    """
+    In-memory Dataset
+
+    Class for datasets where the positions data is entirely in-memory. These
+    datasets generally are not expected to have a name or filepath and may
+    consist solely of positions data.
+    """
+
+    _particle_type: str = "PartType0"
+
+    def __init__(self, *, positions: NDArray, name: str = "", filepath: str = ""):
+        self._positions = positions
+        super().__init__(name=name, filepath=filepath)
+        self._set_bounding_box()
+
+    @property
+    def particle_type(self) -> str:
+        return self._particle_type
+
+    @particle_type.setter
+    def particle_type(self, new_type: str):
+        self._particle_type = new_type
+
+    @property
+    def particle_types(self) -> list[str]:
+        return [self._particle_type]
+
+    @property
+    def particle_numbers(self) -> dict[str, int]:
+        return {self._particle_type: len(self)}
+
+
+class HDF5Dataset(MultiParticleDataset):
     """
     HDF5 Dataset
 
@@ -207,9 +258,24 @@ class HDF5Dataset(Dataset):
     entire dataset since this is for purely spatial sorting.
 
     Note that for simplicity, only one particle type is available at a time.
-    You can use the get_particle_types() and switch_particle_type() methods to
-    change particle types.
+    You can use the particle_type and particle_types attributes to change
+    particle type and get a list of valid particle types.
     """
+
+    _positions_field: str
+    """ Name of the positions dataset in the hdf5 file (e.g. "Coordinates") """
+    _particle_types: list[str]
+    """ List of all particle types in the hdf5 file """
+    _particle_numbers: dict[str, int]
+    """ Per particle type mapping of total number of particles """
+    _top_level_groups: list[str]
+    """ 
+    The top level groups in the file in lowercase (e.g. header, parttype0, cosmology)
+    """
+    _cache_file_name: str
+    """ Name of the cache file for temporary storage """
+    _particle_type: str
+    """ The currently loaded particle type """
 
     def __init__(
         self,
@@ -224,6 +290,12 @@ class HDF5Dataset(Dataset):
         self._load_positions()
 
     def _preload(self):
+        """
+        Method to load certain attributes at initialization
+
+        Must set _positions_field, _particle_types, _particle_numbers,
+        _top_level_groups, _cache_file_name, and _particle_type
+        """
         raise NotImplementedError(
             "You are trying to instantiate a base HDF5 class.\nUse a subclass instead.",
         )
@@ -293,11 +365,15 @@ class GadgetishHDF5Dataset(HDF5Dataset):
     def _preload(self):
         # TODO handle case where particles are split across multiple files...
         particle_types = []
+        groups = []
         self._positions_field = "Coordinates"
         with h5py.File(self.filepath) as file:
             self._header = dict(file["Header"].attrs)
-            groups = file.keys()
+            groups.extend(file.keys())
             particle_types.extend([p for p in groups if "Part" in p])
+        if not groups:
+            raise DatasetError("This dataset appears to be empty")
+        self._top_level_groups = [g.lower() for g in groups]
         if not particle_types:
             raise DatasetError(
                 "No particle types found in dataset. Looking for groups named Part*",
