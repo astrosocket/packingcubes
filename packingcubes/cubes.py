@@ -28,7 +28,13 @@ from packingcubes.data_objects import (
     subview,
 )
 from packingcubes.octree import _DEFAULT_PARTICLE_THRESHOLD
-from packingcubes.packed_tree import PackedTree, PackedTreeNumba, _construct_tree
+from packingcubes.packed_tree import (
+    PackedTree,
+    PackedTreeNumba,
+    _construct_tree,
+    _index_tuple_type,
+    _list_index_tuple,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -409,6 +415,9 @@ def make_cubes(
     return cubes
 
 
+_big_index_tuple = types.UniTuple(types.uint64, 2)
+
+
 @njit(parallel=True)
 def _get_particle_indices_in_shape(
     cubes: List[BoundingBox],
@@ -417,9 +426,9 @@ def _get_particle_indices_in_shape(
     shape: bbox.BoundingVolume,
     shape_box: bbox.BoundingBox,
 ) -> List[tuple[int, int]]:
-    indices = List.empty_list(List[tuple[int, int]])
+    indices = List.empty_list(_list_index_tuple)
     for _ in range(len(cubes)):
-        indices.append(List.empty_list(tuple[int, int]))
+        indices.append(List.empty_list(_index_tuple_type))
 
     # get particle indices from each tree
     shape_midpoint = np.array(shape_box.midplane())
@@ -427,14 +436,14 @@ def _get_particle_indices_in_shape(
         overlap = shape.contains(cubes[i].project_point_on_box(shape_midpoint))
         if overlap:
             indices[i] = trees[i]._get_particle_indices_in_shape(
-                bounding_box=shape_box, containing_obj=shape
+                bounding_box=shape_box, containment_obj=shape
             )
 
     # add cube offset and flatten list of indices
-    flattened_indices = List.empty_list(tuple[int, int])
-    for cube_indices, cube_offset in zip(indices, cube_offsets, strict=True):
+    flattened_indices = List.empty_list(_big_index_tuple)
+    for cube_indices, cube_offset in zip(indices, cube_offsets):  # noqa: B905
         for cube_start, cube_end in cube_indices:
-            flattened_indices.append(cube_start + cube_offset, cube_end + cube_offset)
+            flattened_indices.append((cube_start + cube_offset, cube_end + cube_offset))
 
     return flattened_indices
 
