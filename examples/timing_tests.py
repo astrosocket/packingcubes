@@ -71,10 +71,6 @@ def python_octree_query_ball_point(tree: octree.Octree):
             center=c,
             radius=r,
         )
-    # sph_nodes_entire,sph_nodes_partial = tree._get_nodes_in_sphere(
-    #     center=center, radius=radius
-    # )
-    # sph_inds
 
 
 def packed_octree_creation(ds):
