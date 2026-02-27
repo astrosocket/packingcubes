@@ -500,7 +500,7 @@ def _construct_tree(
         data.bounding_box if box is None else box,
         0,
         0,
-        len(data) - 1,
+        len(data) - 1 if len(data) > 0 else 0,
         None,
         0,
         0,
