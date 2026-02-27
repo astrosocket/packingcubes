@@ -54,6 +54,11 @@ creation = {
         0.428,
         5.36,
     ],
+    "cubes": [
+        np.nan,
+        np.nan,
+        np.nan,
+    ],
     "kdtree": [
         0.0208,
         0.300,
@@ -71,6 +76,11 @@ search = {
         0.871,
         1.85,
         4.06,
+    ],
+    "cubes": [
+        np.nan,
+        np.nan,
+        np.nan,
     ],
     "kdtree": [
         0.534,
@@ -134,6 +144,11 @@ creation = {
         0.460,
         5.53,
     ],
+    "cubes": [
+        np.nan,
+        np.nan,
+        np.nan,
+    ],
     "kdtree": [
         0.0186,
         0.231,
@@ -151,6 +166,11 @@ search = {
         0.87,
         2.07,
         4.66,
+    ],
+    "cubes": [
+        np.nan,
+        np.nan,
+        np.nan,
     ],
     "kdtree": [
         0.523,
@@ -214,6 +234,11 @@ creation = {
         0.463,
         5.42,
     ],
+    "cubes": [
+        np.nan,
+        np.nan,
+        np.nan,
+    ],
     "kdtree": [
         0.0186,
         0.244,
@@ -231,6 +256,11 @@ search = {
         1.7,
         4.68,
         12.2,
+    ],
+    "cubes": [
+        np.nan,
+        np.nan,
+        np.nan,
     ],
     "kdtree": [
         1.06,
@@ -288,12 +318,14 @@ creation = {
     "data resetting": [2.4e-3, 0.0407, 0.325, 5.05, 25.8],
     "python": [0.180, 0.866, 11, 101, 1100],
     "packed": [0.104, 0.731, 9.61, 87, 941],
+    "cubes": [np.nan, np.nan, np.nan, np.nan, np.nan],
     "kdtree": [0.0402, 0.393, 4.79, 51.4, 427],
 }
 
 search = {
     "python": [2.5, 8.7, 61, 208, 850],
     "packed": [1.65, 3.23, 10, 38.7, 184],
+    "cubes": [np.nan, np.nan, np.nan, np.nan, np.nan],
     "kdtree": [0.643, 4.23, 66.6, 463, 5060],
 }
 
@@ -337,11 +369,13 @@ metrics = {
         "data resetting": "k",
         "python": "tab:blue",
         "packed": "tab:orange",
+        "cubes": "tab:purple",
         "kdtree": "tab:green",
     },
     "search": {
         "python": "tab:blue",
         "packed": "tab:orange",
+        "cubes": "tab:purple",
         "kdtree": "tab:green",
     },
     "size": {
