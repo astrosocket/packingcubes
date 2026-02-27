@@ -228,9 +228,10 @@ class InMemory(MultiParticleDataset):
     _particle_type: str = "PartType0"
 
     def __init__(self, *, positions: NDArray, name: str = "", filepath: str = ""):
-        self._positions = positions
+        self._positions = np.atleast_2d(positions)
         super().__init__(name=name, filepath=filepath)
         self._set_bounding_box()
+        self._setup_index()
 
     @property
     def particle_type(self) -> str:
