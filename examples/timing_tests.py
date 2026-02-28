@@ -210,6 +210,7 @@ def cubing(setup):
 def cubes_query_ball_points(cubes):
     for c, r in zip(centers, radii, strict=True):
         sph_inds = cubes.get_particle_indices_in_sphere(
+            particle_types=particle_type,
             center=c,
             radius=r,
         )
