@@ -116,6 +116,7 @@ def precompile():
     dataset = data_objects.InMemory(positions=np.array([0, 0, 0]))
     tree = packed_octree_creation(dataset)
     packed_octree_query_ball_point(tree)
+    packed_octree_query_ball_point_indices(dataset, tree)
 
 
 def scipy_kdtree_creation(ds):
@@ -267,6 +268,13 @@ search_dict = {
     },
     "packed": {
         "fun": "packed_octree_query_ball_point(search_obj)",
+        "tree": "packed",
+        "precomp": True,
+    },
+    "packli": {
+        "fun": (
+            "packed_octree_query_ball_point_indices(dataset, search_obj)"
+        ),  # needs dataset + tree
         "tree": "packed",
         "precomp": True,
     },
@@ -589,6 +597,8 @@ if __name__ == "__main__":
     for t in combined_list:
         creation_list.append(t)
         search_list.append(t)
+        if t == "packed":
+            search_list.append("packli")
     results = manual_timing(
         snapshot=args.snapshot,
         decimation_factor=args.decimation_factor,
