@@ -1042,7 +1042,7 @@ class PackedTreeNumba:
             a more exact containment test (e.g. contained within a sphere).
 
         Returns:
-            indices: list[tuple[int]]
+            indices: list[tuple[int, int]]
             List of particle start-stop indices contained within shape
         """
 
@@ -1055,7 +1055,7 @@ class PackedTreeNumba:
         # check root
         node_vertices = node.box.get_box_vertices()
         if sum(containment_obj.contains(node_vertices)) == len(node_vertices):
-            indices.append((node.node_start, node.node_end + 1))
+            indices.append((node.node_start, np.uint32(node.node_end + 1)))
             return indices
 
         next_child = List([0])
@@ -1091,7 +1091,7 @@ class PackedTreeNumba:
             # for remaining cases we will move to parent regardless
             if vertices_enclosed or partial:
                 # at least some overlap
-                indices.append((node.node_start, node.node_end + 1))
+                indices.append((node.node_start, np.uint32(node.node_end + 1)))
 
             _move_to_parent(self.tree, node)
 
