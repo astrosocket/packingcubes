@@ -174,7 +174,7 @@ def _get_cube_boxes(
     *, data: DataContainer, box: BoundingBox, cubes_per_side: int
 ) -> list[BoundingBox]:
     cube_size = box.size / cubes_per_side
-    cube_boxes = []
+    cube_boxes = List.empty_list(bbox.bbn_type)
     for i in range(cubes_per_side):
         for j in range(cubes_per_side):
             for k in range(cubes_per_side):
@@ -436,9 +436,14 @@ def _get_particle_indices_in_shape(
     # get particle indices from each tree
     shape_midpoint = np.array(shape_box.midplane())
     for i in prange(len(cubes)):
-        overlap = shape.contains(cubes[i].project_point_on_box(shape_midpoint))
+        # Note: prange indices are uint64 in parallel mode but current
+        # TypedList _get_item implementation casts to intp type, which can
+        # be int64. We'll explicitly cast to avoid the warning and because
+        # len(cubes) **better** be < 2**63 !
+        li = np.int_(i)
+        overlap = shape.contains(cubes[li].project_point_on_box(shape_midpoint))
         if overlap:
-            indices[i] = trees[i]._get_particle_indices_in_shape(
+            indices[li] = trees[li]._get_particle_indices_in_shape(
                 bounding_box=shape_box, containment_obj=shape
             )
 
