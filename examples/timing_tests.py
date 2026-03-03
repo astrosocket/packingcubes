@@ -338,6 +338,7 @@ def manual_timing(
 ):
     if snapshot is None:
         snapshot = snapfile
+    LOGGER.debug("Beginning data loading")
     ds = load_data(decimation_factor, filepath=snapshot)
     LOGGER.info(
         f"Loaded {snapshot} with decimation factor {decimation_factor}"
