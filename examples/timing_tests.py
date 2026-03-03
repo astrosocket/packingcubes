@@ -338,7 +338,10 @@ def manual_timing(
     if snapshot is None:
         snapshot = snapfile
     ds = load_data(decimation_factor, filepath=snapshot)
-    LOGGER.info(f"Loaded {snapshot} with decimation factor {decimation_factor}")
+    LOGGER.info(
+        f"Loaded {snapshot} with decimation factor {decimation_factor}"
+        f"={len(ds)} particles"
+    )
 
     # default to all
     creation_list = (
