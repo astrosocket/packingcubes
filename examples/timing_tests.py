@@ -39,16 +39,16 @@ def load_data(decimation_factor=10, *, name: str = simname, filepath: str = snap
     if ds.particle_type != particle_type:
         with contextlib.suppress(data_objects.DatasetError):
             ds.particle_type = particle_type
-    ds._positions = ds._positions[:: int(decimation_factor), :]
-    try:
-        del ds._index
-    finally:
-        ds._setup_index()
-    min_bounds = np.min(ds.positions, axis=0)
-    max_bounds = np.max(ds.positions, axis=0)
-    ds._box = bbox.make_bounding_box(np.hstack((min_bounds, max_bounds - min_bounds)))
-    random_search_balls(ds)
-    return ds
+    # Bug fix: convert to InMemory version so that when testing cubing versions
+    # we don't try to reload the dataset (because cubing does every particle
+    # type available by setting the particle type, which reloads the data,
+    # undoing the decimation here. This means we don't need to manually set the
+    # index or bounding box either, which is a nice benefit
+    dataset = data_objects.InMemory(
+        positions=ds._positions[:: int(decimation_factor), :]
+    )
+    random_search_balls(dataset)
+    return dataset
 
 
 def reset_data(ds):
@@ -199,6 +199,7 @@ def tree_sizes(decimation_factor=10):
 def cubing_setup(decimation_factor: int = 1, *, dataset: data_objects.Dataset = None):
     if dataset is None:
         dataset = load_data(decimation_factor)
+    # InMemory datasets only are PartType0 by default
     args = cubes._process_args(["-t0", "--", str(dataset.filepath)])
     box = cubes._process_box(dataset=dataset, args=args)
     cubes_query_ball_points(cubing((dataset, args, box)))
