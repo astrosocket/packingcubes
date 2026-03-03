@@ -341,7 +341,7 @@ def manual_timing(
     ds = load_data(decimation_factor, filepath=snapshot)
     LOGGER.info(
         f"Loaded {snapshot} with decimation factor {decimation_factor}"
-        f"={len(ds)} particles"
+        f"={len(ds):.3e} particles"
     )
 
     # default to all
