@@ -544,7 +544,8 @@ if __name__ == "__main__":
         LOGGER.info("Dry run only. Actual timing will be skipped")
     creation_list = args.creation_list if args.creation_list else []
     search_list = args.search_list if args.search_list else []
-    for t in args.combined_list:
+    combined_list = args.combined_list if args.combined_list else []
+    for t in combined_list:
         creation_list.append(t)
         search_list.append(t)
     results = manual_timing(
