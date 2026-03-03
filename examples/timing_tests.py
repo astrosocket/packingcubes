@@ -34,7 +34,7 @@ radii = []
 
 
 def load_data(decimation_factor=10, *, name: str = simname, filepath: str = snapfile):
-    ds = data_objects.GadgetishHDF5Dataset(name=simname, filepath=snapfile)
+    ds = data_objects.GadgetishHDF5Dataset(name=name, filepath=filepath)
     # ds._positions = ds._positions[: int(len(ds) / decimation_factor), :]
     if ds.particle_type != particle_type:
         with contextlib.suppress(data_objects.DatasetError):
