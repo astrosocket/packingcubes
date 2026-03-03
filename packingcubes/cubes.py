@@ -15,6 +15,7 @@ from numba import (  # type:ignore
     njit,
     objmode,
     prange,
+    threading_layer,
     types,
 )
 from numba.typed import List
@@ -42,6 +43,30 @@ from packingcubes.packed_tree import (
 LOGGER = logging.getLogger(__name__)
 
 nthreads = get_num_threads()
+
+
+# need to test parallelism - have issues with using the tbb backend
+# so it's useful to print diagnostic info
+@njit(parallel=True)
+def test_parallel():
+    a = np.zeros((10,))
+    for i in prange(len(a)):
+        a[i] = i
+    return a
+
+
+test_parallel()
+layer = threading_layer()
+LOGGER.debug(f"Running on the {layer} threading layer with {nthreads} threads")
+if layer == "tbb":
+    LOGGER.warning(
+        "Parallel support for cubes is known to be flaky on the tbb threading "
+        "layer. If you are having difficulties, consider switching to the omp "
+        "layer by setting the NUMBA_THREADING_LAYER environmental variable or "
+        "by setting numba.config.THREADING_LAYER. See "
+        "https://numba.readthedocs.io/en/stable/user/threading-layer.html for "
+        "more information."
+    )
 
 
 # from https://stackoverflow.com/a/27434050
