@@ -50,14 +50,14 @@ creation = {
         6.49,
     ],
     "packed": [
-        0.0381,
-        0.428,
-        5.36,
+        0.012,
+        0.184,
+        2.17,
     ],
     "cubes": [
-        np.nan,
-        np.nan,
-        np.nan,
+        0.016,
+        0.147,
+        2.00,
     ],
     "kdtree": [
         0.0208,
@@ -73,20 +73,20 @@ search = {
         17.8,
     ],
     "packed": [
-        0.871,
-        1.85,
-        4.06,
+        0.090,
+        0.250,
+        0.884,
     ],
-    "pack_list": [np.nan, np.nan, np.nan],
+    "pack_list": [0.162, 2.58, 21.9],
     "cubes": [
-        np.nan,
-        np.nan,
-        np.nan,
+        0.0587,
+        0.104,
+        0.224,
     ],
     "kdtree": [
-        0.534,
-        4.12,
-        32.4,
+        0.108,
+        1.47,
+        15.9,
     ],
 }
 
@@ -410,8 +410,8 @@ expected = {
 }
 expected_label = {
     "creation": r"$n\; \log(n)$",
-    # "search": r"$\log(n)$",
-    "search": r"$\sqrt{n}$",
+    "search": r"$\log(n)$",
+    # "search": r"$\sqrt{n}$",
     # "size":(
     #     r"$1.2\times\frac{n}{10^{\left\lfloor n/"
     #     f"{particle_threshold}"
@@ -429,6 +429,7 @@ ignore_metrics = ["creation:data resetting"]
 
 # %%
 sims = [illustris, LB_L10_CDM, simba, sweagle]
+sims = [illustris, LB_L10_CDM]
 # sims = [LB_L10_CDM]
 
 # %% [markdown]
