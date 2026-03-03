@@ -270,7 +270,7 @@ def _format_time(times: unyt_array | unyt_quantity) -> unyt_array:
     units = ["d", "hr", "min", "s", "ms", "us", "ns"]
     if isinstance(times, unyt_quantity):
         times = unyt_array([times])
-    mintime = min(times)
+    mintime = np.abs(min(times))
 
     for unit in units:
         if mintime.to(unit) > 1:
@@ -286,8 +286,8 @@ def get_search_obj(
     dry_run: bool = False,
 ):
     cd = creation_dict[function]
-    setup = getattr(cd, "setup", lambda dataset: dataset)
-    setup_data = setup(dataset)
+    setup = cd.get("setup", lambda dataset: dataset)
+    setup_data = setup(dataset=dataset)
     globals()["dataset"] = dataset
     globals()["setup_data"] = setup_data
 
@@ -300,6 +300,7 @@ def get_search_obj(
             time_vec = timer.repeat(number=number) * second
             time_vec /= number
         else:
+            number = -1
             time_vec = [-1, -1] * second
         time_vec = _format_time(time_vec)
         results[function] = (min(time_vec), time_vec)
@@ -381,6 +382,7 @@ def manual_timing(
             time_vec /= number  # chenage to per-loop
             time_vec /= len(centers)  # change to per-sphere (average)
         else:
+            number = -1
             time_vec = [-1, -1] * second
         time_vec = _format_time(time_vec)
         results[test] = (min(time_vec), time_vec)
