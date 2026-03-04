@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import datetime
 import logging
 from array import array
-from collections.abc import Buffer, Iterable, Iterator, Sequence
-from typing import NamedTuple
+from collections.abc import Iterator, Sequence
 
 import numpy as np
 from numba import (  # type: ignore
@@ -19,299 +17,26 @@ from numba import (  # type: ignore
 from numba.experimental import jitclass
 from numba.extending import as_numba_type
 from numba.typed import List
-from numba.types import ListType, string
 from numpy.typing import ArrayLike, NDArray
-from xxhash import xxh3_64_intdigest
 
 import packingcubes.bounding_box as bbox
 import packingcubes.octree as octree
 from packingcubes.configuration import FIELD_FORMAT
-from packingcubes.data_objects import DataContainer, Dataset, InMemory, dc_type
+from packingcubes.data_objects import DataContainer, dc_type
+from packingcubes.packed_tree.packed_node import (
+    CurrentNode,
+    PackedNodeNumba,
+    _create_from_current_node,
+    _update_node_state,
+    get_children,
+    is_leaf,
+    is_root,
+    pack_node_type,
+    tagtype,
+)
 
 LOGGER = logging.getLogger(__name__)
 logging.captureWarnings(capture=True)
-
-
-@jitclass(
-    [
-        ("node_start", uint32),
-        ("node_end", uint32),
-        ("box", bbox.bbn_type),
-        ("tag", string),
-        ("index", uint32),
-        ("is_leaf", types.boolean),
-    ]
-)
-class PackedNodeNumba:
-    """
-    Private representation of a node in a packed tree
-
-    This class is what should be emitted by PackedTreeNumba methods that return
-    nodes, rather than CurrentNode instances.
-
-    Note that this only represents the node at time of creation. Changes do
-    not propagate in either direction.
-    """
-
-    def __init__(
-        self,
-        node_start: int,
-        node_end: int,
-        box: bbox.BoundingBox,
-        tag: str | None = None,
-    ):
-        """
-        Initialize a packed root node
-
-        Args:
-            node_end: int
-            Number of particles in dataset
-
-            box: BoxLike
-            Bounding box of dataset
-        """
-        self.node_start = node_start
-        self.node_end = node_end
-        self.box = box
-        self.tag = "0" if tag is None else tag
-        self.index = np.uint(0)
-        self.is_leaf = True
-
-    def copy(self) -> PackedNodeNumba:
-        node = PackedNodeNumba(
-            self.node_start,
-            self.node_end,
-            self.box.copy(),
-            self.tag,
-        )
-        node.index = self.index
-        return node
-
-
-# Effectively, this class is just a python wrapper for a PackedNodeNumba
-class PackedNode(octree.OctreeNode):
-    """
-    Public representation of a node in the packed tree
-
-    Intended to be the equivalent of PythonOctreeNode for packed trees,
-    primarily for typing checks. Note that this only represents the node
-    at time of creation. Changes do not propagate in either direction.
-
-    """
-
-    _node: PackedNodeNumba
-
-    def __init__(self, node: PackedNodeNumba):
-        self._node = node
-
-    def __eq__(self, obj):
-        if not isinstance(self, PackedNodeNumba):
-            return False
-        return (
-            self.node_start == obj.node_start
-            and self.node_end == obj.node_end
-            and self.tag == obj.tag
-            and np.all(self.box.box == obj.box.box)
-        )
-
-    @property
-    def node_start(self) -> int:
-        """
-        The start data index for this node. OctreeNodes have
-        node_end+1 - node_start particles
-        """
-        return self._node.node_start
-
-    @property
-    def node_end(self) -> int:
-        """
-        The end data index for this node. OctreeNodes have
-        node_end+1 - node_start particles
-        """
-        return self._node.node_end
-
-    @property
-    def box(self) -> bbox.BoundingBox:
-        """
-        Bounding box of the form [x, y, z, dx, dy, dz] where (x, y, z) is the
-        left-front-bottom corner. All particles are assumed to lie inside.
-        """
-        return self._node.box
-
-    @property
-    def tag(self) -> str:
-        """
-        List of 1-based z-order indices describing the current box.
-        E.g. if assuming the unit bounding box, the box
-        [0.25, 0.25, 0.75, 0.25, 0.25, 0.25] would be [5,1]
-        """
-        return self._node.tag
-
-    def copy(self) -> PackedNode:
-        """Return a deep copy of this node"""
-        return PackedNode(self._node.copy())
-
-
-try:
-    pack_node_type = as_numba_type(PackedNodeNumba)
-except TypingError:
-    pack_node_type = type(PackedNodeNumba)
-
-
-@njit
-def _convert_list_to_tag_str(tag: list[int]) -> str:
-    """
-    Convert list of ints to a str
-    """
-    return "0" + "".join([str(t) for t in tag])
-
-
-@njit
-def _create_from_current_node(node: CurrentNode) -> PackedNodeNumba:
-    """Copy a CurrentNode instance into a PackedNodeNumba"""
-    packed = PackedNodeNumba(
-        int(node.node_start),
-        int(node.node_end),
-        node.box.copy(),
-        _convert_list_to_tag_str(node.tag),
-    )
-    packed.index = np.uint(node.index)
-    packed.is_leaf = is_leaf(node)
-    return packed
-
-
-tagtype = ListType(uint8)
-
-
-# Numba version
-@jitclass(
-    [
-        ("index", uint32),
-        ("node_start", uint32),
-        ("node_end", uint32),
-        ("tag", tagtype),
-        ("child_flag", uint8),
-        ("my_index", uint8),
-        ("level", uint8),
-        ("empty", uint8),
-        ("box", bbox.bbn_type),
-    ]
-)
-class CurrentNode:
-    index: int
-    node_start: int
-    node_end: int
-    tag: List[int]
-    child_flag: int
-    my_index: int
-    level: int
-    empty: int
-    box: bbox.BoundingBox
-
-    def __init__(
-        self,
-        box: bbox.BoundingBox,
-        index: int = 0,
-        node_start: int = 0,
-        node_end: int = 0,
-        tag: List[int] | None = None,
-        child_flag: int = 0,
-        my_index: int = 0,
-        level: int = 0,
-        empty: int = 0,
-    ):
-        self.box = box
-        self.index = index
-        self.node_start = node_start
-        self.node_end = node_end
-        self.tag = List.empty_list(uint8) if tag is None else None
-        self.child_flag = child_flag
-        self.my_index = my_index
-        self.level = level
-        self.empty = empty
-
-
-try:
-    curr_node_type = as_numba_type(CurrentNode)
-except TypingError:
-    curr_node_type = type(CurrentNode)
-
-
-@njit
-def _update_node_state(node: CurrentNode, child_index: int, old_my_index: int):
-    """
-    Update the internal state of this node depending on tree taversal direction
-
-    This has been separated out of _update_current_node so that it can be used
-    by _construct_node_recursive, since these parts are not directly encoded in
-    the packed tree
-    """
-    # Since some information, like the box and tag, are not stored in the
-    # tree, we need to update the node's state. This is dependent on which
-    # direction we're traveling: up the tree requires shortening the tag and
-    # expanding the box; down the tree requires lengthening the tag and
-    # shrinking the box.
-    if not child_index:
-        # moving to parent - need index of current node to remove offsets
-        # need zero-based for positions
-        node.tag.pop()
-        curr_child_index = old_my_index - 1  # need 0-based index
-        node.box.box[0] -= node.box.box[3] * (curr_child_index & 1)
-        node.box.box[1] -= node.box.box[4] * ((curr_child_index & 2) >> 1)
-        node.box.box[2] -= node.box.box[5] * ((curr_child_index & 4) >> 2)
-        # need to grow box _after_ moving
-        node.box.box[3] *= 2
-        node.box.box[4] *= 2
-        node.box.box[5] *= 2
-    else:
-        # 1-based index is stored
-        if node.my_index != child_index:
-            raise octree.OctreeError(
-                f"Child index ({child_index}) does not "
-                + f"match expected ({node.my_index})"
-            )
-        node.tag.append(np.uint8(child_index))
-        # need to shrink box _before_ moving
-        node.box.box[3] /= 2
-        node.box.box[4] /= 2
-        node.box.box[5] /= 2
-        # need zero-based for positions
-        child_index -= 1
-        node.box.box[0] += node.box.box[3] * (child_index & 1)
-        node.box.box[1] += node.box.box[4] * ((child_index & 2) >> 1)
-        node.box.box[2] += node.box.box[5] * ((child_index & 4) >> 2)
-
-
-@njit
-def get_name(node: CurrentNode) -> str:
-    """
-    Get the name (tag) of this CurrentNode
-    """
-    return _convert_list_to_tag_str(node.tag)
-
-
-@njit
-def get_children(node: CurrentNode) -> list[int]:
-    """
-    Return a list of 0-based children indices for this CurrentNode
-    """
-    return List([i for i in range(8) if node.child_flag & (1 << i)])
-
-
-@njit
-def is_leaf(node: CurrentNode) -> bool:
-    """
-    Return True if node is a leaf node
-    """
-    return not bool(node.child_flag)
-
-
-@njit
-def is_root(node: CurrentNode) -> bool:
-    """
-    Return True if node is the root node
-    """
-    return not node.index
 
 
 @njit
@@ -1132,6 +857,106 @@ class PackedTreeNumba:
             sph,
         )
 
+    def _node_node_query_ball_tree(
+        self, other: PackedTreeNumba, r: float
+    ) -> List[List[tuple[int, int]]]:
+        node = self._make_root_node()
+        query = List.empty_list(_list_index_tuple)
+        with objmode(sph=bbox.bs_type):
+            sph = bbox.make_bounding_sphere(center=[0, 0, 0], radius=r)
+
+        next_child = List([0])
+        while next_child:
+            child = next_child[-1]
+            while child < 8 and not _move_to_child(self.tree, node, child):
+                child = child + 1
+
+            if child >= 8:
+                # no more children to visit
+                next_child.pop()
+                _move_to_parent(self.tree, node)
+                continue
+
+            next_child[-1] = child + 1
+
+            next_child.append(0)
+            if is_leaf(node):
+                sph.center[0], sph.center[1], sph.center[2] = node.box.midplane()
+                query.append(
+                    other._get_particle_indices_in_shape(sph.bounding_box, sph)
+                )
+
+        return query
+
+    def count_neighbors(self, other: PackedTreeNumba, r: float) -> int:
+        node = self._make_root_node()
+        num_pairs = 0
+        with objmode(sph=bbox.bs_type):
+            sph = bbox.make_bounding_sphere(center=[0, 0, 0], radius=r)
+
+        next_child = List([0])
+        while next_child:
+            child = next_child[-1]
+            while child < 8 and not _move_to_child(self.tree, node, child):
+                child = child + 1
+
+            if child >= 8:
+                # no more children to visit
+                next_child.pop()
+                _move_to_parent(self.tree, node)
+                continue
+
+            next_child[-1] = child + 1
+
+            next_child.append(0)
+            if is_leaf(node):
+                sph.center[0], sph.center[1], sph.center[2] = node.box.midplane()
+                pair_nodes = other._get_particle_indices_in_shape(sph.bounding_box, sph)
+                for other_start, other_end in pair_nodes:
+                    num_pairs += (node.node_end - node.node_start + 1) * (
+                        other_end - other_start + 1
+                    )
+
+        return num_pairs
+
+    def _get_particle_index_list_in_shape(
+        self,
+        data: DataContainer,
+        bounding_box: bbox.BoundingBox,
+        containment_obj: bbox.BoundingVolume,
+    ) -> NDArray[np.int64]:
+        """
+        Return all particles contained within a shape that fits inside bounding box
+
+        Args:
+            bounding_box: BoundingBox
+            Shape bounding box
+
+            containment_obj: BoundingVolume
+            Object with bounding box specified by bounding_box. Provides
+            a more exact containment test (e.g. contained within a sphere).
+
+        Returns:
+            indices: list[tuple[int]]
+            List of particle start-stop indices contained within shape
+        """
+        slices = self._get_particle_indices_in_shape(bounding_box, containment_obj)
+
+        # the following is an attempt to mimic what I _think_ the expand_ranges
+        # function from swiftsimio (which is GPL 3) does.
+        num_particles = 0
+        for s in slices:
+            num_particles += s[1] - s[0] + 1
+
+        indices = np.empty((num_particles,), dtype=np.int64)
+        ind = 0
+        for s in slices:
+            for i, index in enumerate(range(s[0], s[1] + 1)):
+                indices[ind + i] = data._index[index]
+            ind += s[1] - s[0] + 1
+
+        return indices
+
     def get_closest_particle(
         self,
         xyz: ArrayLike,
@@ -1229,426 +1054,3 @@ def _print_packed(packed: memoryview | array, *, expected_node_start=0):
             position += 1
 
     print(f"remaining: {packed[position:]}")  # noqa
-
-
-class TreeMeta(NamedTuple):
-    """The metadata for a PackedTree"""
-
-    creation_timestamp: np.float64
-    """ Creation time as a UTC timestamp"""
-    checksum: int
-    """ Actual checksum """
-    bounding_box: bbox.BoundingBox
-    """ Bounding box used when creating the tree """
-    particle_threshold: int = octree._DEFAULT_PARTICLE_THRESHOLD
-    """ Particle threshold used when creating the tree """
-    meta_size: int = 144
-    """ Header size in bytes """
-    field_type: np.dtype = np.dtype(np.uint32)
-    """ Field type (e.g. uint32)"""
-    packed_spec_version: str = "1.0.0"
-    """ Current version of the packed metadata standard in semver format"""
-    checksum_method: str = "xxh3_64_intdigest"
-    """ Method for computing the checksum """
-
-
-class TreeMetaError(Exception):
-    pass
-
-
-def create_metadata(
-    box: bbox.BoundingBox,
-    packed: NDArray[np.uint32],
-    particle_threshold: int = octree._DEFAULT_PARTICLE_THRESHOLD,
-):
-    """
-    Create a tree metadata object from the provided info
-
-    Args:
-        box: BoundingBox
-        The bounding box used to create the tree
-
-        packed: NDArray[uint32]
-        The packed tree data
-
-        particle_threshold: int, optional
-        The particle threshold to split leaves. Defaults to
-        optree._DEFAULT_PARTICLE_THRESHOLD
-
-    Returns:
-        A TreeMeta object containing the tree's metadata
-    """
-    creation = np.float64(datetime.datetime.now(tz=datetime.UTC).timestamp())
-    checksum = xxh3_64_intdigest(bytes(packed))
-    return TreeMeta(
-        field_type=packed.dtype,
-        creation_timestamp=creation,
-        checksum=checksum,
-        bounding_box=box,
-        particle_threshold=particle_threshold,
-    )
-
-
-def pack_metadata(
-    metadata: TreeMeta, packed_tree: NDArray[np.uint32]
-) -> NDArray[np.uint32]:
-    """
-    Pack tree metadata
-
-    Args:
-        metadata: TreeMeta
-        The metadata of the tree
-
-        packed_tree: NDArray
-        The packed tree data
-
-    Returns:
-        Packed metadata
-    """
-    packed_meta: NDArray = np.zeros(
-        (int(metadata.meta_size / np.dtype(metadata.field_type).itemsize),),
-        dtype=metadata.field_type,
-    )
-    packed_meta[0] = metadata.meta_size
-    version = np.array(
-        [np.uint8(v) for v in metadata.packed_spec_version.split(".")], dtype=np.uint32
-    )
-    packed_meta[1] = np.uint32(
-        (np.uint32(np.int8(4)) << 24)
-        | (version[0] << 16)
-        | (version[1] << 8)
-        | (version[2])
-    )
-
-    def to_field(
-        x: np.float32 | np.float64 | np.int64 | np.uint64 | NDArray,
-    ) -> NDArray:
-        return np.frombuffer(x.tobytes(), dtype=metadata.field_type.type)
-
-    ft = metadata.field_type.type
-    packed_meta[2:4] = to_field(
-        np.float64(datetime.datetime.now(tz=datetime.UTC).timestamp())
-    )
-    packed_meta[4:21] = to_field(np.array(metadata.checksum_method))
-    packed_meta[21:23] = to_field(np.uint64(xxh3_64_intdigest(packed_tree)))
-    packed_meta[23:35] = to_field(metadata.bounding_box.box)
-    packed_meta[35] = np.uint32(metadata.particle_threshold)
-    return packed_meta
-
-
-def extract_metadata(source: Buffer) -> tuple[TreeMeta, NDArray[np.uint32]]:
-    """
-    Extract the metadata and packed tree information from a buffer
-
-    Args:
-        source: Buffer
-        A Buffer containing the packed data
-
-    Returns:
-        metadata
-        The tree's metadata
-
-        packed_tree
-        The actual packed tree data as a numpy array
-
-    Raises:
-        ValueError
-        If the metadata does not match an expected format
-
-        NotImplementedError
-        If an unimplemented data format is specified (currently only uint32)
-
-        OctreeError
-        If the metadata checksum does not match the computed checksum
-    """
-    combined = np.frombuffer(source, dtype=np.uint32)
-    meta_size = combined[0]
-    if meta_size != 144:
-        # need to check endianness
-        dts = np.dtype(np.uint32).newbyteorder("S")
-        meta_size = np.asarray(meta_size, dtype=dts)
-        if meta_size != 144:
-            raise TreeMetaError(
-                "Unknown metadata format! Expected first "
-                f"field to be equal to 144, got {meta_size}"
-            )
-        combined = np.asarray(combined, dtype=dts)
-    # extract field type and packed specification version
-    ft_version = combined[1]
-    ft = np.int8(ft_version >> 24)
-    if ft != 4:
-        raise NotImplementedError(
-            f"Only uint32 (ft=4) is currently available (provided {ft})"
-        )
-    version_list = [0xFF & (ft_version >> i) for i in range(16, -1, -8)]
-    version = f"{version_list[0]}.{version_list[1]}.{version_list[2]}"
-
-    def from_field(x: NDArray, dt: np.dtype) -> NDArray:
-        return np.frombuffer(x.tobytes(), dtype=dt)
-
-    creation_time = np.float64(from_field(combined[2:4], np.dtype(np.float64)))
-    checksum_method = str(from_field(combined[4:21], np.dtype("U17"))[0])
-    if checksum_method != "xxh3_64_intdigest":
-        LOGGER.warning(
-            f"Unknown checksum method: {checksum_method}. Expected xxh3_64_intdigest"
-        )
-    checksum = int(from_field(combined[21:23], np.dtype(np.uint64)))
-    box_array = from_field(combined[23:35], np.dtype(np.float64))
-    box = bbox.make_bounding_box(box_array)
-    particle_threshold = combined[35]
-    packed_tree = combined[36:]
-    computed_checksum = xxh3_64_intdigest(packed_tree)
-    if checksum != computed_checksum:
-        raise octree.OctreeError(
-            f"Packed tree checksum {computed_checksum}"
-            f" does not match header ({checksum})!"
-        )
-    metadata = TreeMeta(
-        meta_size=meta_size,
-        field_type=np.dtype(np.uint32),
-        creation_timestamp=creation_time,
-        checksum=checksum,
-        bounding_box=box,
-        particle_threshold=particle_threshold,
-        checksum_method=checksum_method,
-        packed_spec_version=version,
-    )
-    return metadata, packed_tree
-
-
-class PackedTree(octree.Octree):
-    """
-    Public packed octree interface
-
-    This interface defines the methods for creating, manipulating, and
-    traversing a packingcubes packed octree.
-
-    Attributes:
-        data: Dataset
-        The backing dataset
-
-        particle_threshold: int
-        The maximum leaf size before splitting, used in tree construction
-
-    """
-
-    _tree: PackedTreeNumba
-    """
-    The actual in-memory representation of the tree as a numba-fied class
-    object
-    """
-    metadata: TreeMeta
-    """
-    The metadata for this packed tree
-    """
-    particle_threshold: int
-    """
-    The maximum leaf size before splitting, used in tree construction
-    """
-
-    def __init__(
-        self,
-        *,
-        dataset: NDArray | Dataset | None = None,
-        source: Buffer | None = None,
-        particle_threshold: int | None = None,
-        bounding_box: bbox.BoxLike | None = None,
-        copy_data: bool = False,
-    ):
-        """
-        Note: must provide either dataset or source. If provided source does
-        not include metadata, must additionally provide either dataset or
-        bounding_box.
-
-        Args:
-            dataset: NDArray | Dataset, optional
-            An (N,3) array or Dataset containing particle data
-
-            source: Buffer | None, optional
-            Pre-computed packed buffer containing this tree. Leave out to
-            compute the tree from scratch.
-
-            particle_threshold: int, optional
-            Number of particles allowed in a leaf before splitting. Defaults to
-            octree._DEFAULT_PARTICLE_THRESHOLD
-
-            bounding_box: BoxLike, optional
-            Bounding box of the tree. Required if metadata needs to be created
-            and dataset is not provided.
-            Will override the dataset bounding box.
-
-            copy_data: bool, optional
-            If dataset is just an array, flag to copy data prior to construction.
-            Defaults to False
-        """
-        if particle_threshold is None:
-            particle_threshold = octree._DEFAULT_PARTICLE_THRESHOLD
-
-        self.particle_threshold = particle_threshold
-
-        if dataset is not None and not isinstance(dataset, Dataset):
-            dataset = InMemory(positions=dataset.copy() if copy_data else dataset)
-
-        # from some empirical testing. doesn't need to be exact anyway
-        # estimated_size_in_bytes = (
-        #     len(data) / 10 ** (np.floor(np.log10(self.particle_threshold))) * 1.2
-        # ).astype(int) * 20
-        # self.tree = np.array((estimated_size_in_bytes,), dtype=np.bytes_)
-
-        metadata = None
-        if source is not None:
-            try:
-                metadata, packed = extract_metadata(source)
-            except TreeMetaError as ve:
-                packed = np.frombuffer(source, dtype=np.uint32)
-        elif dataset is not None:
-            data = dataset.data_container
-            bounding_box = (
-                data.bounding_box
-                if bounding_box is None
-                else bbox.make_bounding_box(bounding_box)
-            )
-            packed = _construct_tree(
-                data, box=bounding_box, particle_threshold=particle_threshold
-            )
-        else:
-            raise ValueError("Must provide one of dataset or source")
-
-        if metadata is None:
-            if bounding_box is not None:
-                box = bbox.make_bounding_box(bounding_box)
-            elif dataset is not None:
-                box = dataset.bounding_box
-            else:
-                raise ValueError("Metadata creation requires dataset or bounding_box")
-            metadata = create_metadata(
-                box=box,
-                packed=packed,
-                particle_threshold=particle_threshold,
-            )
-        self.metadata = metadata
-        self._tree = PackedTreeNumba(
-            self.metadata.bounding_box, packed, self.metadata.particle_threshold
-        )
-
-    @property
-    def packed_tree(self) -> memoryview:
-        """
-        Return a memoryview of the tree's backing byte array
-        """
-        return memoryview(self._tree.tree)
-
-    @property
-    def packed_meta(self) -> memoryview:
-        """
-        Return a memoryview of the tree's packed metadata
-        """
-        packed_meta = pack_metadata(self.metadata, self._tree.tree)
-        return memoryview(packed_meta)
-
-    @property
-    def packed_form(self) -> NDArray[np.uint32]:
-        """
-        Return this tree in full packed form
-        """
-        packed_meta = np.frombuffer(self.packed_meta, dtype=np.uint32)
-        packed_tree = np.frombuffer(self.packed_tree, dtype=np.uint32)
-        return np.hstack((packed_meta, packed_tree))
-
-    def __iter__(self) -> Iterator[octree.OctreeNode]:
-        """
-        Iterate through all nodes of the octree. Note that no guarantee is made
-        of what order the nodes are traversed in
-        """
-        return map(PackedNode, self._tree._get_nodes_numba())
-
-    def get_leaves(self) -> Iterable[octree.OctreeNode]:
-        """
-        Return a list of all leaf octree nodes in depth-first order
-        """
-        return map(PackedNode, self._tree.get_leaves())
-
-    def get_node(self, tag: str) -> octree.OctreeNode | None:
-        """
-        Return the node corresponding to the provided tag or None if not found
-
-        Args:
-            tag: str
-            The tag to search for
-
-        Returns:
-            node
-            Node in octree with specified tag or None if it does not exist
-        """
-        pnn = self._tree.get_node(tag)
-        return PackedNode(pnn) if pnn else None
-
-    def get_particle_indices_in_box(
-        self,
-        *,
-        box: bbox.BoxLike,
-    ) -> list[tuple[int, int]]:
-        """
-        Return all particles contained within the box
-
-        Args:
-            box: BoxLike
-            Box to check
-
-        Returns:
-            indices: list[tuple[int, int]]
-            List of particle start-stop indices contained within sphere
-        """
-        return self._tree.get_particle_indices_in_box(box)
-
-    def get_particle_indices_in_sphere(
-        self,
-        *,
-        center: NDArray,
-        radius: float,
-    ) -> list[tuple[int, int]]:
-        """
-        Return all particles contained within the sphere defined by center and radius
-
-        Args:
-            center: NDArray
-            Center point of the sphere
-
-            radius: float
-            Radius of the sphere
-
-        Returns:
-            indices: list[tuple[int, int]]
-            List of particle start-stop indices contained within sphere
-        """
-        return self._tree.get_particle_indices_in_sphere(center, radius)
-
-    def get_closest_particle(
-        self, xyz: ArrayLike, *, check_neighbors: bool = True
-    ) -> tuple[np.int_, float]:
-        """
-        Get nearest particle index (and distance) to point
-
-        Steps:
-          1. Find smallest node contaning point
-          2. Find closest particle in this node
-          3. Check if neighboring nodes have closer particles
-              1. Check if neighboring node is closer than closest particle
-              2. Compare particles in neighbor node to closest
-
-        Args:
-            xyz: ArrayLike
-            Coordinates of point to check
-
-            check_neighbors: bool, optional
-            Flag to check whether we should look at neighbors of the smallest
-            containing node. Default True
-
-        Returns:
-            closest_ind: int
-            Absolute index of closest particle
-
-            closest_dist: float
-            Distance to closest particle
-        """
-        return self._tree.get_closest_particle(xyz, check_neighbors)

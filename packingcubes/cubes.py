@@ -34,6 +34,8 @@ from packingcubes.data_objects import (
 from packingcubes.octree import _DEFAULT_PARTICLE_THRESHOLD
 from packingcubes.packed_tree import (
     PackedTree,
+)
+from packingcubes.packed_tree.packed_tree_numba import (
     PackedTreeNumba,
     _construct_tree,
     _index_tuple_type,
