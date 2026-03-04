@@ -333,7 +333,7 @@ creation = {
 
 search = {
     "python": [2.5, 8.7, 61, 208, 850],
-    "packed": [0.257, 0.667, 2.31, 17.5, 32],
+    "packed": [0.257, 0.667, 2.31, 9.44, 32],
     "pack_list": [0.328, 0.795, 3.83, 27.3, 216],
     "cubes": [0.187, 0.256, 0.572, 1.92, 8.0],
     "kdtree": [0.248, 2.94, 33.2, 463, 2340],
@@ -348,11 +348,26 @@ size = {
 
 extra = {
     "notes": [
-        "Run on nvdimm, snapshot 6",
-        "Run on nvdimm, snapshot 6",
-        "Run on nvdimm, snapshot 6",
-        "Run on nvdimm(DR,PyOct creation & search)/icx otherwise, snapshot 6",
-        "Run on nvdimm(creation)/icx(search/size) with snapshot 6",
+        (
+            "Run on nvdimm(DR,PyOct creation & search) & snapshot 6/"
+            "icx otherwise, snapshot 13"
+        ),
+        (
+            "Run on nvdimm(DR,PyOct creation & search) & snapshot 6/"
+            "icx otherwise, snapshot 13"
+        ),
+        (
+            "Run on nvdimm(DR,PyOct creation & search) & snapshot 6/"
+            "icx otherwise, snapshot 13"
+        ),
+        (
+            "Run on nvdimm(DR,PyOct creation & search) & snapshot 6/"
+            "icx otherwise, snapshot 13"
+        ),
+        (
+            "Run on nvdimm(DR,PyOct creation & search) & snapshot 6/"
+            "icx otherwise, snapshot 13"
+        ),
     ]
 }
 
