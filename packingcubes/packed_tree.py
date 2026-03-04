@@ -180,19 +180,6 @@ def _create_from_current_node(node: CurrentNode) -> PackedNodeNumba:
     return packed
 
 
-# Dataclass version
-# @dataclass
-# class CurrentNode:
-#     node_end: int
-#     tag: list[int]
-#     box: bbox.BoundingBox
-#     index: int = 0
-#     node_start: int = 0
-#     child_flag: int = 0
-#     my_index: int = 0
-#     level: int = 0
-#     empty: int = 0
-
 tagtype = ListType(uint8)
 
 
