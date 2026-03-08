@@ -156,3 +156,188 @@ class KDTreeAPI:
         )
         # Each node is 5 fields, so number of nodes = length/5
         self.size = int(len(self._tree._tree.tree) / 5)
+
+    def _query_ball_point(
+        self,
+        *,
+        centers: NDArray,
+        radius: float,
+        return_length: bool = False,
+        return_sorted: bool | None = False,
+        strict: bool = False,
+    ) -> list[int] | NDArray:
+        """
+        Private method to actually compute the query after inputs validated
+        """
+
+        if return_length:
+            # psuedocode:
+            # for center in centers:
+            #     sph = sphere(center, radius)
+            #     nodes = list of tree nodes that overlap sph
+            #     sum = 0
+            #     for node in nodes:
+            #         sum += node.end-node.start + 1
+            #     append sum to result
+            return [
+                sum(
+                    e - s + 1
+                    for (e, s) in self._tree.get_particle_indices_in_sphere(
+                        center=center, radius=radius
+                    )
+                )
+                for center in centers
+            ]
+        results = [
+            self._tree.get_particle_index_list_in_sphere(
+                dataset=self._dataset,
+                center=center,
+                radius=radius,
+                strict=strict,
+            )
+            for center in centers
+        ]
+        #  results is now list of list of (unsorted) indices into shuffle list
+        if return_sorted:
+            for r in results:
+                r.sort()
+
+        return np.fromiter(results, dtype=np.object_)
+
+    def query_ball_point(
+        self,
+        x: NDArray,
+        r: float,
+        p: float | None = 2.0,
+        eps: float | None = None,
+        workers: int = 1,
+        *,
+        return_sorted: bool | None = None,
+        return_length: bool = False,
+        strict: bool | None = None,
+    ) -> list[int] | NDArray:
+        """
+        Find all points within distance r of point(s) x.
+
+        Args:
+            x : array_like, shape tuple + (self.m,)
+                The point or points to search for neighbors of.
+            r : array_like, float
+                The radius of points to return, must broadcast to the length of x.
+            p : float, optional
+                Which Minkowski p-norm to use.  Should be in the range [1, inf].
+                A finite large p may cause a ValueError if overflow can occur.
+            eps : nonnegative float, optional
+                Approximate search. Branches of the tree are not explored if their
+                nearest points are further than ``r / (1 + eps)``, and branches are
+                added in bulk if their furthest points are nearer than
+                ``r * (1 + eps)``.
+            workers : int, optional
+                Number of jobs to schedule for parallel processing. If -1 is given
+                all processors are used. Default: 1.
+
+            return_sorted : bool, optional
+                Sorts returned indices if True and does not sort them if False. If
+                None, does not sort single point queries, but does sort
+                multi-point queries which was the behavior before this option
+                was added.
+
+            return_length : bool, optional
+                Return the number of points inside the radius instead of a list
+                of the indices. Note that this is much faster for large trees.
+
+        Returns:
+            results : list or array of lists
+                If `x` is a single point, returns a list of the indices of the
+                neighbors of `x`. If `x` is an array of points, returns an object
+                array of shape tuple containing lists of neighbors.
+
+        Notes:
+        If you have many points whose neighbors you want to find, you may save
+        substantial amounts of time by putting them in a KDTree and using
+        query_ball_tree.
+
+        Examples:
+        >>> import numpy as np
+        >>> from scipy import spatial
+        >>> x, y = np.mgrid[0:5, 0:5]
+        >>> points = np.c_[x.ravel(), y.ravel()]
+        >>> tree = spatial.KDTree(points)
+        >>> sorted(tree.query_ball_point([2, 0], 1))
+        [5, 10, 11, 15]
+
+        Query multiple points and plot the results:
+
+        >>> import matplotlib.pyplot as plt
+        >>> points = np.asarray(points)
+        >>> plt.plot(points[:,0], points[:,1], '.')
+        >>> for results in tree.query_ball_point(([2, 0], [3, 3]), 1):
+        ...     nearby_points = points[results]
+        ...     plt.plot(nearby_points[:,0], nearby_points[:,1], 'o')
+        >>> plt.margins(0.1, 0.1)
+        >>> plt.show()
+
+        """
+        x = np.atleast_2d(x)
+        if len(x.shape) > 2 or x.shape[1] != 3:
+            raise KDTreeError(
+                "PackedTrees only support 3-dimensional query points. "
+                + (
+                    f"Provided point(s) were {x.shape[1]}-dimensional"
+                    if len(x.shape[1]) != 3
+                    else (
+                        "Provided inputs were "
+                        f"{'x'.join(f'{x1}' for x1 in x.shape[1:])}"
+                    )
+                )
+            )
+
+        p = 2 if p is None else p
+        if p != 2:
+            warnings.warn(
+                (
+                    "PackedTrees currently only support the Minkowski 2-norm "
+                    f"(requested {p}). Continuing with p=2."
+                ),
+                KDTreeWarning,
+                stacklevel=1,
+            )
+
+        if eps is not None:
+            if eps < 0:
+                raise ValueError("eps must be nonnegative.")
+            if eps > 0:
+                warnings.warn(
+                    (
+                        """
+                        PackedTrees do not quantify the distance between points/nodes
+                        in the same way as KDTrees. Setting eps>0 is equivalent to
+                        strict=False (default).
+                        """
+                    ),
+                    KDTreeWarning,
+                    stacklevel=1,
+                )
+            else:
+                strict = True if strict is None else strict
+        strict = False if strict is None else strict
+        if strict:
+            raise NotImplementedError("Strict returns not implemented yet.")
+
+        if workers != 1:
+            warnings.warn(
+                """
+                PackedTrees are single-threaded. For multi-threading consider
+                switching to the Cubes API. Proceeding with workers=1.
+                """,
+                KDTreeWarning,
+                stacklevel=1,
+            )
+
+        return self._query_ball_point(
+            centers=x,
+            radius=r,
+            return_length=return_length,
+            return_sorted=return_sorted,
+            strict=strict,
+        )
