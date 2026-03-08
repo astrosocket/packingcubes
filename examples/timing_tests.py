@@ -12,6 +12,7 @@ from scipy.spatial import KDTree
 from unyt import second, unyt_array, unyt_quantity
 from yt.units import Msun, kiloparsec
 
+import packingcubes
 import packingcubes.bounding_box as bbox
 import packingcubes.cubes as cubes
 import packingcubes.data_objects as data_objects
@@ -459,6 +460,11 @@ def parse_arguments(argv=None):
         "-v", "--verbose", action="count", default=0, help="increase output verbosity"
     )
     parser.add_argument(
+        "--version",
+        action="version",
+        version=f"packingcubes: {packingcubes.__version__}",
+    )
+    parser.add_argument(
         "-d",
         "--decimation-factor",
         default=1,
@@ -553,6 +559,7 @@ def parse_arguments(argv=None):
 if __name__ == "__main__":
     args = parse_arguments()
     logging.basicConfig()
+    LOGGER.info(f"Running with packingcubes v{packingcubes.__version__}")
     if args.dry:
         LOGGER.info("Dry run only. Actual timing will be skipped")
     creation_list = args.creation_list if args.creation_list else []
