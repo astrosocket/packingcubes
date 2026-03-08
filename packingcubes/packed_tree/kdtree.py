@@ -108,9 +108,11 @@ class KDTreeAPI:
         if len(data_shape) != 2 or data_shape[1] != 3:
             raise KDTreeError(
                 "PackedTrees only support 3-dimensional data. Provided data "
-                f"was {data_shape[1]}-dimensional"
-                if len(data_shape) >= 2
-                else "was 1-dimensional."
+                + (
+                    f"was {data_shape[1]}-dimensional"
+                    if len(data_shape) >= 2
+                    else "was 1-dimensional."
+                )
             )
         self._dataset = InMemory(positions=data.copy() if copy_data else data)
         self.data = self._dataset.positions
