@@ -32,6 +32,9 @@ python -m timeit -s "import timing_tests;ds = timing_tests.load_data($DECIMATION
 echo "packingcubes.PackedOctree search (divide by 100)"
 python -m timeit -s "import timing_tests;ds = timing_tests.load_data($DECIMATION_FACTOR);timing_tests.precompile();tree = timing_tests.packed_octree_creation(ds)" "timing_tests.packed_octree_query_ball_point(tree)"
 
+echo "packingcubes.PackedOctree search with indices (divide by 100)"
+python -m timeit -s "import timing_tests;ds = timing_tests.load_data($DECIMATION_FACTOR);timing_tests.precompile();tree = timing_tests.packed_octree_creation(ds)" "timing_tests.packed_octree_query_ball_point_indices(ds,tree)"
+
 echo "Cubes search (divide by 100)"
 python -m timeit -s "import timing_tests;setup = timing_tests.cubing_setup();cubes = timing_tests.cubing(setup);timing_tests.cubes_query_ball_points(cubes);" "timing_tests.cubes_query_ball_points(cubes)"
 

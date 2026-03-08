@@ -92,6 +92,18 @@ def packed_octree_query_ball_point(tree: optree.PackedTree):
         )
 
 
+def packed_octree_query_ball_point_indices(
+    dataset: data_objects.Dataset, tree: optree.PackedTree
+):
+    for c, r in zip(centers, radii, strict=True):
+        sph_inds = tree.get_particle_index_list_in_sphere(
+            dataset=dataset,
+            center=c,
+            radius=r,
+            strict=True,
+        )
+
+
 # we want the PackedTree stuff to be pre-compiled
 def precompile():
     dataset = data_objects.InMemory(positions=np.array([0, 0, 0]))
