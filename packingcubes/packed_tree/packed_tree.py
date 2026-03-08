@@ -235,6 +235,7 @@ class PackedTree(octree.Octree):
         *,
         dataset: Dataset,
         box: bbox.BoxLike,
+        strict: bool = False,
     ) -> NDArray[np.int64]:
         """
         Return all particles contained within the box
@@ -243,11 +244,20 @@ class PackedTree(octree.Octree):
             box: BoxLike
             Box to check
 
+            strict: bool, optional
+            Flag to specify whether only particles inside containment_obj will
+            be returned. If False (default), additional nearby particles may be
+            included for signficantly increased performance
+
         Returns:
             indices: NDArray[int]]
             List of original particle indices contained within sphere
         """
         bounding_box = bbox.make_bounding_box(box)
+        if strict:
+            return self._tree._get_particle_index_list_in_shape_strict(
+                dataset.data_container, bounding_box, bounding_box
+            )
         return self._tree._get_particle_index_list_in_shape(
             dataset.data_container, bounding_box, bounding_box
         )
@@ -258,6 +268,7 @@ class PackedTree(octree.Octree):
         dataset: Dataset,
         center: NDArray,
         radius: float,
+        strict: bool = False,
     ) -> NDArray[np.int64]:
         """
         Return all particles contained within the sphere defined by center and radius
@@ -269,12 +280,21 @@ class PackedTree(octree.Octree):
             radius: float
             Radius of the sphere
 
+            strict: bool, optional
+            Flag to specify whether only particles inside containment_obj will
+            be returned. If False (default), additional nearby particles may be
+            included for signficantly increased performance
+
         Returns:
             indices: NDArray[int]
             List of original particle indices contained within sphere
         """
         sph = bbox.make_bounding_sphere(radius, center=center)
         bounding_box = sph.bounding_box
+        if strict:
+            return self._tree._get_particle_index_list_in_shape_strict(
+                dataset.data_container, bounding_box, sph
+            )
         return self._tree._get_particle_index_list_in_shape(
             dataset.data_container, bounding_box, sph
         )
