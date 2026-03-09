@@ -326,9 +326,7 @@ class KDTreeAPI:
                 )
             else:
                 strict = True if strict is None else strict
-        strict = False if strict is None else strict
-        if strict:
-            raise NotImplementedError("Strict returns not implemented yet.")
+        strict = True if strict is None else strict
 
         if workers != 1:
             warnings.warn(
