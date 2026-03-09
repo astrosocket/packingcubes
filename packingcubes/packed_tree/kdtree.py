@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import warnings
+from collections.abc import Sequence
 
 import numpy as np
 from numpy.typing import NDArray
@@ -160,6 +161,130 @@ class KDTreeAPI:
         )
         # Each node is 5 fields, so number of nodes = length/5
         self.size = int(len(self._tree._tree.tree) / 5)
+
+    def _query(
+        self,
+        *,
+        x: NDArray,
+        k: int | Sequence[int],
+        distance_upper_bound: float,
+        p: float,
+    ) -> tuple[float | NDArray, int | NDArray]:
+        """
+        Private helper that wraps the PackedTree get_closest_particles method
+        """
+        k_max = k if not isinstance(k, Sequence) else max(k)
+
+        d = np.full((len(x), k_max), np.inf)
+        i = np.full((len(x), k_max), self.n)
+        for ind, xyz in enumerate(x):
+            dists, inds = self._tree.get_closest_particles(
+                dataset=self._dataset,
+                xyz=xyz,
+                distance_upper_bound=distance_upper_bound,
+                p=p,
+                k=k_max,
+            )
+            d[ind, : len(dists)] = dists
+            i[ind, : len(inds)] = inds
+        if k_max == 1:
+            return d.squeeze(), i.squeeze()
+        if isinstance(k, Sequence):
+            k_inds = np.fromiter(k, dtype=int)
+            return d[:, k_inds], i[:, k_inds]
+        return d, i
+
+    def query(
+        self,
+        x: NDArray,
+        k: int | Sequence[int] = 1,
+        eps: float | None = None,
+        p: int | None = None,
+        distance_upper_bound: float | None = None,
+        workers: int | None = None,
+    ) -> tuple[float | NDArray, int | NDArray]:
+        """
+        Query the KDTree for nearest neighbors
+
+        Args:
+            x: NDArray
+            An array of points to query
+
+            k: int | Sequence[int], optional
+            Either the number of nearest neighbors to return or a list of the
+            kth nearest neighbors to return, starting from 1. E.g., [2,3] will
+            return the 2nd and 3rd nearest neighbors
+
+            eps: nonnegative float, optional
+            Return approximate nearest neighbors; Note that this parameter is
+            unused
+
+            p: 1<=p<=infinity, optional
+            The Minkowski p-norm to use. 1 is the sum of absolute-values
+            distance ("Manhattan" distance). 2 is the Euclidean distance.
+            infinity is the maximum-coordinate-difference distance. Currently
+            only p=2 is supported
+
+            distance_upper_bound: nonnegative float, optional
+            Return only neighbors from other nodes within this distance. This
+            is used for tree pruning, so if you are doing a series of
+            nearest-neighbor queries, it may help to supply the distance to the
+            nearest neighbor of the most recent point.
+
+            workers: int, optional
+            Number of workers to use for parallel processing. Only 1 is
+            supported, for more, see Cubes
+
+        Returns:
+            d: float or array of floats
+            The distances to the nearest neighbors. If x has shape
+            tuple+(self.m,), then d has shape tuple+(k,). When k==1, the last
+            dimension of the output is squeezed. Missing neighbors are
+            indicated with infinite distances. Hits are sorted by distance
+            (nearest first)
+
+            i: integer or array of integers
+            The index of each neighbor in self.data. i is the same shape as d.
+            Missing neighbors are indicated with self.n.
+
+        Raises:
+            NotImplementedError if p!=2
+
+        """
+        x = np.atleast_2d(x)
+
+        distance_upper_bound = (
+            1e100 if distance_upper_bound is None else distance_upper_bound
+        )
+        p = 2 if p is None else p
+
+        if eps is not None:
+            if eps < 0:
+                raise ValueError("eps must be nonnegative.")
+            if eps > 0:
+                warnings.warn(
+                    (
+                        """
+                        PackedTrees do not quantify the distance between points/nodes
+                        in the same way as KDTrees and setting this parameter has no
+                        effect
+                        """
+                    ),
+                    KDTreeWarning,
+                    stacklevel=1,
+                )
+
+        if workers is not None and workers != 1:
+            warnings.warn(
+                """
+                PackedTrees are single-threaded. For multi-threading consider
+                switching to the Cubes API. Proceeding with workers=1.
+                """,
+                KDTreeWarning,
+                stacklevel=1,
+            )
+
+        return self._query(x=x, k=k, distance_upper_bound=distance_upper_bound, p=p)
 
     def _query_ball_point(
         self,
