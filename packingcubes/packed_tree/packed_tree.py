@@ -17,7 +17,11 @@ from packingcubes.packed_tree.packed_tree_meta import (
     extract_metadata,
     pack_metadata,
 )
-from packingcubes.packed_tree.packed_tree_numba import PackedTreeNumba, _construct_tree
+from packingcubes.packed_tree.packed_tree_numba import (
+    PackedTreeNumba,
+    _construct_tree,
+    euclidean_distance,
+)
 
 LOGGER = logging.getLogger(__name__)
 logging.captureWarnings(capture=True)
@@ -331,6 +335,77 @@ class PackedTree(octree.Octree):
 
         Raises:
             NotImplementedError
-            This function is not implemented for the time being
+            This function is not implemented, see get_closest_particles instead
         """
-        raise NotImplementedError("This function is not currently implemented")
+        raise NotImplementedError("See get_closest_particles instead")
+
+    def get_closest_particles(
+        self,
+        *,
+        dataset: Dataset,
+        xyz: NDArray,
+        distance_upper_bound: float | None = None,  # noqa: FBT001, FBT002
+        p: int = 2,
+        k: int = 1,
+        brute_threshold: int = 10,
+    ) -> tuple[np.int_, float]:
+        """
+        Get kth nearest particle distances and indices to point
+
+        Args:
+            data: DataContainer
+            Source of particle position data
+
+            xyz: ArrayLike
+            Coordinates of point to check
+
+            distance_upper_bound: nonnegative float, optional
+            Return only neighbors from other nodes within this distance. This
+            is used for tree pruning, so if you are doing a series of
+            nearest-neighbor queries, it may help to supply the distance to the
+            nearest neighbor of the most recent point.
+
+            p: float, optional
+            Which Minkowski p-norm to use. 1 is the sum of absolute-values
+            distance ("Manhattan" distance). 2 is the usual Euclidean distance.
+            Infinity is the maximum-coordinate-difference distance. Currently,
+            only p=2 is supported.
+
+            k: int, optional
+            Number of closest particles to return. Default 1
+
+            brute_threshold: int, optional
+            Number of particles used for per-node brute search. Above this
+            the per-node search switches to sorting the particles in the node.
+            Default 10.
+
+        Returns:
+            distances: NDArray[float]
+            Distances to the kth nearest neighbors. Has shape (min(N,k),),
+            where N is the number of particles in the sphere bounded by
+            distance_upper_bound
+
+            indices: NDArray[int]
+            Indices in data of the kth nearest neighbors. Has same shape as
+            distances
+
+        Raises:
+            NotImplementedError
+            If a p value of then 2 is provided
+        """
+        if p != 2:
+            raise NotImplementedError("Only p=2 is currently supported")
+        distance_fun = euclidean_distance
+
+        distance_upper_bound = (
+            1e100 if distance_upper_bound is None else distance_upper_bound
+        )
+
+        return self._tree.get_closest_particles(
+            data=dataset.data_container,
+            xyz=xyz,
+            distance_function=distance_fun,
+            distance_upper_bound=distance_upper_bound,
+            k=k,
+            brute_threshold=brute_threshold,
+        )

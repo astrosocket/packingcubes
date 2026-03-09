@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from array import array
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 
 import numpy as np
 from numba import (  # type: ignore
@@ -37,6 +37,64 @@ from packingcubes.packed_tree.packed_node import (
 
 LOGGER = logging.getLogger(__name__)
 logging.captureWarnings(capture=True)
+
+
+@njit
+def euclidean_distance(xyz: NDArray, pxyz: NDArray) -> NDArray:
+    return np.sqrt(np.sum(np.atleast_2d((xyz - pxyz) ** 2), axis=1))
+
+
+@njit
+def closest_particles(
+    node_start: int,
+    node_end: int,
+    data: DataContainer,
+    xyz: NDArray,
+    distance: Callable[[NDArray, NDArray], NDArray],
+    k: int = 1,
+    brute_threshold: int = 10,
+):
+    num_particles = node_end - node_start + 1
+
+    pos = np.empty((num_particles, 3), dtype=data._positions.dtype)
+    ind = node_start
+    for i in range(num_particles):
+        ind += i
+        pos[i, 0] = data._positions[ind, 0]
+        pos[i, 1] = data._positions[ind, 1]
+        pos[i, 2] = data._positions[ind, 2]
+
+    distances = distance(pos, xyz)
+
+    # Unfortunately, we can't just return the distances/indices if k >=
+    # num_particles, we need to sort them. So it needs to be lumped into the
+    # other cases
+
+    # if k < log2(n), then finding k closest particles by just looping through
+    # is guaranteed faster than sorting first. But also we should be dealing
+    # with small numbers (unless we're not using the default particle threshold)
+    # so allow a user_specified threshold for brute force with a small default
+    # (something like 20*10=200 loop iterations is probably faster than sorting)
+    sort_threshold = max(np.log2(num_particles), brute_threshold)
+
+    if k < num_particles and k < sort_threshold:
+        return_dists = np.empty((k,), dtype=np.float64)
+        return_inds = np.empty((k,), dtype=np.int64)
+        for i in range(k):
+            min_dist = 1e100
+            min_ind = 0
+            for j, d in enumerate(distances):
+                if d < min_dist:
+                    min_dist = d
+                    min_ind = j
+            return_dists[i] = min_dist
+            return_inds[i] = min_ind
+            distances[min_ind] = 1e101
+        return return_dists, return_inds
+
+    arg_dists = np.argsort(distances)
+    return_inds = arg_dists[:k]
+    return distances[return_inds], return_inds + node_start
 
 
 @njit
@@ -1011,6 +1069,128 @@ class PackedTreeNumba:
         data_mask = containment_obj.contains(pos)
 
         return indices[data_mask]
+
+    def get_closest_particles(
+        self,
+        data: DataContainer,
+        xyz: NDArray,
+        distance_function: Callable[[NDArray, NDArray], NDArray],
+        distance_upper_bound: float,  # noqa: FBT001, FBT002
+        k: int = 1,
+        brute_threshold: int = 10,
+    ) -> tuple[np.int_, float]:
+        """
+        Get kth nearest particle distances and indices to point
+
+        Args:
+            data: DataContainer
+            Source of particle position data
+
+            xyz: ArrayLike
+            Coordinates of point to check
+
+            distance_function: Callable[NDArray, NDArray]
+            Function to compute distance. **Must be njit compatible!**
+            Needs to accept a length 3 vector and an Nx2 array and return a
+            length N vector of the distances as float64
+
+            distance_upper_bound: nonnegative float, optional
+            Return only neighbors from other nodes within this distance. This
+            is used for tree pruning, so if you are doing a series of
+            nearest-neighbor queries, it may help to supply the distance to the
+            nearest neighbor of the most recent point.
+
+            k: int, optional
+            Number of closest particles to return. Default 1
+
+            brute_threshold: int, optional
+            Number of particles used for per-node brute search. Above this
+            the per-node search switches to sorting the particles in the node.
+            Default 10.
+
+        Returns:
+            distances: NDArray[float]
+            Distances to the kth nearest neighbors. Has shape (min(N,k),),
+            where N is the number of particles in the sphere bounded by
+            distance_upper_bound
+
+            indices: NDArray[int]
+            Indices in data of the kth nearest neighbors. Has same shape as
+            distances
+
+        """
+
+        # ensure point is in octree, project if not
+        if not self.box.contains(xyz):
+            # Project point onto root
+            xyz = self.box.project_point_on_box(xyz)
+
+        node = self._get_containing_node_of_point(xyz)
+        node = node if node is not None else self._make_root_node()
+
+        # because we need the kth nearest particles, make sure the node we're
+        # looking at has at least that many particles. This means it might not
+        # be a leaf, not that that should matter
+        while node.node_end - node.node_start + 1 < k:
+            _move_to_parent(self.tree, node)
+
+        # get closest particle in this node
+        return_dists, return_inds = closest_particles(
+            node.node_start,
+            node.node_end,
+            data,
+            xyz,
+            distance_function,
+            k,
+            brute_threshold,
+        )
+
+        temp_dists = np.empty_like(return_dists)
+        temp_inds = np.empty_like(return_inds)
+
+        closest_dist = min(return_dists[len(return_dists)], distance_upper_bound)
+        # Closest distance is now the maximum distance we need to look for
+        # neighbors from other nodes. Either they're inside, or we wouldn't
+        # care about them anyway
+
+        # Need to check all nodes in neighborhood, which is all nodes
+        # overlapping with the sphere with same radius as the closest distance
+        sph_inds = self.get_particle_indices_in_sphere(center=xyz, radius=closest_dist)
+        for s, e in sph_inds:
+            # skip subnodes of node. Only need to check node_start since nodes
+            # are pure super/sub-sets
+            if node.node_start <= s <= node.node_end:
+                continue
+            neighbor_dist, neighbor_inds = closest_particles(
+                s, e, data, xyz, distance_function, k, brute_threshold
+            )
+            rind = 0
+            nind = 0
+            for i in range(k):
+                # rind is guaranteed to be less than len(return_dist) because
+                # len(return_dist)==k
+                if (
+                    nind < len(neighbor_dist)
+                    and return_dists[rind] > neighbor_dist[nind]
+                ):
+                    temp_dists[i] = neighbor_dist[nind]
+                    temp_inds[i] = neighbor_inds[nind]
+                    nind += 1
+                else:
+                    temp_dists[i] = return_dists[rind]
+                    temp_inds[i] = return_inds[rind]
+                    rind += 1
+
+            # swap temp and return arrays
+            temp_pointer = return_dists
+            return_dists = temp_dists
+            temp_dists = temp_pointer
+
+            temp_pointer = return_inds
+            return_inds = temp_inds
+            temp_inds = return_inds
+
+        return return_dists, return_inds
 
 
 try:
