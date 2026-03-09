@@ -61,3 +61,25 @@ def test_query_example5(scipy_query_example):
     assert ii.shape == (2, 2)
     assert dd.flatten() == pytest.approx([2.0, 2.23606798, 0.2236068, 0.80622577])
     assert ii.flatten() == pytest.approx([0, 6, 13, 19])
+
+
+# The following are modified from the scipy.KDTree.query_ball_point example
+def scipy_query_ball_point_example_unwrapped():
+    x, y, z = np.mgrid[0:5, 0:5, 0:1]
+    data = np.c_[x.ravel(), y.ravel(), z.ravel()]
+    # our kdtree has a different leafsize by default than scipy's
+    return KDTree(data=data, leafsize=10)
+
+
+@pytest.fixture
+def scipy_query_ball_point_example():
+    return scipy_query_ball_point_example_unwrapped()
+
+
+def test_query_ball_point_example1(scipy_query_ball_point_example):
+    tree = scipy_query_ball_point_example
+    qbp = tree.query_ball_point([2, 0, 0], 1)
+    qbps = sorted(qbp)
+    true = [5, 10, 11, 15]
+    for q, t in zip(qbp, true, strict=True):
+        assert q == t
