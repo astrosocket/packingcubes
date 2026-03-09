@@ -345,7 +345,7 @@ class PackedTree(octree.Octree):
         dataset: Dataset,
         xyz: NDArray,
         distance_upper_bound: float | None = None,
-        p: int = 2,
+        p: float = 2,
         k: int = 1,
         brute_threshold: int = 10,
     ) -> tuple[NDArray[np.float64], NDArray[np.uint32]]:
