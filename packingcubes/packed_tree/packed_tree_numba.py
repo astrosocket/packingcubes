@@ -53,16 +53,16 @@ def closest_particles(
     distance: Callable[[NDArray, NDArray], NDArray],
     k: int = 1,
     brute_threshold: int = 10,
-):
-    num_particles = node_end - node_start + 1
+) -> tuple[NDArray[np.float64], NDArray[np.uint32]]:
+    num_particles = node_end - node_start
 
     pos = np.empty((num_particles, 3), dtype=data._positions.dtype)
     ind = node_start
     for i in range(num_particles):
-        ind += i
         pos[i, 0] = data._positions[ind, 0]
         pos[i, 1] = data._positions[ind, 1]
         pos[i, 2] = data._positions[ind, 2]
+        ind += 1
 
     distances = distance(pos, xyz)
 
@@ -79,7 +79,7 @@ def closest_particles(
 
     if k < num_particles and k < sort_threshold:
         return_dists = np.empty((k,), dtype=np.float64)
-        return_inds = np.empty((k,), dtype=np.int64)
+        return_inds = np.empty((k,), dtype=np.uint32)
         for i in range(k):
             min_dist = 1e100
             min_ind = 0
@@ -88,11 +88,11 @@ def closest_particles(
                     min_dist = d
                     min_ind = j
             return_dists[i] = min_dist
-            return_inds[i] = min_ind
+            return_inds[i] = min_ind + node_start
             distances[min_ind] = 1e101
         return return_dists, return_inds
 
-    arg_dists = np.argsort(distances)
+    arg_dists = np.argsort(distances).astype(np.uint32)
     return_inds = arg_dists[:k]
     return distances[return_inds], return_inds + node_start
 
