@@ -996,17 +996,21 @@ class PackedTreeNumba:
         indices = np.empty((num_particles,), dtype=np.int64)
         data_mask = np.empty((num_particles,), dtype=np.bool)
         ind = 0
-        pos = np.empty((3,), dtype=data._positions.dtype)
+        # pos = np.empty((num_particles,3,), dtype=data._positions.dtype)
         for s in slices:
             for i, index in enumerate(range(s[0], s[1])):
-                indices[ind + i] = data._index[index]
-                pos[0] = data._positions[index, 0]
-                pos[1] = data._positions[index, 1]
-                pos[2] = data._positions[index, 2]
-                data_mask[ind + i] = containment_obj.contains(pos)
+                pind = data._index[index]
+                indices[ind + i] = pind
+                # pos[ind+i, 0] = data._positions[pind, 0]
+                # pos[ind+i, 1] = data._positions[pind, 1]
+                # pos[ind+i, 2] = data._positions[pind, 2]
+                # data_mask[ind + i] = containment_obj.contains(pos)[0]
             ind += s[1] - s[0]
 
-        return np.array([ind for i, ind in enumerate(indices) if data_mask[i]])
+        pos = data._positions[indices]
+        data_mask = containment_obj.contains(pos)
+
+        return indices[data_mask]
 
     def get_closest_particle(
         self,
