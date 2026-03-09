@@ -17,7 +17,7 @@ from numba import (  # type: ignore
 from numba.experimental import jitclass
 from numba.extending import as_numba_type
 from numba.typed import List
-from numpy.typing import ArrayLike, NDArray
+from numpy.typing import NDArray
 
 import packingcubes.bounding_box as bbox
 import packingcubes.octree as octree
@@ -1011,41 +1011,6 @@ class PackedTreeNumba:
         data_mask = containment_obj.contains(pos)
 
         return indices[data_mask]
-
-    def get_closest_particle(
-        self,
-        xyz: ArrayLike,
-        check_neighbors: bool = True,  # noqa: FBT001, FBT002
-    ) -> tuple[np.int_, float]:
-        """
-        Get nearest particle index (and distance) to point
-
-        Steps:
-          1. Find smallest node contaning point
-          2. Find closest particle in this node
-          3. Check if neighboring nodes have closer particles
-              1. Check if neighboring node is closer than closest particle
-              2. Compare particles in neighbor node to closest
-
-        Args:
-            xyz: ArrayLike
-            Coordinates of point to check
-
-            check_neighbors: bool, optional
-            Flag to check whether we should look at neighbors of the smallest
-            containing node. Default True
-
-        Returns:
-            closest_ind: int
-            Absolute index of closest particle
-
-            closest_dist: float
-            Distance to closest particle
-
-        Raises:
-            NotImplementedError
-        """
-        raise NotImplementedError
 
 
 try:

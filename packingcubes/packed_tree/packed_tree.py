@@ -328,5 +328,9 @@ class PackedTree(octree.Octree):
 
             closest_dist: float
             Distance to closest particle
+
+        Raises:
+            NotImplementedError
+            This function is not implemented for the time being
         """
-        return self._tree.get_closest_particle(xyz, check_neighbors)
+        raise NotImplementedError("This function is not currently implemented")
