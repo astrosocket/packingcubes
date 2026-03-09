@@ -1075,7 +1075,7 @@ class PackedTreeNumba:
         data: DataContainer,
         xyz: NDArray,
         distance_function: Callable[[NDArray, NDArray], NDArray],
-        distance_upper_bound: float,  # noqa: FBT001, FBT002
+        distance_upper_bound: float,
         k: int = 1,
         brute_threshold: int = 10,
     ) -> tuple[NDArray[np.float64], NDArray[np.uint32]]:

@@ -344,7 +344,7 @@ class PackedTree(octree.Octree):
         *,
         dataset: Dataset,
         xyz: NDArray,
-        distance_upper_bound: float | None = None,  # noqa: FBT001, FBT002
+        distance_upper_bound: float | None = None,
         p: int = 2,
         k: int = 1,
         brute_threshold: int = 10,
