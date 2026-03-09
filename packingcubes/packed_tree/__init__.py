@@ -10,7 +10,6 @@ from packingcubes.packed_tree.packed_tree_meta import (
 )
 
 __all__ = [
-    "KDTree",
     "PackedTree",
     "PackedTreeMeta",
     "extract_metadata",
