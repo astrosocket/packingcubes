@@ -402,10 +402,10 @@ class PackedTree(octree.Octree):
         )
 
         return self._tree.get_closest_particles(
-            data=dataset.data_container,
-            xyz=xyz,
-            distance_function=distance_fun,
-            distance_upper_bound=distance_upper_bound,
-            k=k,
-            brute_threshold=brute_threshold,
+            dataset.data_container,
+            xyz,
+            distance_fun,
+            distance_upper_bound,
+            k,
+            brute_threshold,
         )
