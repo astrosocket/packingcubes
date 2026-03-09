@@ -31,7 +31,7 @@ def _check_3d(x: ArrayLike) -> NDArray:
             "PackedTrees only support 3-dimensional query points. "
             + (
                 f"Provided point(s) were {x.shape[1]}-dimensional"
-                if len(x.shape[1]) != 3
+                if x.shape[1] != 3
                 else (f"Provided inputs were {'x'.join(f'{x1}' for x1 in x.shape[1:])}")
             )
         )
