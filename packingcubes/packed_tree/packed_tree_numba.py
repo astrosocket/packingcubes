@@ -1009,7 +1009,7 @@ class PackedTreeNumba:
         # function from swiftsimio (which is GPL 3) does.
         num_particles = 0
         for s in slices:
-            num_particles += s[1] - s[0] + 1
+            num_particles += s[1] - s[0]
 
         indices = np.empty((num_particles,), dtype=np.int64)
         ind = 0
@@ -1049,7 +1049,7 @@ class PackedTreeNumba:
         # function from swiftsimio (which is GPL 3) does.
         num_particles = 0
         for s in slices:
-            num_particles += s[1] - s[0] + 1
+            num_particles += s[1] - s[0]
 
         indices = np.empty((num_particles,), dtype=np.int64)
         data_mask = np.empty((num_particles,), dtype=np.bool)
