@@ -5,16 +5,12 @@ from packingcubes import KDTree
 
 
 # The following are modified from the scipy.KDTree.query example
-def scipy_query_example_unwrapped():
+@pytest.fixture
+def scipy_query_example():
     x, y, z = np.mgrid[0:5, 2:8, 0:1]
     data = np.c_[x.ravel(), y.ravel(), z.ravel()]
     # our kdtree has a different leafsize by default than scipy's
     return KDTree(data=data, leafsize=10)
-
-
-@pytest.fixture
-def scipy_query_example():
-    return scipy_query_example_unwrapped()
 
 
 def test_query_example1(scipy_query_example):
