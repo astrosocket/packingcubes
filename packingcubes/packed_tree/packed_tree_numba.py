@@ -1123,9 +1123,9 @@ class PackedTreeNumba:
         # ensure point is in octree, project if not
         if not self.box.contains(xyz):
             # Project point onto root
-            xyz = self.box.project_point_on_box(xyz)
+            pxyz = self.box.project_point_on_box(xyz)
 
-        node = self._get_containing_node_of_point(xyz)
+        node = self._get_containing_node_of_point(pxyz)
         node = node if node is not None else self._make_root_node()
 
         # because we need the kth nearest particles, make sure the node we're
@@ -1134,7 +1134,7 @@ class PackedTreeNumba:
         while node.node_end - node.node_start + 1 < k:
             _move_to_parent(self.tree, node)
 
-        # get closest particle in this node
+        # get closest particles in this node
         return_dists, return_inds = closest_particles(
             node.node_start,
             node.node_end,
@@ -1148,7 +1148,7 @@ class PackedTreeNumba:
         temp_dists = np.empty_like(return_dists)
         temp_inds = np.empty_like(return_inds)
 
-        closest_dist = min(return_dists[len(return_dists)], distance_upper_bound)
+        closest_dist = min(return_dists[len(return_dists) - 1], distance_upper_bound)
         # Closest distance is now the maximum distance we need to look for
         # neighbors from other nodes. Either they're inside, or we wouldn't
         # care about them anyway
