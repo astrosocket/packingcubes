@@ -71,7 +71,7 @@ def basic_data_container(make_basic_data):
 def basic_optree(make_basic_data):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        return PackedTree(make_basic_data(), particle_threshold=1)
+        return PackedTree(dataset=make_basic_data(), particle_threshold=1)
 
 
 #############################
