@@ -956,9 +956,9 @@ class PackedTreeNumba:
         indices = np.empty((num_particles,), dtype=np.int64)
         ind = 0
         for s in slices:
-            for i, index in enumerate(range(s[0], s[1] + 1)):
+            for i, index in enumerate(range(s[0], s[1])):
                 indices[ind + i] = data._index[index]
-            ind += s[1] - s[0] + 1
+            ind += s[1] - s[0]
 
         return indices
 
@@ -998,13 +998,13 @@ class PackedTreeNumba:
         ind = 0
         pos = np.empty((3,), dtype=data._positions.dtype)
         for s in slices:
-            for i, index in enumerate(range(s[0], s[1] + 1)):
+            for i, index in enumerate(range(s[0], s[1])):
                 indices[ind + i] = data._index[index]
                 pos[0] = data._positions[index, 0]
                 pos[1] = data._positions[index, 1]
                 pos[2] = data._positions[index, 2]
                 data_mask[ind + i] = containment_obj.contains(pos)
-            ind += s[1] - s[0] + 1
+            ind += s[1] - s[0]
 
         return np.array([ind for i, ind in enumerate(indices) if data_mask[i]])
 
