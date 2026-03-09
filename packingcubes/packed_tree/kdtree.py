@@ -201,10 +201,10 @@ class KDTreeAPI:
             )
             d[ind, : len(dists)] = dists
             i[ind, : len(inds)] = inds
-        if k_max == 1:
+        if k_max == 1 and not isinstance(k, Sequence):
             return d.squeeze(), i.squeeze()
         if isinstance(k, Sequence):
-            k_inds = np.fromiter(k, dtype=int)
+            k_inds = np.fromiter(k, dtype=int) - 1
             return d[:, k_inds], i[:, k_inds]
         return d, i
 
