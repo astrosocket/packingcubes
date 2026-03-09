@@ -348,7 +348,7 @@ class PackedTree(octree.Octree):
         p: int = 2,
         k: int = 1,
         brute_threshold: int = 10,
-    ) -> tuple[np.int_, float]:
+    ) -> tuple[NDArray[np.float64], NDArray[np.uint32]]:
         """
         Get kth nearest particle distances and indices to point
 
