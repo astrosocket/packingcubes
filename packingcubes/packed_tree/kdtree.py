@@ -206,7 +206,9 @@ class KDTreeAPI:
             for r in results:
                 r.sort()
 
-        return np.fromiter(results, dtype=np.object_)
+        if len(centers) > 1:
+            return np.fromiter(results, dtype=np.object_)
+        return results[0]
 
     def query_ball_point(
         self,
