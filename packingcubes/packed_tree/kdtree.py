@@ -265,7 +265,7 @@ class KDTreeAPI:
             NotImplementedError if p!=2
 
         """
-        x = np.atleast_2d(x)
+        x = _check_3d(x)
 
         distance_upper_bound = (
             1e100 if distance_upper_bound is None else distance_upper_bound
