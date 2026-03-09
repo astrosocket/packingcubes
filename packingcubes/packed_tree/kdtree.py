@@ -210,7 +210,7 @@ class KDTreeAPI:
 
     def query(
         self,
-        x: NDArray,
+        x: ArrayLike,
         k: int | Sequence[int] = 1,
         eps: float | None = None,
         p: int | None = None,
@@ -351,7 +351,7 @@ class KDTreeAPI:
 
     def query_ball_point(
         self,
-        x: NDArray,
+        x: ArrayLike,
         r: float,
         p: float | None = 2.0,
         eps: float | None = None,
