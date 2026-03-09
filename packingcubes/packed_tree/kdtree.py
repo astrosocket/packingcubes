@@ -5,7 +5,7 @@ import warnings
 from collections.abc import Sequence
 
 import numpy as np
-from numpy.typing import NDArray
+from numpy.typing import ArrayLike, NDArray
 
 import packingcubes.bounding_box as bbox
 import packingcubes.octree as octree
@@ -22,6 +22,20 @@ class KDTreeWarning(octree.OctreeWarning):
 
 class KDTreeError(octree.OctreeError):
     pass
+
+
+def _check_3d(x: ArrayLike) -> NDArray:
+    x = np.atleast_2d(x)
+    if len(x.shape) > 2 or x.shape[1] != 3:
+        raise KDTreeError(
+            "PackedTrees only support 3-dimensional query points. "
+            + (
+                f"Provided point(s) were {x.shape[1]}-dimensional"
+                if len(x.shape[1]) != 3
+                else (f"Provided inputs were {'x'.join(f'{x1}' for x1 in x.shape[1:])}")
+            )
+        )
+    return x
 
 
 class KDTreeAPI:
@@ -409,19 +423,7 @@ class KDTreeAPI:
         >>> plt.show()
 
         """
-        x = np.atleast_2d(x)
-        if len(x.shape) > 2 or x.shape[1] != 3:
-            raise KDTreeError(
-                "PackedTrees only support 3-dimensional query points. "
-                + (
-                    f"Provided point(s) were {x.shape[1]}-dimensional"
-                    if len(x.shape[1]) != 3
-                    else (
-                        "Provided inputs were "
-                        f"{'x'.join(f'{x1}' for x1 in x.shape[1:])}"
-                    )
-                )
-            )
+        x = _check_3d(x)
 
         p = 2 if p is None else p
         if p != 2:
