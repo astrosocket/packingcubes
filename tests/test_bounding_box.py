@@ -59,6 +59,12 @@ def test_check_valid_invalid_boxes(box):
         ):
             assert bbox.BoundingBoxValidFlag.PRECISION not in validation_code
             assert "precision" in lower_info
+        with np.errstate(all="raise"):
+            try:
+                np.abs(box[:3]) + box[3:]
+            except FloatingPointError:
+                assert bbox.BoundingBoxValidFlag.NOFPERROR not in validation_code
+                assert "floating point" in lower_info
     # The following is a regression test...
     if "Something is very wrong" in lower_info:
         pytest.fail(f"Unknown exception: {str(bberrinfo.value)}!")
