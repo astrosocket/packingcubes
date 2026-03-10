@@ -14,6 +14,29 @@ from numpy.typing import ArrayLike, NDArray
 LOGGER = logging.getLogger(__name__)
 
 
+def check_floating_point(
+    box: NDArray,
+) -> tuple[BoundingBoxValidFlag, str]:
+    flag = ~BoundingBoxValidFlag.VALID
+    fpmessage = ""
+    with np.errstate(all="raise"):
+        try:
+            if np.any(
+                np.isfinite(box[:3])
+                & np.isfinite(box[3:])
+                & (box[3:] > 0)
+                & (
+                    box[3:]
+                    < (np.maximum(np.abs(box[:3]) + box[3:], 1.0)) * np.finfo(float).eps
+                ),
+            ):
+                flag ^= BoundingBoxValidFlag.PRECISION
+        except FloatingPointError as fpe:
+            flag ^= BoundingBoxValidFlag.NOFPERROR
+            fpmessage = fpe.args[0]
+    return flag, fpmessage
+
+
 class BoundingBoxValidFlag(Flag):
     """
     Validations performed on a box
@@ -30,9 +53,20 @@ class BoundingBoxValidFlag(Flag):
         auto(),
         lambda box: f"Provided box is too small ({box}). Precision will be lost",
     )
+    NOFPERROR = (
+        auto(),
+        lambda box: (
+            f"Floating Point Error with box ({box}): {check_floating_point(box)[1]}"
+        ),
+    )
     # TODO: The following (e.g. IS_BOX[0]) is hacky and I don't like it...
     VALID = (
-        IS_BOX[0] | CORRECT_SHAPE[0] | FINITE[0] | POSITIVE[0] | PRECISION[0],
+        IS_BOX[0]
+        | CORRECT_SHAPE[0]
+        | FINITE[0]
+        | POSITIVE[0]
+        | PRECISION[0]
+        | NOFPERROR[0],
         lambda box: "This box is valid",
     )
 
@@ -124,16 +158,7 @@ def check_valid(box: BoxLike, *, raise_error: bool = True) -> BoundingBoxValidFl
             flag ^= BoundingBoxValidFlag.FINITE
         if np.any(box[3:] <= 0):
             flag ^= BoundingBoxValidFlag.POSITIVE
-        if np.any(
-            np.isfinite(box[:3])
-            & np.isfinite(box[3:])
-            & (box[3:] > 0)
-            & (
-                box[3:]
-                < (np.maximum(np.abs(box[:3]) + box[3:], 1.0)) * np.finfo(float).eps
-            ),
-        ):
-            flag ^= BoundingBoxValidFlag.PRECISION
+        flag ^= check_floating_point(box)[0]
     if raise_error and flag != BoundingBoxValidFlag.VALID:
         raise BoundingBoxError(box=box, errortype=flag)
     return flag
