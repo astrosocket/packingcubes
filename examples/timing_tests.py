@@ -362,12 +362,6 @@ def manual_timing(
     number_balls = 100 if number_balls is None else number_balls
     if number_balls < 1:
         raise ValueError("Number of search balls must be positive.")
-    LOGGER.debug("Beginning data loading")
-    ds = load_data(decimation_factor, filepath=snapshot, number_balls=number_balls)
-    LOGGER.info(
-        f"Loaded {snapshot} with decimation factor {decimation_factor}"
-        f"={len(ds):.3e} particles"
-    )
 
     # default to all
     creation_list = (
@@ -384,6 +378,13 @@ def manual_timing(
         LOGGER.info(f"Search:{search_list}")
 
     check_precompile(creation_list=creation_list, search_list=search_list)
+
+    LOGGER.debug("Beginning data loading")
+    ds = load_data(decimation_factor, filepath=snapshot, number_balls=number_balls)
+    LOGGER.info(
+        f"Loaded {snapshot} with decimation factor {decimation_factor}"
+        f"={len(ds):.3e} particles"
+    )
 
     LOGGER.info("Beginning timing.")
     results = {}
