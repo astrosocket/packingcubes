@@ -467,6 +467,11 @@ class KDTreeAPI:
                 strict = True if strict is None else strict
         strict = True if strict is None else strict
 
+        if strict and return_length:
+            raise NotImplementedError(
+                "For performance, strict is only valid when return_length=False"
+            )
+
         if workers != 1:
             warnings.warn(
                 """
