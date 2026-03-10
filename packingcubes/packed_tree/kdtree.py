@@ -309,7 +309,7 @@ class KDTreeAPI:
         return_sorted: bool = False,
         return_lists: bool = True,
         strict: bool = False,
-    ) -> list[int] | NDArray:
+    ) -> int | list[int] | NDArray:
         """
         Private method to actually compute the query after inputs validated
         """
@@ -323,7 +323,7 @@ class KDTreeAPI:
             #     for node in nodes:
             #         sum += node.end-node.start + 1
             #     append sum to result
-            return [
+            lengths = [
                 sum(
                     e - s + 1
                     for (e, s) in self._tree.get_particle_indices_in_sphere(
@@ -332,6 +332,7 @@ class KDTreeAPI:
                 )
                 for center in centers
             ]
+            return lengths[0] if len(lengths) == 1 else lengths
         results = [
             self._tree.get_particle_index_list_in_sphere(
                 dataset=self._dataset,
@@ -365,7 +366,7 @@ class KDTreeAPI:
         return_length: bool = False,
         return_lists: bool | None = None,
         strict: bool | None = None,
-    ) -> list[int] | NDArray:
+    ) -> int | list[int] | NDArray:
         """
         Find all points within distance r of point(s) x.
 
