@@ -6,7 +6,7 @@ from enum import Flag, auto
 from typing import TYPE_CHECKING
 
 import numpy as np
-from numba import TypingError, float64, objmode, types  # type: ignore
+from numba import TypingError, float64  # type: ignore
 from numba.experimental import jitclass
 from numba.extending import as_numba_type
 from numpy.typing import ArrayLike, NDArray
@@ -141,9 +141,7 @@ def check_valid(box: BoxLike, *, raise_error: bool = True) -> BoundingBoxValidFl
         BoundingBoxError if raise_error is True and box is invalid
     """
     flag = BoundingBoxValidFlag.VALID
-    with objmode(is_box=types.boolean):
-        is_box = isinstance(box, np.ndarray)
-    if not is_box:
+    if not isinstance(box, np.ndarray):
         flag ^= BoundingBoxValidFlag.IS_BOX
         if raise_error:
             raise BoundingBoxError(box=box, errortype=flag)
