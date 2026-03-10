@@ -206,7 +206,8 @@ class PackedTree(octree.Octree):
             indices: list[tuple[int, int]]
             List of particle start-stop indices contained within sphere
         """
-        return self._tree.get_particle_indices_in_box(box)
+        bounding_box = bbox.make_bounding_box(box)
+        return self._tree._get_particle_indices_in_shape(bounding_box, bounding_box)
 
     def get_particle_indices_in_sphere(
         self,
@@ -228,7 +229,8 @@ class PackedTree(octree.Octree):
             indices: list[tuple[int, int]]
             List of particle start-stop indices contained within sphere
         """
-        return self._tree.get_particle_indices_in_sphere(center, radius)
+        sph = bbox.make_bounding_sphere(center=center, radius=radius)
+        return self._tree._get_particle_indices_in_shape(sph.bounding_box, sph)
 
     def get_particle_index_list_in_box(
         self,
