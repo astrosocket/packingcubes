@@ -96,6 +96,31 @@ search = {
     ],
 }
 
+search_cn = {
+    "python": [
+        np.nan,
+        np.nan,
+        np.nan,
+    ],
+    "packed": [
+        0.120,
+        0.143,
+        0.168,
+    ],
+    "pack_list": [0.185, 2.38, 20.3],
+    "kdtree": [0.221, 2.62, 20.4],
+    "cubes": [
+        np.nan,
+        np.nan,
+        np.nan,
+    ],
+    "scipy": [
+        0.0262,
+        0.0473,
+        0.055,
+    ],
+}
+
 size = {
     "dataset": [
         1871217,
@@ -123,6 +148,7 @@ illustris = {
     "name": "IllustrisTNG",
     "creation": creation,
     "search": search,
+    "search_cn": search_cn,
     "size": size,
     "n": n,
     "marker": "s",
@@ -193,6 +219,32 @@ search = {
     ],
 }
 
+
+search_cn = {
+    "python": [
+        np.nan,
+        np.nan,
+        np.nan,
+    ],
+    "packed": [
+        np.nan,
+        np.nan,
+        np.nan,
+    ],
+    "pack_list": [np.nan, np.nan, np.nan],
+    "kdtree": [np.nan, np.nan, np.nan],
+    "cubes": [
+        np.nan,
+        np.nan,
+        np.nan,
+    ],
+    "scipy": [
+        np.nan,
+        np.nan,
+        np.nan,
+    ],
+}
+
 size = {
     "dataset": [
         1909377,
@@ -220,6 +272,7 @@ simba = {
     "name": "SIMBA",
     "creation": creation,
     "search": search,
+    "search_cn": search_cn,
     "size": size,
     "n": n,
     "marker": "x",
@@ -290,6 +343,32 @@ search = {
     ],
 }
 
+
+search_cn = {
+    "python": [
+        np.nan,
+        np.nan,
+        np.nan,
+    ],
+    "packed": [
+        np.nan,
+        np.nan,
+        np.nan,
+    ],
+    "pack_list": [np.nan, np.nan, np.nan],
+    "kdtree": [np.nan, np.nan, np.nan],
+    "cubes": [
+        np.nan,
+        np.nan,
+        np.nan,
+    ],
+    "scipy": [
+        np.nan,
+        np.nan,
+        np.nan,
+    ],
+}
+
 size = {
     "dataset": [
         3813237,
@@ -317,6 +396,7 @@ sweagle = {
     "name": "Swift-EAGLE",
     "creation": creation,
     "search": search,
+    "search_cn": search_cn,
     "size": size,
     "n": n,
     "marker": "+",
@@ -365,6 +445,40 @@ search = {
     "scipy": [0.248, 2.94, 33.2, 463, 2340],
 }
 
+
+search_cn = {
+    "python": [
+        np.nan,
+        np.nan,
+        np.nan,
+        np.nan,
+        np.nan,
+    ],
+    "packed": [
+        np.nan,
+        np.nan,
+        np.nan,
+        np.nan,
+        np.nan,
+    ],
+    "pack_list": [np.nan, np.nan, np.nan, np.nan, np.nan],
+    "kdtree": [np.nan, np.nan, np.nan, np.nan, np.nan],
+    "cubes": [
+        np.nan,
+        np.nan,
+        np.nan,
+        np.nan,
+        np.nan,
+    ],
+    "scipy": [
+        np.nan,
+        np.nan,
+        np.nan,
+        np.nan,
+        np.nan,
+    ],
+}
+
 size = {
     "dataset": [2577165, 25769973, 257698221, 2576980557, 25769803917],
     "python": [174704, 2062787, 27842084, 328732478, 3499040395],
@@ -401,6 +515,7 @@ LB_L10_CDM = {
     "name": "LB_L10_CDM",
     "creation": creation,
     "search": search,
+    "search_cn": search_cn,
     "size": size,
     "n": n,
     "marker": "o",
@@ -412,7 +527,13 @@ LB_L10_CDM = {
 # ## Metadata
 
 # %%
-units = {"n": "particles", "creation": "s", "search": "ms", "size": "bytes"}
+units = {
+    "n": "particles",
+    "creation": "s",
+    "search": "ms",
+    "search_cn": "ms",
+    "size": "bytes",
+}
 
 # %%
 metrics = {
@@ -423,6 +544,13 @@ metrics = {
         "scipy": "tab:green",
     },
     "search": {
+        "packed": "tab:orange",
+        "pack_list": "tab:brown",
+        "kdtree": "tab:olive",
+        "cubes": "tab:purple",
+        "scipy": "tab:green",
+    },
+    "search_cn": {
         "packed": "tab:orange",
         "pack_list": "tab:brown",
         "kdtree": "tab:olive",
@@ -446,12 +574,14 @@ expected = {
     # "search": lambda n: np.log10(n),
     "search": lambda n: np.sqrt(n),
     # "size":lambda n: 1.2*n/10**(np.floor(np.log10(n/particle_threshold)))
+    "search_cn": lambda n: np.log2(n),
     "size": lambda n: n,
 }
 expected_label = {
     "creation": r"$n\; \log(n)$",
     "search": r"$\log(n)$",
     # "search": r"$\sqrt{n}$",
+    "search_cn": r"$\log(n)$",
     # "size":(
     #     r"$1.2\times\frac{n}{10^{\left\lfloor n/"
     #     f"{particle_threshold}"
