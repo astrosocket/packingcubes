@@ -54,6 +54,11 @@ creation = {
         0.184,
         2.17,
     ],
+    "kdtree": [
+        np.nan,
+        np.nan,
+        np.nan,
+    ],
     "cubes": [
         0.016,
         0.147,
@@ -78,6 +83,7 @@ search = {
         0.884,
     ],
     "pack_list": [0.162, 2.58, 21.9],
+    "kdtree": [np.nan, np.nan, np.nan],
     "cubes": [
         0.0587,
         0.104,
@@ -145,6 +151,11 @@ creation = {
         0.460,
         5.53,
     ],
+    "kdtree": [
+        np.nan,
+        np.nan,
+        np.nan,
+    ],
     "cubes": [
         np.nan,
         np.nan,
@@ -169,6 +180,7 @@ search = {
         4.66,
     ],
     "pack_list": [np.nan, np.nan, np.nan],
+    "kdtree": [np.nan, np.nan, np.nan],
     "cubes": [
         np.nan,
         np.nan,
@@ -236,6 +248,11 @@ creation = {
         0.463,
         5.42,
     ],
+    "kdtree": [
+        np.nan,
+        np.nan,
+        np.nan,
+    ],
     "cubes": [
         np.nan,
         np.nan,
@@ -260,6 +277,7 @@ search = {
         12.2,
     ],
     "pack_list": [np.nan, np.nan, np.nan],
+    "kdtree": [np.nan, np.nan, np.nan],
     "cubes": [
         np.nan,
         np.nan,
@@ -321,6 +339,13 @@ creation = {
     "data resetting": [2.4e-3, 0.0407, 0.325, 5.05, 25.8],
     "python": [0.180, 0.866, 11, 101, 1100],
     "packed": [0.0133, 0.167, 2.12, 17.5, 223.2],
+    "kdtree": [
+        np.nan,
+        np.nan,
+        np.nan,
+        np.nan,
+        np.nan,
+    ],
     "cubes": [
         0.02,
         0.0998,
@@ -335,6 +360,7 @@ search = {
     "python": [2.5, 8.7, 61, 208, 850],
     "packed": [0.257, 0.667, 2.31, 9.44, 32],
     "pack_list": [0.328, 0.795, 3.83, 27.3, 216],
+    "kdtree": [np.nan, np.nan, np.nan, np.nan, np.nan],
     "cubes": [0.187, 0.256, 0.572, 1.92, 8.0],
     "scipy": [0.248, 2.94, 33.2, 463, 2340],
 }
@@ -392,15 +418,14 @@ units = {"n": "particles", "creation": "s", "search": "ms", "size": "bytes"}
 metrics = {
     "creation": {
         "data resetting": "k",
-        "python": "tab:blue",
         "packed": "tab:orange",
         "cubes": "tab:purple",
         "scipy": "tab:green",
     },
     "search": {
-        "python": "tab:blue",
         "packed": "tab:orange",
         "pack_list": "tab:brown",
+        "kdtree": "tab:olive",
         "cubes": "tab:purple",
         "scipy": "tab:green",
     },
