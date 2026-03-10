@@ -118,11 +118,11 @@ def precompile():
     packed_octree_query_ball_point(tree)
 
 
-def kdtree_creation(ds):
+def scipy_kdtree_creation(ds):
     return KDTree(data=ds.positions, leafsize=octree._DEFAULT_PARTICLE_THRESHOLD)
 
 
-def kdtree_query_ball_point(tree: KDTree):
+def scipy_kdtree_query_ball_point(tree: KDTree):
     for c, r in zip(centers, radii, strict=True):
         sph_inds = tree.query_ball_point(x=c, r=r)
 
@@ -200,7 +200,7 @@ def tree_sizes(decimation_factor=10):
     tcf_dict = {
         "python": python_octree_creation,
         "packed": packed_octree_creation,
-        "kdtree": kdtree_creation,
+        "kdtree": scipy_kdtree_creation,
     }
     # print(".Creating trees and computing memory usage")  # noqa
     for name, tree_creation_func in tcf_dict.items():
@@ -256,7 +256,7 @@ creation_dict = {
         "setup": cubing_setup,
         "precomp": True,
     },
-    "kdtree": {"fun": "kdtree_creation", "precomp": False},
+    "scipy": {"fun": "scipy_kdtree_creation", "precomp": False},
     # skipping yt creation for now
 }
 search_dict = {
@@ -275,9 +275,9 @@ search_dict = {
         "tree": "cubes",
         "precomp": True,
     },
-    "kdtree": {
-        "fun": "kdtree_query_ball_point(search_obj)",
-        "tree": "kdtree",
+    "scipy": {
+        "fun": "scipy_kdtree_query_ball_point(search_obj)",
+        "tree": "scipy",
         "precomp": False,
     },
     # skipping yt for now
@@ -542,11 +542,11 @@ def parse_arguments(argv=None):
         const="cubes",
     )
     group_list_args.add_argument(
-        "--kdtree",
-        help="Create and search a KDTree object",
+        "--scipy",
+        help="Create and search a SciPy KDTree object",
         dest="combined_list",
         action="append_const",
-        const="kdtree",
+        const="scipy",
     )
     conf_arg = parser.add_argument(
         "-c",
