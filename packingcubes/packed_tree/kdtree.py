@@ -325,8 +325,8 @@ class KDTreeAPI:
             #     append sum to result
             lengths = [
                 sum(
-                    e - s + 1
-                    for (e, s) in self._tree.get_particle_indices_in_sphere(
+                    e - s
+                    for (s, e) in self._tree.get_particle_indices_in_sphere(
                         center=center, radius=radius
                     )
                 )
