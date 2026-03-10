@@ -391,18 +391,21 @@ def manual_timing(
     for test in search_list:
         sd = search_dict[test]
         creation_name = sd["tree"]
-        need_timing = (
-            results
-            if creation_name in creation_list and creation_name not in results
-            else None
-        )
-        LOGGER.debug(f"Generating {creation_name} search obj for {test} search")
-        search_obj = get_search_obj(
-            function=creation_name,
-            dataset=ds,
-            results=need_timing,
-            dry_run=dry_run,
-        )
+        search_obj = creation_dict[creation_name].get("search_obj")
+        if not search_obj:
+            need_timing = (
+                results
+                if creation_name in creation_list and creation_name not in results
+                else None
+            )
+            LOGGER.debug(f"Generating {creation_name} search obj for {test} search")
+            search_obj = get_search_obj(
+                function=creation_name,
+                dataset=ds,
+                results=need_timing,
+                dry_run=dry_run,
+            )
+            creation_dict[creation_name]["search_obj"] = search_obj
         globals()["dataset"] = ds
         globals()["search_obj"] = search_obj
         if not dry_run:
