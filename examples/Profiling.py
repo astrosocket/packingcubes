@@ -71,11 +71,13 @@ tree.get_particle_indices_in_sphere(center=center, radius=radius)
 # %%
 cubes = Cubes(
     dataset=ds,
-    particle_types="PartType0",
+    particle_types=["PartType0"],
 )
 
 # %%
-cubes.get_particle_indices_in_sphere(center=center, radius=radius)
+cubes.get_particle_indices_in_sphere(
+    particle_types="PartType0", center=center, radius=radius
+)
 
 # %% [markdown]
 # # Run profiling
