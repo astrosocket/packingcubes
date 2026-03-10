@@ -202,7 +202,7 @@ def packed_octree_query_ball_point_indices(
             dataset=dataset,
             center=c,
             radius=r,
-            strict=True,
+            strict=False,
         )
 
 
