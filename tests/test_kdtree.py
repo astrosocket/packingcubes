@@ -83,3 +83,18 @@ def test_query_ball_point_example1(scipy_query_ball_point_example):
     true = [5, 10, 11, 15]
     for q, t in zip(qbp, true, strict=True):
         assert q == t
+
+
+def test_query_ball_point_example2(scipy_query_ball_point_example):
+    tree = scipy_query_ball_point_example
+    qbp = tree.query_ball_point(([2, 0, 0], [3, 3, 0]), 1)
+
+    assert qbp.shape == (2,)
+    assert qbp.dtype == np.dtype("O")
+
+    result1 = [5, 10, 11, 15]
+    result2 = [13, 17, 18, 19, 23]
+    for result, true in zip(qbp, [result1, result2], strict=True):
+        assert isinstance(result, list)
+        for r, rt in zip(result, true, strict=True):
+            assert r == rt
