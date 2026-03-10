@@ -619,8 +619,6 @@ if __name__ == "__main__":
     for t in combined_list:
         creation_list.append(t)
         search_list.append(t)
-        if t == "packed":
-            search_list.append("packli")
     results = manual_timing(
         snapshot=args.snapshot,
         decimation_factor=args.decimation_factor,
