@@ -111,6 +111,15 @@ def packed_octree_query_ball_point_indices(
         )
 
 
+def packed_kdtree_creation(ds):
+    return optree.KDTree(data=ds.positions, leafsize=octree._DEFAULT_PARTICLE_THRESHOLD)
+
+
+def packed_kdtree_query_ball_point(tree: optree.KDTree):
+    for c, r in zip(centers, radii, strict=True):
+        sph_inds = tree.query_ball_point(x=c, r=r, strict=True, return_lists=False)
+
+
 # we want the PackedTree stuff to be pre-compiled
 def precompile():
     dataset = data_objects.InMemory(positions=np.array([0, 0, 0]))
@@ -257,6 +266,7 @@ creation_dict = {
         "setup": cubing_setup,
         "precomp": True,
     },
+    "kdtree": {"fun": "packed_kdtree_creation", "precomp": True},
     "scipy": {"fun": "scipy_kdtree_creation", "precomp": False},
     # skipping yt creation for now
 }
@@ -281,6 +291,11 @@ search_dict = {
     "cubes": {
         "fun": "cubes_query_ball_points(search_obj)",
         "tree": "cubes",
+        "precomp": True,
+    },
+    "kdtree": {
+        "fun": "packed_kdtree_query_ball_point(search_obj)",
+        "tree": "kdtree",
         "precomp": True,
     },
     "scipy": {
@@ -552,6 +567,13 @@ def parse_arguments(argv=None):
         dest="combined_list",
         action="append_const",
         const="cubes",
+    )
+    group_list_args.add_argument(
+        "--kdtree",
+        help="Create and search a Packed KDTree object",
+        dest="combined_list",
+        action="append_const",
+        const="kdtree",
     )
     group_list_args.add_argument(
         "--scipy",
