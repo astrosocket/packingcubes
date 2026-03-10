@@ -34,7 +34,13 @@ centers = []
 radii = []
 
 
-def load_data(decimation_factor=10, *, name: str = simname, filepath: str = snapfile):
+def load_data(
+    decimation_factor=10,
+    *,
+    name: str = simname,
+    filepath: str = snapfile,
+    number_balls: int = 100,
+):
     ds = data_objects.GadgetishHDF5Dataset(name=name, filepath=filepath)
     # ds._positions = ds._positions[: int(len(ds) / decimation_factor), :]
     if ds.particle_type != particle_type:
@@ -48,7 +54,7 @@ def load_data(decimation_factor=10, *, name: str = simname, filepath: str = snap
     dataset = data_objects.InMemory(
         positions=ds._positions[:: int(decimation_factor), :]
     )
-    random_search_balls(dataset)
+    random_search_balls(dataset, number_balls=number_balls)
     return dataset
 
 
@@ -60,9 +66,9 @@ def reset_data(ds):
     return ds
 
 
-def random_search_balls(ds):
+def random_search_balls(ds, *, number_balls: int = 100):
     box = ds.bounding_box
-    for _ in range(100):
+    for _ in range(number_balls):
         centers.append(rng.random(box.size.size) * box.size + box.position)
         radii.append(10 ** (rng.random() * np.log10(rng.choice(box.size))))
 
@@ -348,11 +354,16 @@ def manual_timing(
     creation_list: list[str] = None,
     search_list: list[str] = None,
     dry_run: bool = False,
+    number_balls: int | None = 100,
 ):
     if snapshot is None:
         snapshot = snapfile
+
+    number_balls = 100 if number_balls is None else number_balls
+    if number_balls < 1:
+        raise ValueError("Number of search balls must be positive.")
     LOGGER.debug("Beginning data loading")
-    ds = load_data(decimation_factor, filepath=snapshot)
+    ds = load_data(decimation_factor, filepath=snapshot, number_balls=number_balls)
     LOGGER.info(
         f"Loaded {snapshot} with decimation factor {decimation_factor}"
         f"={len(ds):.3e} particles"
@@ -397,7 +408,7 @@ def manual_timing(
             timer = timeit.Timer(sd["fun"], globals=globals())
             number, _ = timer.autorange()
             time_vec = timer.repeat(number=number) * second
-            time_vec /= number  # chenage to per-loop
+            time_vec /= number  # change to per-loop
             time_vec /= len(centers)  # change to per-sphere (average)
         else:
             number = -1
@@ -469,6 +480,12 @@ def parse_arguments(argv=None):
         "--decimation-factor",
         default=1,
         help="The decimation interval (e.g. -d 10 specifies use every 10th particle)",
+        type=int,
+    )
+    parser.add_argument(
+        "-n",
+        "--number-balls",
+        help="Number of search balls to create. More balls = better statistics",
         type=int,
     )
     parser.add_argument(
@@ -574,5 +591,6 @@ if __name__ == "__main__":
         creation_list=creation_list,
         search_list=search_list,
         dry_run=args.dry,
+        number_balls=args.number_balls,
     )
     print(results)  # noqa: T201
