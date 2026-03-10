@@ -39,6 +39,7 @@ def load_data(
     *,
     name: str = simname,
     filepath: str = snapfile,
+    use_constant_number: int | None = None,
     number_balls: int = 100,
 ):
     ds = data_objects.GadgetishHDF5Dataset(name=name, filepath=filepath)
@@ -54,7 +55,18 @@ def load_data(
     dataset = data_objects.InMemory(
         positions=ds._positions[:: int(decimation_factor), :]
     )
-    random_search_balls(dataset, number_balls=number_balls)
+    if use_constant_number:
+        if use_constant_number < 10:
+            LOGGER.warning(
+                "Specifying search balls with fewer than 10 particles."
+                " I hope you're sure!"
+            )
+        random_search_balls_constant_number(
+            dataset, number_balls=number_balls, num_particles=use_constant_number
+        )
+    else:
+        random_search_balls_constant_volume(dataset, number_balls=number_balls)
+
     return dataset
 
 
@@ -66,11 +78,94 @@ def reset_data(ds):
     return ds
 
 
-def random_search_balls(ds, *, number_balls: int = 100):
+def random_search_balls_constant_volume(ds, *, number_balls: int = 100):
     box = ds.bounding_box
     for _ in range(number_balls):
         centers.append(rng.random(box.size.size) * box.size + box.position)
         radii.append(10 ** (rng.random() * np.log10(rng.choice(box.size))))
+
+
+def random_search_balls_constant_number(
+    ds: data_objects.Dataset,
+    *,
+    num_particles: int = 1000,
+    number_balls: int = 100,
+    error_threshold: float = 0.1,
+    iterations_threshold: int = 20,
+):
+    LOGGER.info(
+        f"Generating constant particle number search balls of size {num_particles}"
+    )
+    kdtree = optree.KDTree(data=ds.positions)
+    # kdtree = KDTree(data=ds.positions, leafsize=octree._DEFAULT_PARTICLE_THRESHOLD)
+    box = ds.bounding_box
+    bad_balls = 0
+    for i in range(number_balls):
+        # bisection method:
+        # keep center generation and use radius generation for initial radii
+        # assume r = 0 => n_enclosed = 0
+        # bisect radii until |n_enclosed - num_particles|/num_particles < 5%
+        center = rng.random(box.size.size) * box.size + box.position
+        r = 10 ** (rng.random() * np.log10(rng.choice(box.size)))
+        LOGGER.debug(f"Starting search for ball {i} with center {center} and r0={r}")
+        n_enclosed = len(
+            kdtree.query_ball_point(
+                center,
+                r,
+                strict=True,
+            )
+        )
+        rlower = 0
+        # ensure we're starting from a big enough radii
+        # can update lower limit at same time
+        while n_enclosed < num_particles:
+            LOGGER.debug(f"{r=:.3g} too small, only {n_enclosed} particles. Doubling")
+            rlower = r
+            r *= 2
+            n_enclosed = len(
+                kdtree.query_ball_point(
+                    center,
+                    r,
+                    strict=True,
+                )
+            )
+        rupper = r
+        LOGGER.debug(
+            f"Starting refined search with r1={rlower:.4g} and rupper={rupper:.4g}"
+            f" and {n_enclosed} particles"
+        )
+        num_iterations = 0
+        error = abs(n_enclosed - num_particles) / num_particles
+        while num_iterations < iterations_threshold and error >= error_threshold:
+            r = (rupper + rlower) / 2
+            LOGGER.debug(
+                f"Have {n_enclosed} particles ({error=:.3g}). Checking {r=:.4g}"
+            )
+            n_enclosed = len(kdtree.query_ball_point(center, r, strict=True))
+            error = abs(n_enclosed - num_particles) / num_particles
+            if n_enclosed > num_particles:
+                rupper = r
+            else:
+                rlower = r
+            num_iterations += 1
+        LOGGER.debug(
+            f"Finished with r = {r}, {error=:.3g}, and "
+            f"{n_enclosed} particles after {num_iterations} iterations"
+        )
+        if num_iterations >= iterations_threshold:
+            LOGGER.info(f"Taking too long, skipping sphere {i}")
+            bad_balls += 1
+            continue
+        centers.append(center)
+        radii.append(r)
+    if bad_balls:
+        LOGGER.debug(f"Skipped {bad_balls} spheres")
+    if bad_balls > number_balls / 10:
+        LOGGER.warning(
+            f"More than 10% of spheres ({bad_balls}) were skipped."
+            " Timing stats may suffer"
+        )
+    reset_data(ds)  # need to undo changes to get accurate timing later
 
 
 def python_octree_creation(ds):
@@ -354,7 +449,17 @@ def get_search_obj(
     return globals()[cd["fun"]](setup_data)
 
 
-def check_precompile(*, creation_list: list[str], search_list: list[str]):
+def check_precompile(
+    *,
+    creation_list: list[str],
+    search_list: list[str],
+    use_constant_number: int | None = None,
+):
+    if use_constant_number:
+        LOGGER.info("Constant number spheres require precompiling")
+        precompile()
+        LOGGER.debug("Finished precompiling")
+        return
     for test in creation_list:
         if creation_dict[test]["precomp"]:
             LOGGER.info(f"{test}-creation requires precompiling")
@@ -377,6 +482,7 @@ def manual_timing(
     creation_list: list[str] = None,
     search_list: list[str] = None,
     dry_run: bool = False,
+    use_constant_number: int | None = None,
     number_balls: int | None = 100,
 ):
     if snapshot is None:
@@ -400,10 +506,19 @@ def manual_timing(
     if search_list:
         LOGGER.info(f"Search:{search_list}")
 
-    check_precompile(creation_list=creation_list, search_list=search_list)
+    check_precompile(
+        creation_list=creation_list,
+        search_list=search_list,
+        use_constant_number=use_constant_number,
+    )
 
     LOGGER.debug("Beginning data loading")
-    ds = load_data(decimation_factor, filepath=snapshot, number_balls=number_balls)
+    ds = load_data(
+        decimation_factor,
+        filepath=snapshot,
+        use_constant_number=use_constant_number,
+        number_balls=number_balls,
+    )
     LOGGER.info(
         f"Loaded {snapshot} with decimation factor {decimation_factor}"
         f"={len(ds):.3e} particles"
@@ -516,6 +631,16 @@ def parse_arguments(argv=None):
         type=int,
     )
     parser.add_argument(
+        "-s",
+        "--number-search",
+        help="""
+        Use constant particle number search balls with the specified number of
+        particles instead of constant volume search balls. This will be a
+        slower startup!
+        """,
+        type=int,
+    )
+    parser.add_argument(
         "--dry",
         default=False,
         action="store_true",
@@ -625,6 +750,7 @@ if __name__ == "__main__":
         creation_list=creation_list,
         search_list=search_list,
         dry_run=args.dry,
+        use_constant_number=args.number_search,
         number_balls=args.number_balls,
     )
     print(results)  # noqa: T201
