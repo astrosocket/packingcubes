@@ -59,7 +59,7 @@ creation = {
         0.147,
         2.00,
     ],
-    "kdtree": [
+    "scipy": [
         0.0208,
         0.300,
         4.33,
@@ -83,7 +83,7 @@ search = {
         0.104,
         0.224,
     ],
-    "kdtree": [
+    "scipy": [
         0.108,
         1.47,
         15.9,
@@ -106,7 +106,7 @@ size = {
         359177,
         3468337,
     ],
-    "kdtree": [
+    "scipy": [
         5063559,
         50484807,
         508383527,
@@ -150,7 +150,7 @@ creation = {
         np.nan,
         np.nan,
     ],
-    "kdtree": [
+    "scipy": [
         0.0186,
         0.231,
         2.82,
@@ -174,7 +174,7 @@ search = {
         np.nan,
         np.nan,
     ],
-    "kdtree": [
+    "scipy": [
         0.523,
         3.68,
         32.9,
@@ -197,7 +197,7 @@ size = {
         342857,
         3423397,
     ],
-    "kdtree": [
+    "scipy": [
         5165319,
         51502343,
         518559015,
@@ -241,7 +241,7 @@ creation = {
         np.nan,
         np.nan,
     ],
-    "kdtree": [
+    "scipy": [
         0.0186,
         0.244,
         3.05,
@@ -265,7 +265,7 @@ search = {
         np.nan,
         np.nan,
     ],
-    "kdtree": [
+    "scipy": [
         1.06,
         8.02,
         90.2,
@@ -288,7 +288,7 @@ size = {
         341617,
         3312897,
     ],
-    "kdtree": [
+    "scipy": [
         5158217,
         51431113,
         517846503,
@@ -328,7 +328,7 @@ creation = {
         12,
         130.8,
     ],
-    "kdtree": [0.0402, 0.393, 4.79, 38, 403.2],
+    "scipy": [0.0402, 0.393, 4.79, 38, 403.2],
 }
 
 search = {
@@ -336,14 +336,14 @@ search = {
     "packed": [0.257, 0.667, 2.31, 9.44, 32],
     "pack_list": [0.328, 0.795, 3.83, 27.3, 216],
     "cubes": [0.187, 0.256, 0.572, 1.92, 8.0],
-    "kdtree": [0.248, 2.94, 33.2, 463, 2340],
+    "scipy": [0.248, 2.94, 33.2, 463, 2340],
 }
 
 size = {
     "dataset": [2577165, 25769973, 257698221, 2576980557, 25769803917],
     "python": [174704, 2062787, 27842084, 328732478, 3499040395],
     "packed": [12488, 142417, 1908497, 22438977, 237917597],
-    "kdtree": [3510121, 34949961, 348316393, 3511474721, 34963718503],
+    "scipy": [3510121, 34949961, 348316393, 3511474721, 34963718503],
 }
 
 extra = {
@@ -395,20 +395,20 @@ metrics = {
         "python": "tab:blue",
         "packed": "tab:orange",
         "cubes": "tab:purple",
-        "kdtree": "tab:green",
+        "scipy": "tab:green",
     },
     "search": {
         "python": "tab:blue",
         "packed": "tab:orange",
         "pack_list": "tab:brown",
         "cubes": "tab:purple",
-        "kdtree": "tab:green",
+        "scipy": "tab:green",
     },
     "size": {
         "dataset": "k",
         "python": "tab:blue",
         "packed": "tab:orange",
-        "kdtree": "tab:green",
+        "scipy": "tab:green",
     },
 }
 
@@ -538,13 +538,13 @@ for i, t in enumerate(metrics):
             if f"{t}:{m}" in ignore_metrics:
                 continue
             y = np.array(sim[t][m])
-            yk = np.array(sim[t]["kdtree"])
+            yk = np.array(sim[t]["scipy"])
             n = np.array(sim["n"])
             axs[i].loglog(n, y / yk, color=c, marker=sim["marker"], ls=sim["ls"])
         axs[i].plot(np.nan, np.nan, color=c, label=m)
 
     axs[i].set_xlabel(f"n [{units['n']}]")
-    axs[i].set_ylabel(f"{t}/{t}" r"$_{\text{kdtree}}$")
+    axs[i].set_ylabel(f"{t}/{t}" r"$_{\text{scipy}}$")
 
 for sim in sims:
     axs[0].plot(
