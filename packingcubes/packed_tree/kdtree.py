@@ -306,7 +306,7 @@ class KDTreeAPI:
         centers: NDArray,
         radius: float,
         return_length: bool = False,
-        return_sorted: bool | None = False,
+        return_sorted: bool = False,
         return_lists: bool = True,
         strict: bool = False,
     ) -> list[int] | NDArray:
@@ -477,6 +477,8 @@ class KDTreeAPI:
             )
 
         return_lists = True if return_lists is None else return_lists
+        return_sorted = x.shape[0] > 1 if return_sorted is None else return_sorted
+
         return self._query_ball_point(
             centers=x,
             radius=r,
