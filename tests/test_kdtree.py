@@ -81,7 +81,7 @@ def test_query_ball_point_example1(scipy_query_ball_point_example):
     qbp = tree.query_ball_point([2, 0, 0], 1)
     qbps = sorted(qbp)
     true = [5, 10, 11, 15]
-    for q, t in zip(qbp, true, strict=True):
+    for q, t in zip(qbps, true, strict=True):
         assert q == t
 
 
