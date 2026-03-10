@@ -307,6 +307,7 @@ class KDTreeAPI:
         radius: float,
         return_length: bool = False,
         return_sorted: bool | None = False,
+        return_lists: bool = True,
         strict: bool = False,
     ) -> list[int] | NDArray:
         """
@@ -345,6 +346,9 @@ class KDTreeAPI:
             for r in results:
                 r.sort()
 
+        if return_lists:
+            results = [r.tolist() for r in results]
+
         if len(centers) > 1:
             return np.fromiter(results, dtype=np.object_)
         return results[0]
@@ -359,6 +363,7 @@ class KDTreeAPI:
         *,
         return_sorted: bool | None = None,
         return_length: bool = False,
+        return_lists: bool | None = None,
         strict: bool | None = None,
     ) -> list[int] | NDArray:
         """
@@ -390,6 +395,12 @@ class KDTreeAPI:
             return_length : bool, optional
                 Return the number of points inside the radius instead of a list
                 of the indices. Note that this is much faster for large trees.
+
+            return_lists : bool, optional
+                Force returning lists instead of arrays. PackedTrees return
+                arrays of indices by default, but this doesn't match the
+                expected query_ball_point signature. For a slight performance
+                increase, set this to False
 
         Returns:
             results : list or array of lists
@@ -465,10 +476,12 @@ class KDTreeAPI:
                 stacklevel=1,
             )
 
+        return_lists = True if return_lists is None else return_lists
         return self._query_ball_point(
             centers=x,
             radius=r,
             return_length=return_length,
             return_sorted=return_sorted,
+            return_lists=return_lists,
             strict=strict,
         )
