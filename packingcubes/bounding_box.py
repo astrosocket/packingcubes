@@ -42,7 +42,7 @@ class BoundingBoxValidFlag(Flag):
     Validations performed on a box
     """
 
-    IS_BOX = auto(), lambda box: f"Box ({box}) is not a box!"
+    IS_BOX = auto(), lambda box: f"Box ({box}, type={type(box)}) is not a box!"
     CORRECT_SHAPE = (
         auto(),
         lambda box: f"Box has wrong shape. Required (6,), received {box.shape}",
