@@ -571,8 +571,8 @@ particle_threshold = 400
 
 expected = {
     "creation": lambda n: n * np.log10(n),
-    # "search": lambda n: np.log10(n),
-    "search": lambda n: np.sqrt(n),
+    "search": lambda n: np.log10(n),
+    # "search": lambda n: np.sqrt(n),
     # "size":lambda n: 1.2*n/10**(np.floor(np.log10(n/particle_threshold)))
     "search_cn": lambda n: np.log2(n),
     "size": lambda n: n,
