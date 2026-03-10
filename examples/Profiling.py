@@ -38,7 +38,8 @@ from time import time  # noqa: E402
 
 import numpy as np  # noqa: E402
 
-from packingcubes import Cubes, HDF5Dataset, Optree  # noqa: E402
+from packingcubes import Cubes, HDF5Dataset, KDTree, Optree  # noqa: E402
+from packingcubes.bounding_box import make_bounding_sphere  # noqa: E402
 from packingcubes.configuration import get_test_data_dir_path  # noqa: E402
 
 # %% [markdown]
@@ -78,6 +79,14 @@ cubes = Cubes(
 cubes.get_particle_indices_in_sphere(
     particle_types="PartType0", center=center, radius=radius
 )
+
+# %%
+kdtree = KDTree(
+    data=ds.positions,
+)
+
+# %%
+kdtree.query_ball_point(x=center, r=radius)
 
 # %% [markdown]
 # # Run profiling
@@ -140,5 +149,27 @@ radius = 1000
 start = time()
 while (time() - start) < 30:
     sph_inds = cubes.get_particle_indices_in_sphere(center=center, radius=radius)
+
+# %% [markdown]
+# ## Profile KDTree search
+
+# %%
+kdtree = KDTree(
+    ds.positions,
+)
+centers = np.array([[644, 20292, 6534]])
+radius = 1302
+
+# %%
+sph = make_bounding_sphere(center=center, radius=radius)
+
+# %%
+# %%profila
+
+start = time()
+while (time() - start) < 30:
+    sph_inds = kdtree._tree._tree._get_particle_index_list_in_shape_strict(
+        ds.data_container, sph.bounding_box, sph
+    )
 
 # %%
