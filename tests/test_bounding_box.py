@@ -15,6 +15,18 @@ LOGGER = logging.getLogger(__name__)
 #############################
 # Test check_valid
 #############################
+@example(
+    np.array(
+        [
+            -6.68159592e307,
+            -6.68159592e307,
+            -6.68159592e307,
+            1.33631918e308,
+            1.33631918e308,
+            1.33631918e308,
+        ]
+    )
+).via("discovered failure")
 @given(st.none() | st.text() | ct.invalid_boxes())
 def test_check_valid_invalid_boxes(box):
     validation_code = bbox.check_valid(box, raise_error=False)
@@ -66,6 +78,9 @@ def test_check_valid_valid_box(box: ArrayLike):
     assert np.all(np.isfinite(box))
     # this handles both negative sizes and precision
     assert np.all(box[3:] > np.abs(box[:3] * np.finfo(float).eps))
+    # handle floating point
+    with np.errstate(all="raise"):
+        np.abs(box[:3]) + box[3:]
 
     # check output
     assert validation_code_w_error == validation_code2_no_error
