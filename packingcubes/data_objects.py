@@ -196,9 +196,11 @@ class Dataset:
 
     @property
     def data_container(self) -> DataContainer:
-        return DataContainer(
-            self._positions.astype(np.float64, copy=False), self._index, self._box
-        )
+        if not hasattr(self, "_data"):
+            self._data = DataContainer(
+                self._positions.astype(np.float64, copy=False), self._index, self._box
+            )
+        return self._data
 
 
 class MultiParticleDataset(Dataset, ABC):
