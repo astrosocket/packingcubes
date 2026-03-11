@@ -39,7 +39,7 @@ echo "Cubes search (divide by 100)"
 python -m timeit -s "import timing_tests;setup = timing_tests.cubing_setup();cubes = timing_tests.cubing(setup);timing_tests.cubes_query_ball_points(cubes);" "timing_tests.cubes_query_ball_points(cubes)"
 
 echo "scipy.spatial.kdtree search (divide by 100)"
-python -m timeit -s "import timing_tests;ds = timing_tests.load_data($DECIMATION_FACTOR);tree = timing_tests.kdtree_creation(ds)" "timing_tests.kdtree_query_ball_point(tree)"
+python -m timeit -s "import timing_tests;ds = timing_tests.load_data($DECIMATION_FACTOR);tree = timing_tests.scipy_kdtree_creation(ds)" "timing_tests.scipy_kdtree_query_ball_point(tree)"
 
 # echo "yt search"
 # python -m timeit -s "import timing_tests;ytdata = timing_tests.yt_setup($DECIMATION_FACTOR);sph = timing_tests.yt_creation(ytdata)" "timing_tests.yt_search(sph)"
