@@ -130,6 +130,7 @@ class KDTreeAPI:
                 )
             )
         self._dataset = InMemory(positions=data.copy() if copy_data else data)
+        self._data_container = self._dataset.data_container
         self.data = self._dataset.positions
         self.n = len(self.data)
         data_box = self._dataset.bounding_box
@@ -193,7 +194,7 @@ class KDTreeAPI:
         i = np.full((len(x), k_max), self.n)
         for ind, xyz in enumerate(x):
             dists, inds = self._tree.get_closest_particles(
-                dataset=self._dataset,
+                data=self._data_container,
                 xyz=xyz,
                 distance_upper_bound=distance_upper_bound,
                 p=p,
@@ -335,7 +336,7 @@ class KDTreeAPI:
             return lengths[0] if len(lengths) == 1 else lengths
         results = [
             self._tree.get_particle_index_list_in_sphere(
-                dataset=self._dataset,
+                data=self._data_container,
                 center=center,
                 radius=radius,
                 strict=strict,

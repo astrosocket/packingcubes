@@ -8,7 +8,7 @@ from numpy.typing import ArrayLike, NDArray
 
 import packingcubes.bounding_box as bbox
 import packingcubes.octree as octree
-from packingcubes.data_objects import Dataset, InMemory
+from packingcubes.data_objects import DataContainer, Dataset, InMemory
 from packingcubes.packed_tree.packed_node import PackedNode
 from packingcubes.packed_tree.packed_tree_meta import (
     TreeMeta,
@@ -239,7 +239,7 @@ class PackedTree(octree.Octree):
     def get_particle_index_list_in_box(
         self,
         *,
-        dataset: Dataset,
+        data: DataContainer | Dataset,
         box: bbox.BoxLike,
         strict: bool = False,
     ) -> NDArray[np.int64]:
@@ -247,6 +247,10 @@ class PackedTree(octree.Octree):
         Return all particles contained within the box
 
         Args:
+            data: DataContainer | Dataset
+            Dataset containing the particle positions. Pass a DataContainer
+            object for a slight performance increase
+
             box: BoxLike
             Box to check
 
@@ -259,19 +263,20 @@ class PackedTree(octree.Octree):
             indices: NDArray[int]]
             List of original particle indices contained within sphere
         """
+        data = data.data_container if isinstance(data, Dataset) else data
         bounding_box = bbox.make_bounding_box(box)
         if strict:
             return self._tree._get_particle_index_list_in_shape_strict(
-                dataset.data_container, bounding_box, bounding_box
+                data, bounding_box, bounding_box
             )
         return self._tree._get_particle_index_list_in_shape(
-            dataset.data_container, bounding_box, bounding_box
+            data, bounding_box, bounding_box
         )
 
     def get_particle_index_list_in_sphere(
         self,
         *,
-        dataset: Dataset,
+        data: DataContainer | Dataset,
         center: NDArray,
         radius: float,
         strict: bool = False,
@@ -280,6 +285,10 @@ class PackedTree(octree.Octree):
         Return all particles contained within the sphere defined by center and radius
 
         Args:
+            data: DataContainer | Dataset
+            Dataset containing the particle positions. Pass a DataContainer
+            object for a slight performance increase
+
             center: NDArray
             Center point of the sphere
 
@@ -295,15 +304,14 @@ class PackedTree(octree.Octree):
             indices: NDArray[int]
             List of original particle indices contained within sphere
         """
+        data = data.data_container if isinstance(data, Dataset) else data
         sph = bbox.make_bounding_sphere(radius, center=center)
         bounding_box = sph.bounding_box
         if strict:
             return self._tree._get_particle_index_list_in_shape_strict(
-                dataset.data_container, bounding_box, sph
+                data, bounding_box, sph
             )
-        return self._tree._get_particle_index_list_in_shape(
-            dataset.data_container, bounding_box, sph
-        )
+        return self._tree._get_particle_index_list_in_shape(data, bounding_box, sph)
 
     def get_closest_particle(
         self, xyz: ArrayLike, *, check_neighbors: bool = True
@@ -342,7 +350,7 @@ class PackedTree(octree.Octree):
     def get_closest_particles(
         self,
         *,
-        dataset: Dataset,
+        data: DataContainer | Dataset,
         xyz: NDArray,
         distance_upper_bound: float | None = None,
         p: float = 2,
@@ -353,7 +361,7 @@ class PackedTree(octree.Octree):
         Get kth nearest particle distances and indices to point
 
         Args:
-            data: DataContainer
+            data: DataContainer | Dataset
             Source of particle position data
 
             xyz: ArrayLike
@@ -402,7 +410,7 @@ class PackedTree(octree.Octree):
         )
 
         return self._tree.get_closest_particles(
-            dataset.data_container,
+            data if isinstance(data, DataContainer) else data.data_container,
             xyz,
             distance_fun,
             distance_upper_bound,
