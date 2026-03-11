@@ -70,11 +70,9 @@ def load_data(
     return dataset
 
 
-def reset_data(ds):
+def reset_data(ds: data_objects.Dataset) -> data_objects.Dataset:
     original_inds = np.argsort(ds.index)
-    ds._positions = ds._positions[original_inds, :]
-    del ds._index
-    ds._setup_index()
+    ds.reorder(original_inds)
     return ds
 
 
