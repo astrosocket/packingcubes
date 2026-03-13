@@ -816,15 +816,19 @@ class PackedTreeNumba:
             List of particle start-stop indices contained within shape
         """
 
-        # node containing bounding box
         bbox_center = bounding_box.get_box_center()
         node = self._make_root_node()
 
         indices = List.empty_list(_index_tuple_type)
 
-        # check root
+        # check root - need to check if either all corners are contained or if
+        # root is leaf and there exists *any* overlap
         node_vertices = node.box.get_box_vertices()
-        if sum(containment_obj.contains(node_vertices)) == len(node_vertices):
+        partial = sum(containment_obj.contains(node_vertices))
+        overlap = bool(
+            containment_obj.contains(node.box.project_point_on_box(bbox_center))
+        )
+        if partial == len(node_vertices) or ((partial or overlap) and is_leaf(node)):
             indices.append((node.node_start, np.uint32(node.node_end + 1)))
             return indices
 
