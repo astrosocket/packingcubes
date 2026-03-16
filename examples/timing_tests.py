@@ -610,7 +610,10 @@ def manual_timing(
         globals()["dataset"] = ds
         globals()["search_obj"] = search_obj
         if not dry_run:
-            timer = timeit.Timer(sd["fun"], globals=globals())
+            timer = timeit.Timer(
+                sd["fun"], setup="import gc;gc.enable()", globals=globals()
+            )
+            timer.timeit(1)
             number, _ = timer.autorange()
             time_vec = timer.repeat(number=number) * second
             time_vec /= number  # change to per-loop
