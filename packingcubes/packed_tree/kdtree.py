@@ -219,6 +219,25 @@ class KDTreeAPI:
         # Each node is 5 fields, so number of nodes = length/5
         self.size = int(len(self._tree._tree.tree) / 5)
 
+    @property
+    def sort_index(self):
+        """
+        The shuffle list for the original data, aka self.data = data[self.sort_index]
+        """
+        if self._copied:
+            warnings.warn(
+                """
+                Since the data was copied, the effective shuffle list is simply
+                0:len(data) and this property is superfluous.
+                """,
+                KDTreeWarning,
+                stacklevel=1,
+            )
+            return np.arange(len(self.dataset))
+        index = self._dataset.index.view()
+        index.flags.writeable = False
+        return index
+
     def _query(
         self,
         *,
