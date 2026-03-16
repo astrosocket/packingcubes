@@ -236,6 +236,29 @@ def packed_kdtree_query_ball_point(
             )
 
 
+def brute_force_creation(ds):
+    return ds.positions
+
+
+def brute_force_search(
+    positions,
+    *,
+    centers=centers,
+    radii=radii,
+    particle_numbers: list[int] = particle_numbers,
+):
+    for i, (c, r) in enumerate(zip(centers, radii, strict=True)):
+        mask = np.sum((positions - c) ** 2, axis=1) <= r**2
+        number = np.sum(mask)
+        if particle_numbers and number != particle_numbers[i]:
+            raise ValueError(
+                f"""
+                Particle number mismatch: expected {particle_numbers[i]} particles
+                for ball {i} and only got {number}.
+                """
+            )
+
+
 # we want the PackedTree stuff to be pre-compiled
 def precompile():
     dataset = data_objects.InMemory(positions=np.array([0, 0, 0]))
@@ -397,6 +420,7 @@ creation_dict = {
     },
     "kdtree": {"fun": "packed_kdtree_creation", "precomp": True},
     "scipy": {"fun": "scipy_kdtree_creation", "precomp": False},
+    "brute": {"fun": "brute_force_creation", "precomp": False},
     # skipping yt creation for now
 }
 search_dict = {
@@ -426,6 +450,11 @@ search_dict = {
         "fun": "packed_kdtree_query_ball_point(search_obj)",
         "tree": "kdtree",
         "precomp": True,
+    },
+    "brute": {
+        "fun": "brute_force_search(search_obj)",
+        "tree": "brute",
+        "precomp": False,
     },
     "scipy": {
         "fun": "scipy_kdtree_query_ball_point(search_obj)",
