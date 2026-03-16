@@ -95,8 +95,8 @@ def random_search_balls_constant_number(
     LOGGER.info(
         f"Generating constant particle number search balls of size {num_particles}"
     )
-    kdtree = optree.KDTree(data=ds.positions)
-    # kdtree = KDTree(data=ds.positions, leafsize=octree._DEFAULT_PARTICLE_THRESHOLD)
+    # kdtree = optree.KDTree(data=ds.positions)
+    kdtree = KDTree(data=ds.positions, leafsize=octree._DEFAULT_PARTICLE_THRESHOLD)
     box = ds.bounding_box
     bad_balls = 0
     for i in range(number_balls):
@@ -111,7 +111,7 @@ def random_search_balls_constant_number(
             kdtree.query_ball_point(
                 center,
                 r,
-                strict=True,
+                # strict=True,
             )
         )
         rlower = 0
@@ -125,7 +125,7 @@ def random_search_balls_constant_number(
                 kdtree.query_ball_point(
                     center,
                     r,
-                    strict=True,
+                    # strict=True,
                 )
             )
         rupper = r
@@ -140,7 +140,12 @@ def random_search_balls_constant_number(
             LOGGER.debug(
                 f"Have {n_enclosed} particles ({error=:.3g}). Checking {r=:.4g}"
             )
-            n_enclosed = len(kdtree.query_ball_point(center, r, strict=True))
+            n_enclosed = len(
+                kdtree.query_ball_point(
+                    center,
+                    r,
+                )
+            )  # strict=True))
             error = abs(n_enclosed - num_particles) / num_particles
             if n_enclosed > num_particles:
                 rupper = r
@@ -607,17 +612,19 @@ def manual_timing(
                 dry_run=dry_run,
             )
             creation_dict[creation_name]["search_obj"] = search_obj
-        globals()["dataset"] = ds
+        globals()["data"] = ds.data_container
         globals()["search_obj"] = search_obj
         if not dry_run:
             timer = timeit.Timer(
                 sd["fun"], setup="import gc;gc.enable()", globals=globals()
             )
+            # do additional run for any missing precompile
             timer.timeit(1)
             number, _ = timer.autorange()
-            time_vec = timer.repeat(number=number) * second
+            time_vec = timer.repeat(number=number)
+            time_vec *= second
             time_vec /= number  # change to per-loop
-            time_vec /= len(centers)  # change to per-sphere (average)
+            time_vec /= len(radii)  # change to per-sphere (average)
         else:
             number = -1
             time_vec = [-1, -1] * second
