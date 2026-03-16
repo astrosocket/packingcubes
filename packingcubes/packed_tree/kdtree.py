@@ -615,7 +615,6 @@ class KDTreeAPI:
         )
         # These are the indices into the sorted data. If it was copied, we'll
         # need to use the shuffle list(s). That applies for both self and other
-        print("original pil:", pil)  # noqa
         if other._copied:
             oindex = other._dataset._index
             # at least this is vectorized

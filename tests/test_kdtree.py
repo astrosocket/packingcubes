@@ -138,9 +138,6 @@ def test_query_ball_tree_example(scipy_query_ball_tree_example):
     # so turn on return_sorted for comparison
     indexes = tree1.query_ball_tree(tree2, r=0.2, return_sorted=True)
     sindexes = stree1.query_ball_tree(stree2, r=0.2)
-    print("kdtree:", indexes)  # noqa
-    print("scipy:", sindexes)  # noqa
-    print("kdtree:", tree1._dataset.index)  # noqa
 
     assert len(indexes) == len(sindexes)
 
