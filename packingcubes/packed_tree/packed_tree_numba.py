@@ -660,18 +660,18 @@ class PackedTreeNumba:
         """
         if node is None:
             node = self._make_root_node()
-        if not node.box.contains(xyz):
+        if not node.box.contains_point(xyz[0], xyz[1], xyz[2]):
             return None
         while not is_leaf(node):
             children = get_children(node)
             for child in children:
                 _move_to_child(self.tree, node, child)
-                if node.box.contains(xyz):
+                if node.box.contains_point(xyz[0], xyz[1], xyz[2]):
                     break
                 _move_to_parent(self.tree, node)
             else:
                 break  # while loop
-        return node if node.box.contains(xyz) else None
+        return node if node.box.contains_point(xyz[0], xyz[1], xyz[2]) else None
 
     def _bottom_up_containing_node(
         self, node: CurrentNode, xyz: NDArray
@@ -680,10 +680,10 @@ class PackedTreeNumba:
         For a given point, return the smallest parent node that contains point or None
         """
         while not is_root(node):
-            if node.box.contains(xyz):
+            if node.box.contains_point(xyz[0], xyz[1], xyz[2]):
                 return node
             _move_to_parent(self.tree, node)
-        return node if node.box.contains(xyz) else None
+        return node if node.box.contains_point(xyz[0], xyz[1], xyz[2]) else None
 
     def _get_containing_node_of_point(
         self,
@@ -782,7 +782,8 @@ class PackedTreeNumba:
 
         # check root
         node_vertices = node.box.get_box_vertices()
-        if sum(containment_obj.contains(node_vertices)) == len(node_vertices):
+        in_shape = containment_obj.count_inside(node_vertices)
+        if in_shape == len(node_vertices):
             # if all root vertices enclosed, shape is bigger than tree...
             entire_nodes.append(_create_from_current_node(node))
             return entire_nodes, partial_leaves
@@ -802,16 +803,16 @@ class PackedTreeNumba:
 
             # Test if node entirely contained in shape
             node_vertices = node.box.get_box_vertices()
-            vertices_enclosed = sum(containment_obj.contains(node_vertices))
+            vertices_enclosed = containment_obj.count_inside(node_vertices)
 
             if not vertices_enclosed:
                 # check for edge overlap
-                closest_point = node.box.project_point_on_box(bbox_center)
+                x, y, z = node.box.project_point_on_box(bbox_center)
                 # need bool to convert NDArray[bool] to bool
                 # if containment_test returns something besides a length-1
                 # array, we should error (that's why we don't just e.g. take
                 # the first element)
-                partial = bool(containment_obj.contains(closest_point))
+                partial = containment_obj.contains_point(x, y, z)
             else:
                 # check for degree of containment
                 partial = 0 < vertices_enclosed < len(node_vertices)
@@ -898,10 +899,9 @@ class PackedTreeNumba:
         # check root - need to check if either all corners are contained or if
         # root is leaf and there exists *any* overlap
         node_vertices = node.box.get_box_vertices()
-        partial = sum(containment_obj.contains(node_vertices))
-        overlap = bool(
-            containment_obj.contains(node.box.project_point_on_box(bbox_center))
-        )
+        partial = containment_obj.count_inside(node_vertices)
+        x, y, z = node.box.project_point_on_box(bbox_center)
+        overlap = containment_obj.contains_point(x, y, z)
         if partial == len(node_vertices) or ((partial or overlap) and is_leaf(node)):
             indices.append((node.node_start, np.uint32(node.node_end + 1)))
             return indices
@@ -921,12 +921,12 @@ class PackedTreeNumba:
 
             # Test if node entirely contained in shape
             node_vertices = node.box.get_box_vertices()
-            vertices_enclosed = sum(containment_obj.contains(node_vertices))
+            vertices_enclosed = containment_obj.count_inside(node_vertices)
 
             if not vertices_enclosed:
                 # Check for edge overlap
-                closest_point = node.box.project_point_on_box(bbox_center)
-                partial = bool(containment_obj.contains(closest_point))
+                x, y, z = node.box.project_point_on_box(bbox_center)
+                partial = containment_obj.contains_point(x, y, z)
             else:
                 # check for degree of containment
                 partial = 0 < vertices_enclosed < len(node_vertices)
@@ -1126,7 +1126,7 @@ class PackedTreeNumba:
 
         if data is not None:
             pos = data._positions[indices]
-            data_mask = containment_obj.contains(pos)
+            data_mask = containment_obj.contains_pointlist(pos)
             return indices[data_mask]
 
         return indices
@@ -1260,7 +1260,7 @@ class PackedTreeNumba:
         """
 
         # ensure point is in octree, project if not
-        if not self.box.contains(xyz):
+        if not self.box.contains_point(xyz[0], xyz[1], xyz[2]):
             # Project point onto root
             pxyz = self.box.project_point_on_box(xyz)
 
