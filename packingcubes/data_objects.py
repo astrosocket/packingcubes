@@ -197,9 +197,7 @@ class Dataset:
     @property
     def data_container(self) -> DataContainer:
         if not hasattr(self, "_data"):
-            self._data = DataContainer(
-                self._positions.astype(np.float64, copy=False), self._index, self._box
-            )
+            self._data = DataContainer(self._positions, self._index, self._box)
         return self._data
 
 
@@ -236,7 +234,7 @@ class InMemory(MultiParticleDataset):
                 "Only Nx3 arrays are allowed. "
                 f"You provided an {positions.shape[0]}x{positions.shape[1]} array."
             )
-        self._positions = positions
+        self._positions = positions.astype(np.float64, copy=False)
         super().__init__(name=name, filepath=filepath)
         self._set_bounding_box()
         self._setup_index()
@@ -350,7 +348,7 @@ class HDF5Dataset(MultiParticleDataset):
         """
         with h5py.File(self.filepath, "r") as file:
             positions = file[self._particle_type][self._positions_field]
-            self._positions = np.array(positions)
+            self._positions = np.array(positions, dtype=np.float64)
         with h5py.File(self._cache_file_name, "r") as _cache_file:
             if self._particle_type in _cache_file:
                 self._index = np.array(_cache_file[self._particle_type])
