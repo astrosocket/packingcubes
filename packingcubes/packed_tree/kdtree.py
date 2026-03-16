@@ -57,6 +57,10 @@ class KDTreeAPI:
 
     _tree: PackedTree
     _dataset: Dataset
+    _copied: bool
+    """
+    Whether the tree was constructed with copied data
+    """
     data: NDArray
     """
     The n data points of dimension m to be indexed. The data is only copied if
@@ -130,6 +134,7 @@ class KDTreeAPI:
                 )
             )
         self._dataset = InMemory(positions=data.copy() if copy_data else data)
+        self._copied = copy_data
         self._data_container = self._dataset.data_container
         self.data = self._dataset.positions
         self.n = len(self.data)
@@ -184,9 +189,12 @@ class KDTreeAPI:
         k: int | Sequence[int],
         distance_upper_bound: float,
         p: float,
+        return_data_indices: bool,
     ) -> tuple[float | NDArray, int | NDArray]:
         """
         Private helper that wraps the PackedTree get_closest_particles method
+
+        See query for argument definitions
         """
         k_max = k if not isinstance(k, Sequence) else max(k)
 
@@ -201,7 +209,11 @@ class KDTreeAPI:
                 k=k_max,
             )
             d[ind, : len(dists)] = dists
-            i[ind, : len(inds)] = inds
+            # kdtree needs the *original* indices if we copied the data and
+            # might want them if we didn't
+            i[ind, : len(inds)] = (
+                inds if return_data_indices else self._dataset._index[inds]
+            )
         if k_max == 1 and not isinstance(k, Sequence):
             return d.squeeze(), i.squeeze()
         if isinstance(k, Sequence):
@@ -217,6 +229,8 @@ class KDTreeAPI:
         p: int | None = None,
         distance_upper_bound: float | None = None,
         workers: int | None = None,
+        *,
+        return_data_indices: bool | None = None,
     ) -> tuple[float | NDArray, int | NDArray]:
         """
         Query the KDTree for nearest neighbors
@@ -249,6 +263,11 @@ class KDTreeAPI:
             workers: int, optional
             Number of workers to use for parallel processing. Only 1 is
             supported, for more, see Cubes
+
+            return_data_indices: bool | None, optional
+            Return indices into the sorted data if True instead of into the
+            original. Specify None to have this set by the copy_data argument
+            used during tree construction.
 
         Returns:
             d: float or array of floats
@@ -299,16 +318,27 @@ class KDTreeAPI:
                 stacklevel=1,
             )
 
-        return self._query(x=x, k=k, distance_upper_bound=distance_upper_bound, p=p)
+        return_data_indices = (
+            not self._copied if return_data_indices is None else return_data_indices
+        )
+
+        return self._query(
+            x=x,
+            k=k,
+            distance_upper_bound=distance_upper_bound,
+            p=p,
+            return_data_indices=return_data_indices,
+        )
 
     def _query_ball_point(
         self,
         *,
         centers: NDArray,
         radius: float,
-        return_length: bool = False,
-        return_sorted: bool = False,
-        return_lists: bool = True,
+        return_length: bool,
+        return_sorted: bool,
+        return_lists: bool,
+        return_data_indices: bool,
         strict: bool = False,
     ) -> int | list[int] | NDArray:
         """
@@ -343,7 +373,12 @@ class KDTreeAPI:
             )
             for center in centers
         ]
-        #  results is now list of list of (unsorted) indices into shuffle list
+        # get_particle_index_list_in_sphere returns the indices in the
+        # reordered dataset. If we need the original indices, we need to use
+        # the shuffle list
+        if not return_data_indices:
+            results = [self._dataset._index[r] for r in results]
+        #  results is now list of list of (unsorted) indices
         if return_sorted:
             for r in results:
                 r.sort()
@@ -366,6 +401,7 @@ class KDTreeAPI:
         return_sorted: bool | None = None,
         return_length: bool = False,
         return_lists: bool | None = None,
+        return_data_indices: bool | None = None,
         strict: bool | None = None,
     ) -> int | list[int] | NDArray:
         """
@@ -486,11 +522,16 @@ class KDTreeAPI:
         return_lists = True if return_lists is None else return_lists
         return_sorted = x.shape[0] > 1 if return_sorted is None else return_sorted
 
+        return_data_indices = (
+            not self._copied if return_data_indices is None else return_data_indices
+        )
+
         return self._query_ball_point(
             centers=x,
             radius=r,
             return_length=return_length,
             return_sorted=return_sorted,
             return_lists=return_lists,
+            return_data_indices=return_data_indices,
             strict=strict,
         )
