@@ -121,7 +121,7 @@ start = time()
 while (time() - start) < 30:
     sph_inds = tree.get_particle_indices_in_sphere(center=center, radius=radius)
 
-# %% [markdown]
+# %% [markdown] jp-MarkdownHeadingCollapsed=true
 # ## Profile cubes creation
 
 # %%
@@ -132,7 +132,7 @@ cubes = Cubes(
     particle_types="PartType0",
 )
 
-# %% [markdown]
+# %% [markdown] jp-MarkdownHeadingCollapsed=true
 # ## Profile cubes search
 
 # %%
@@ -157,19 +157,21 @@ while (time() - start) < 30:
 kdtree = KDTree(
     ds.positions,
 )
-centers = np.array([[644, 20292, 6534]])
-radius = 1302
+centers = np.array([[4753.7249348, 16280.23373589, 7140.8746265]])
+radius = 856.34
+ntree = kdtree._tree._tree
+data = ds.data_container
 
 # %%
 sph = make_bounding_sphere(center=center, radius=radius)
+sph_box = sph.bounding_box
 
 # %%
 # %%profila
 
 start = time()
 while (time() - start) < 30:
-    sph_inds = kdtree._tree._tree._get_particle_index_list_in_shape_strict(
-        ds.data_container, sph.bounding_box, sph
-    )
+    sph_inds = ntree._get_particle_index_list_in_shape(data, sph_box, sph)
+
 
 # %%
