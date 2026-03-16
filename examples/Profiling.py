@@ -173,5 +173,35 @@ start = time()
 while (time() - start) < 30:
     sph_inds = ntree._get_particle_index_list_in_shape(data, sph_box, sph)
 
+# %% [markdown]
+# # Python profiling
+
+# %%
+# %load_ext pyinstrument
+
+# %% [markdown]
+# ##
+
+# %%
+kdtree = KDTree(
+    ds.positions,
+)
+centers = np.array([[4753.7249348, 16280.23373589, 7140.8746265]])
+radius = 856.34
+ntree = kdtree._tree._tree
+data = ds.data_container
+
+# %%
+sph = make_bounding_sphere(center=center, radius=radius)
+sph_box = sph.bounding_box
+
+# %%
+# %%pyinstrument
+
+start = time()
+while (time() - start) < 30:
+    sph_inds = kdtree.query_ball_point(x=centers[0], r=radius)
+
+# %%
 
 # %%
