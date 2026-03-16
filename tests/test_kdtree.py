@@ -11,7 +11,10 @@ def scipy_query_example():
     x, y, z = np.mgrid[0:5, 2:8, 0:1]
     data = np.c_[x.ravel(), y.ravel(), z.ravel()]
     # our kdtree has a different leafsize by default than scipy's
-    return KDTree(data=data, leafsize=10)
+    # we return indices into the modified/sorted dataset by default
+    # unless copy_data=True. So we could change all of the query calls,
+    # or copy the data (which is acceptable for small datasets)
+    return KDTree(data=data, copy_data=True, leafsize=10)
 
 
 def test_query_example1(scipy_query_example):
@@ -65,16 +68,15 @@ def test_query_example5(scipy_query_example):
 
 
 # The following are modified from the scipy.KDTree.query_ball_point example
-def scipy_query_ball_point_example_unwrapped():
+@pytest.fixture
+def scipy_query_ball_point_example():
     x, y, z = np.mgrid[0:5, 0:5, 0:1]
     data = np.c_[x.ravel(), y.ravel(), z.ravel()]
     # our kdtree has a different leafsize by default than scipy's
-    return KDTree(data=data, leafsize=10)
-
-
-@pytest.fixture
-def scipy_query_ball_point_example():
-    return scipy_query_ball_point_example_unwrapped()
+    # we return indices into the modified/sorted dataset by default
+    # unless copy_data=True. So we could change all of the query_ball calls,
+    # or copy the data (which is acceptable for small datasets)
+    return KDTree(data=data, copy_data=True, leafsize=10)
 
 
 def test_query_ball_point_example1(scipy_query_ball_point_example):
