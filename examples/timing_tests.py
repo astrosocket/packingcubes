@@ -174,7 +174,9 @@ def python_octree_creation(ds):
     )
 
 
-def python_octree_query_ball_point(tree: octree.Octree):
+def python_octree_query_ball_point(
+    tree: octree.Octree, *, centers=centers, radii=radii
+):
     for c, r in zip(centers, radii, strict=True):
         sph_inds = tree.get_particle_indices_in_sphere(
             center=c,
@@ -186,7 +188,9 @@ def packed_octree_creation(ds):
     return optree.PackedTree(dataset=ds)
 
 
-def packed_octree_query_ball_point(tree: optree.PackedTree):
+def packed_octree_query_ball_point(
+    tree: optree.PackedTree, *, centers=centers, radii=radii
+):
     for c, r in zip(centers, radii, strict=True):
         sph_inds = tree.get_particle_indices_in_sphere(
             center=c,
@@ -195,7 +199,11 @@ def packed_octree_query_ball_point(tree: optree.PackedTree):
 
 
 def packed_octree_query_ball_point_indices(
-    data: data_objects.DataContainer, tree: optree.PackedTree
+    data: data_objects.DataContainer,
+    tree: optree.PackedTree,
+    *,
+    centers=centers,
+    radii=radii,
 ):
     for c, r in zip(centers, radii, strict=True):
         sph_inds = tree.get_particle_index_list_in_sphere(
@@ -213,6 +221,8 @@ def packed_kdtree_creation(ds):
 def packed_kdtree_query_ball_point(
     tree: optree.KDTree,
     *,
+    centers=centers,
+    radii=radii,
     particle_numbers: list[int] = particle_numbers,
 ):
     for i, (c, r) in enumerate(zip(centers, radii, strict=True)):
@@ -240,6 +250,9 @@ def scipy_kdtree_creation(ds):
 
 def scipy_kdtree_query_ball_point(
     tree: KDTree,
+    *,
+    centers=centers,
+    radii=radii,
     particle_numbers: list[int] = particle_numbers,
 ):
     for i, (c, r) in enumerate(zip(centers, radii, strict=True)):
@@ -362,7 +375,7 @@ def cubing(setup):
     )
 
 
-def cubes_query_ball_points(cubes):
+def cubes_query_ball_points(cubes, *, centers=centers, radii=radii):
     for c, r in zip(centers, radii, strict=True):
         sph_inds = cubes.get_particle_indices_in_sphere(
             particle_types=particle_type,
