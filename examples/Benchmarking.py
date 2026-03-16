@@ -98,6 +98,11 @@ search = {
 }
 
 search_cn = {
+    "brute": [
+        [2.03, 2.08, 2.04],
+        [24, 24.3, 23.6],
+        [236, 243, 238],
+    ],
     "packed": [
         [0.0812, 0.113, 0.244],
         [0.104, 0.162, 0.284],
@@ -577,6 +582,7 @@ metrics = {
         "scipy": "tab:green",
     },
     "search_cn": {
+        "brute": "k",
         "packed": "tab:orange",
         "pack_list": "tab:brown",
         "kdtree": "tab:olive",
