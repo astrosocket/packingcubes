@@ -229,10 +229,16 @@ class InMemory(MultiParticleDataset):
 
     def __init__(self, *, positions: NDArray, name: str = "", filepath: str = ""):
         positions = np.atleast_2d(positions)
-        if positions.shape[1] != 3:
+        if positions.shape[1] != 3 or len(positions.shape) > 2:
             raise ValueError(
                 "Only Nx3 arrays are allowed. "
-                f"You provided an {positions.shape[0]}x{positions.shape[1]} array."
+                + (
+                    f"You provided an {positions.shape[0]}x{positions.shape[1]} array."
+                    if len(positions.shape) == 2
+                    else "You provided an "
+                    + "x".join(f"{i}" for i in positions.shape)
+                    + " array."
+                )
             )
         self._positions = positions.astype(np.float64, copy=False)
         super().__init__(name=name, filepath=filepath)
