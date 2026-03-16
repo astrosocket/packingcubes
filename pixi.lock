@@ -242,6 +242,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/pygfx-0.15.3-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pygments-2.19.2-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/pyinstrument-5.1.2-py314h5bd0f2a_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/pykdtree-1.4.3-py314hc02f841_2.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pylinalg-0.6.8-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pympler-1.1-pyhd8ed1ab_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pyparsing-3.3.1-pyhcf101f3_0.conda
@@ -2950,8 +2951,8 @@ packages:
   timestamp: 1745345660407
 - pypi: ./
   name: packingcubes
-  version: 0.1.dev265+dirty
-  sha256: 6886db4fb77c1881bf8e41becd00996ea20809ed9c01e8d222a5bb6326bb7944
+  version: 0.1.dev334+dirty
+  sha256: 384f02d1153cf3532b580f589bef06dfed67e4045bc598c1712094a109a0023b
   requires_dist:
   - numpy
   - h5py
@@ -3243,6 +3244,22 @@ packages:
   - pkg:pypi/pyinstrument?source=hash-mapping
   size: 194459
   timestamp: 1767565403103
+- conda: https://conda.anaconda.org/conda-forge/linux-64/pykdtree-1.4.3-py314hc02f841_2.conda
+  sha256: 238fce0066266c8506b51a3b0e6fbdf95572bc9b85f54b37f2158900b352afa4
+  md5: b652ebbfb1a42e297181a4b0b806e14e
+  depends:
+  - __glibc >=2.17,<3.0.a0
+  - _openmp_mutex >=4.5
+  - libgcc >=14
+  - numpy >=1.23,<3
+  - python >=3.14,<3.15.0a0
+  - python_abi 3.14.* *_cp314
+  license: LGPL-3.0-only
+  license_family: LGPL
+  purls:
+  - pkg:pypi/pykdtree?source=hash-mapping
+  size: 90190
+  timestamp: 1762594962339
 - conda: https://conda.anaconda.org/conda-forge/noarch/pylinalg-0.6.8-pyhd8ed1ab_0.conda
   sha256: 31f26a5c1e5167a4a9a39fdccaf8d828b69375928985f76b189cf30db7dd4462
   md5: e33f65bbc359eef4baccc4cf76858d5b
