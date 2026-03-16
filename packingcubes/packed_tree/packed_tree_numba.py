@@ -927,6 +927,19 @@ class PackedTreeNumba:
         with objmode(sph=bbox.bs_type):
             sph = bbox.make_bounding_sphere(center=[0, 0, 0], radius=r)
 
+        def process_leaf(
+            node: CurrentNode,
+            sph: bbox.BoundingSphere,
+            other: PackedTreeNumba,
+            query: List[List[tuple[int, int]]],
+        ):
+            sph.center[0], sph.center[1], sph.center[2] = node.box.midplane()
+            query.append(other._get_particle_indices_in_shape(sph.bounding_box, sph))
+
+        # check root node
+        if is_leaf(node):
+            process_leaf(node, sph, other, query)
+            return query
         next_child = List([0])
         while next_child:
             child = next_child[-1]
@@ -943,10 +956,7 @@ class PackedTreeNumba:
 
             next_child.append(0)
             if is_leaf(node):
-                sph.center[0], sph.center[1], sph.center[2] = node.box.midplane()
-                query.append(
-                    other._get_particle_indices_in_shape(sph.bounding_box, sph)
-                )
+                process_leaf(node, sph, other, query)
 
         return query
 
@@ -956,6 +966,24 @@ class PackedTreeNumba:
         with objmode(sph=bbox.bs_type):
             sph = bbox.make_bounding_sphere(center=[0, 0, 0], radius=r)
 
+        def process_leaf(
+            node: CurrentNode,
+            sph: bbox.BoundingSphere,
+            other: PackedTreeNumba,
+        ) -> int:
+            num_pairs = 0
+            sph.center[0], sph.center[1], sph.center[2] = node.box.midplane()
+            pair_nodes = other._get_particle_indices_in_shape(sph.bounding_box, sph)
+            for other_start, other_end in pair_nodes:
+                num_pairs += (node.node_end - node.node_start + 1) * (
+                    other_end - other_start + 1
+                )
+            return num_pairs
+
+        # check root node
+        if is_leaf(node):
+            return process_leaf(node, sph, other)
+
         next_child = List([0])
         while next_child:
             child = next_child[-1]
@@ -972,12 +1000,7 @@ class PackedTreeNumba:
 
             next_child.append(0)
             if is_leaf(node):
-                sph.center[0], sph.center[1], sph.center[2] = node.box.midplane()
-                pair_nodes = other._get_particle_indices_in_shape(sph.bounding_box, sph)
-                for other_start, other_end in pair_nodes:
-                    num_pairs += (node.node_end - node.node_start + 1) * (
-                        other_end - other_start + 1
-                    )
+                num_pairs += process_leaf(node, sph, other)
 
         return num_pairs
 
