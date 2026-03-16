@@ -20,6 +20,7 @@ from packingcubes.packed_tree.packed_tree_meta import (
 from packingcubes.packed_tree.packed_tree_numba import (
     PackedTreeNumba,
     _construct_tree,
+    euclidean_d2,
     euclidean_distance,
 )
 
@@ -310,6 +311,59 @@ class PackedTree(octree.Octree):
         if strict:
             return self._tree._get_particle_index_list_in_shape(data, bounding_box, sph)
         return self._tree._get_particle_index_list_in_shape(None, bounding_box, sph)
+
+    def _get_pilis_tree(
+        self,
+        *,
+        data: DataContainer | Dataset,
+        odata: DataContainer | Dataset,
+        otree: PackedTree,
+        r: float,
+        p: float,
+        strict: bool,
+    ) -> list[NDArray[np.int64]]:
+        """
+        Compute list of all pairs of points in data/odata whose distance < r
+
+        Args:
+            data, odata: DataContainer
+            The actual particle data for self and other
+
+            otree: PackedTree
+            The PackedTree corresponding to the other data
+
+            r: float
+            The maximum distance
+
+            p: float
+            Which Minkowski norm to use. Currently only p==2 is supported
+
+            strict: bool
+            If False, compare only the approximate node distance. Should be
+            significantly faster, but may include substantial amounts of false
+            positives
+
+        Return:
+            results: list of arrays
+            For every point data[i], results[i] is the array of indices of points
+            within r in odata
+
+        Raises:
+            NotImplementedError if p != 2
+
+        """
+        if p != 2:
+            raise NotImplementedError("Only p=2 is currently supported")
+        distance_fun = euclidean_d2
+
+        return self._tree._get_pilis_tree(
+            data if isinstance(data, DataContainer) else data.data_container,
+            odata if isinstance(odata, DataContainer) else odata.data_container,
+            otree._tree,
+            r,
+            distance_fun,
+            strict,
+        )
 
     def get_closest_particle(
         self, xyz: ArrayLike, *, check_neighbors: bool = True

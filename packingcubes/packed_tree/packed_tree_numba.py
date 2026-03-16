@@ -45,6 +45,13 @@ def euclidean_distance(xyz: NDArray, pxyz: NDArray) -> NDArray:
 
 
 @njit
+def euclidean_d2(
+    x: float, y: float, z: float, px: float, py: float, pz: float
+) -> float:
+    return (x - px) ** 2 + (y - py) ** 2 + (z - pz) ** 2
+
+
+@njit
 def closest_particles(
     node_start: int,
     node_end: int,
@@ -226,6 +233,73 @@ def _move_to_parent(tree: Sequence, node: CurrentNode):
         _update_current_node(tree, node.index - pl, node, 0)
 
     return pl
+
+
+@njit
+def _process_leaf_for_pilis_tree(
+    node: CurrentNode,
+    data: DataContainer,
+    box: bbox.BoundingBox,
+    r: float,
+    r2: float,
+    rsq: float,
+    otree: PackedTreeNumba,
+    odata: DataContainer,
+    d2_function: Callable[[float, float, float, float, float, float], float],
+    strict: bool,  #  noqa: FBT001, FBT002
+    query: list[NDArray[np.int64]],
+):
+    print("In leaf")  # noqa
+    # unwrap loops to reduce complexity
+    box.box[0] = node.box.box[0] - r
+    box.box[1] = node.box.box[1] - r
+    box.box[2] = node.box.box[2] - r
+    box.box[3] = node.box.box[3] + r2
+    box.box[4] = node.box.box[4] + r2
+    box.box[5] = node.box.box[5] + r2
+    sph_inds = otree._get_particle_indices_in_shape(box, box)
+    print("sph_inds:", sph_inds)  # noqa
+    pil = otree._get_particle_index_list_in_shape(odata, box, box)
+    print(  # noqa
+        "node box:",
+        node.box.box,
+        "\nsearch box:",
+        box.box,
+        "\notree box:",
+        otree.box.box,
+    )
+    print(  # noqa
+        "pil:",
+        pil,
+        "node:",
+        node.tag,
+    )
+    for index in range(node.node_start, node.node_end + 1):
+        print(  # noqa
+            "index:",
+            index,
+            "shuffle:",
+            data._index[index],
+        )
+        if strict:
+            reduced_pil = List.empty_list(np.int64)
+            x, y, z = data._positions[index, :]
+            for oindex in pil:
+                ox, oy, oz = odata._positions[oindex, :]
+                d = d2_function(x, y, z, ox, oy, oz)
+                print(  # noqa
+                    "oindex:",
+                    oindex,
+                    "shuffle:",
+                    odata._index[oindex],
+                    "contained:",
+                    d < rsq,
+                )
+                if d < rsq:
+                    reduced_pil.append(oindex)
+            query.append(np.asarray(reduced_pil))
+        else:
+            query.append(pil)
 
 
 @njit
@@ -1056,6 +1130,84 @@ class PackedTreeNumba:
             return indices[data_mask]
 
         return indices
+
+    def _get_pilis_tree(
+        self,
+        data: DataContainer,
+        odata: DataContainer,
+        otree: PackedTreeNumba,
+        r: float,
+        d2_function: Callable[[float, float, float, float, float, float], float],
+        strict: bool,  # noqa: FBT001, FBT002
+    ) -> List[NDArray[np.int64]]:
+        """
+        Compute list of all pairs of points in data/odata whose distance < r
+
+        Args:
+            data, odata: DataContainer
+            The actual particle data for self and other
+
+            r: float
+            The maximum distance
+
+            d2_function: JITted Callable
+            Function to compute the squared distance between 2 points. Expected
+            signature [[float, float, float, float, float, float], float]
+
+            strict: bool
+            If False, compare only the approximate node distance. Should be
+            significantly faster, but may include substantial amounts of false
+            positives
+
+        Return:
+            results: list of arrayss
+            For every point data[i], results[i] is the array of indices of points
+            within r in odata
+
+        """
+        node = self._make_root_node()
+        query = List.empty_list(np.int64[:])  # type: ignore
+        box = self.box.copy()
+        r2 = 2 * r
+        rsq = r * r
+
+        if is_leaf(node):
+            _process_leaf_for_pilis_tree(
+                node, data, box, r, r2, rsq, otree, odata, d2_function, strict, query
+            )
+            return query
+
+        next_child = List([0])
+        while next_child:
+            child = next_child[-1]
+            while child < 8 and not _move_to_child(self.tree, node, child):
+                child = child + 1
+
+            if child >= 8:
+                # no more children to visit
+                next_child.pop()
+                _move_to_parent(self.tree, node)
+                continue
+
+            next_child[-1] = child + 1
+
+            next_child.append(0)
+            if is_leaf(node):
+                _process_leaf_for_pilis_tree(
+                    node,
+                    data,
+                    box,
+                    r,
+                    r2,
+                    rsq,
+                    otree,
+                    odata,
+                    d2_function,
+                    strict,
+                    query,
+                )
+
+        return query
 
     def get_closest_particles(
         self,
