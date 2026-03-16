@@ -565,7 +565,9 @@ class BoundingBox(BoundingVolume):
             pxyz: numpy.ndarray
             Projected coordinates
         """
-        if np.any(np.isnan(xyz)):
+        x, y, z = xyz
+
+        if np.isnan(x) or np.isnan(y) or np.isnan(z):
             raise ValueError("Point contains NaN!")
 
         if np.isnan(jitter):
@@ -574,18 +576,15 @@ class BoundingBox(BoundingVolume):
         if jitter < 0:
             raise NotImplementedError()
 
-        box_pos = self.box[:3]
-        box_size = self.box[3:]
-        assert len(box_pos) == 3
-        assert len(box_size) == 3
-        assert len(xyz) == 3
-        jitter_arr = np.sign(jitter) * box_size / 100
-        assert len(jitter_arr) == 3
-        return np.clip(
-            xyz,
-            a_min=box_pos + jitter_arr,
-            a_max=box_pos + box_size - jitter_arr,
-        ).astype(np.float64)
+        bx, by, bz, dx, dy, dz = self.box
+        jf = -1 if jitter < 0 else 1
+        jx = jf * dx / 100
+        jy = jf * dy / 100
+        jz = jf * dz / 100
+        cx = min(max(x, bx + jx), bx + dx - jx)
+        cy = min(max(y, by + jy), by + dy - jy)
+        cz = min(max(z, bz + jz), bz + dz - jz)
+        return cx, cy, cz
 
 
 try:

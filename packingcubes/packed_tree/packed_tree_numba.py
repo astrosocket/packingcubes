@@ -1262,9 +1262,9 @@ class PackedTreeNumba:
         # ensure point is in octree, project if not
         if not self.box.contains_point(xyz[0], xyz[1], xyz[2]):
             # Project point onto root
-            pxyz = self.box.project_point_on_box(xyz)
+            px, py, pz = self.box.project_point_on_box(xyz)
 
-        node = self._get_containing_node_of_point(pxyz)
+        node = self._get_containing_node_of_point(np.array([px, py, pz]))
         node = node if node is not None else self._make_root_node()
 
         # because we need the kth nearest particles, make sure the node we're
