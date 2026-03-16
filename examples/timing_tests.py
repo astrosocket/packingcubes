@@ -32,6 +32,7 @@ rng = np.random.default_rng(0xBA55ADE89)
 
 centers = []
 radii = []
+particle_numbers = []
 
 
 def load_data(
@@ -156,6 +157,7 @@ def random_search_balls_constant_number(
             continue
         centers.append(center)
         radii.append(r)
+        particle_numbers.append(n_enclosed)
     if bad_balls:
         LOGGER.debug(f"Skipped {bad_balls} spheres")
     if bad_balls > number_balls / 10:
@@ -208,9 +210,20 @@ def packed_kdtree_creation(ds):
     return optree.KDTree(data=ds.positions, leafsize=octree._DEFAULT_PARTICLE_THRESHOLD)
 
 
-def packed_kdtree_query_ball_point(tree: optree.KDTree):
-    for c, r in zip(centers, radii, strict=True):
+def packed_kdtree_query_ball_point(
+    tree: optree.KDTree,
+    *,
+    particle_numbers: list[int] = particle_numbers,
+):
+    for i, (c, r) in enumerate(zip(centers, radii, strict=True)):
         sph_inds = tree.query_ball_point(x=c, r=r, strict=True, return_lists=False)
+        if particle_numbers and len(sph_inds) != particle_numbers[i]:
+            raise ValueError(
+                f"""
+                Particle number mismatch: expected {particle_numbers[i]} particles
+                for ball {i} and only got {len(sph_inds)}.
+                """
+            )
 
 
 # we want the PackedTree stuff to be pre-compiled
@@ -225,9 +238,19 @@ def scipy_kdtree_creation(ds):
     return KDTree(data=ds.positions, leafsize=octree._DEFAULT_PARTICLE_THRESHOLD)
 
 
-def scipy_kdtree_query_ball_point(tree: KDTree):
-    for c, r in zip(centers, radii, strict=True):
+def scipy_kdtree_query_ball_point(
+    tree: KDTree,
+    particle_numbers: list[int] = particle_numbers,
+):
+    for i, (c, r) in enumerate(zip(centers, radii, strict=True)):
         sph_inds = tree.query_ball_point(x=c, r=r)
+        if particle_numbers and len(sph_inds) != particle_numbers[i]:
+            raise ValueError(
+                f"""
+                Particle number mismatch: expected {particle_numbers[i]} particles
+                for ball {i} and only got {len(sph_inds)}.
+                """
+            )
 
 
 def yt_setup(decimation_factor=10):
