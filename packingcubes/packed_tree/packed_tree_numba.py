@@ -983,18 +983,22 @@ class PackedTreeNumba:
 
     def _get_particle_index_list_in_shape(
         self,
-        data: DataContainer,
+        data: DataContainer | None,
         bounding_box: bbox.BoundingBox,
         containment_obj: bbox.BoundingVolume,
     ) -> NDArray[np.int64]:
         """
         Return all particles contained within a shape that fits inside bounding box
 
-        Checks for particle containment only at the leaf node level for
-        performance reasons. See _get_particle_index_list_in_shape_strict if
-        you require particle-level containment checks.
+        If the data argument is specified, will do additional containment-checks at
+        the particle level
 
         Args:
+            data: DataContainer | None
+            Particle positions information. If None, only check whether node is
+            within shape, which is equivalent to expanding the node start/stops
+            from _get_particle_indices_in_shape
+
             bounding_box: BoundingBox
             Shape bounding box
 
@@ -1004,8 +1008,9 @@ class PackedTreeNumba:
 
         Returns:
             indices: NDArray[int]]
-            List of original particle indices contained within shape. Will contain
-            any additional particles that can be found in the same nodes
+            List of particle indices contained within shape. Will contain
+            any additional particles that can be found in the same nodes if
+            data is not provided
         """
         slices = self._get_particle_indices_in_shape(bounding_box, containment_obj)
 
@@ -1019,60 +1024,15 @@ class PackedTreeNumba:
         ind = 0
         for s in slices:
             for i, index in enumerate(range(s[0], s[1])):
-                indices[ind + i] = data._index[index]
+                indices[ind + i] = index
             ind += s[1] - s[0]
+
+        if data is not None:
+            pos = data._positions[indices]
+            data_mask = containment_obj.contains(pos)
+            return indices[data_mask]
 
         return indices
-
-    def _get_particle_index_list_in_shape_strict(
-        self,
-        data: DataContainer,
-        bounding_box: bbox.BoundingBox,
-        containment_obj: bbox.BoundingVolume,
-    ) -> NDArray[np.int64]:
-        """
-        Return all particles contained within a shape that fits inside bounding box
-
-        Particles are guaranteed to be within the containment_obj.
-
-        Args:
-            bounding_box: BoundingBox
-            Shape bounding box
-
-            containment_obj: BoundingVolume
-            Object with bounding box specified by bounding_box. Provides
-            a more exact containment test (e.g. contained within a sphere).
-
-        Returns:
-            indices: NDArray[int]]
-            List of original particle indices contained within shape
-        """
-        slices = self._get_particle_indices_in_shape(bounding_box, containment_obj)
-
-        # the following is an attempt to mimic what I _think_ the expand_ranges
-        # function from swiftsimio (which is GPL 3) does.
-        num_particles = 0
-        for s in slices:
-            num_particles += s[1] - s[0]
-
-        indices = np.empty((num_particles,), dtype=np.int64)
-        data_mask = np.empty((num_particles,), dtype=np.bool)
-        ind = 0
-        # pos = np.empty((num_particles,3,), dtype=data._positions.dtype)
-        for s in slices:
-            for i, index in enumerate(range(s[0], s[1])):
-                pind = data._index[index]
-                indices[ind + i] = pind
-                # pos[ind+i, 0] = data._positions[pind, 0]
-                # pos[ind+i, 1] = data._positions[pind, 1]
-                # pos[ind+i, 2] = data._positions[pind, 2]
-                # data_mask[ind + i] = containment_obj.contains(pos)[0]
-            ind += s[1] - s[0]
-
-        pos = data._positions[indices]
-        data_mask = containment_obj.contains(pos)
-
-        return indices[data_mask]
 
     def get_closest_particles(
         self,

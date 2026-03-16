@@ -266,11 +266,11 @@ class PackedTree(octree.Octree):
         data = data.data_container if isinstance(data, Dataset) else data
         bounding_box = bbox.make_bounding_box(box)
         if strict:
-            return self._tree._get_particle_index_list_in_shape_strict(
+            return self._tree._get_particle_index_list_in_shape(
                 data, bounding_box, bounding_box
             )
         return self._tree._get_particle_index_list_in_shape(
-            data, bounding_box, bounding_box
+            None, bounding_box, bounding_box
         )
 
     def get_particle_index_list_in_sphere(
@@ -308,10 +308,8 @@ class PackedTree(octree.Octree):
         sph = bbox.make_bounding_sphere(radius, center=center)
         bounding_box = sph.bounding_box
         if strict:
-            return self._tree._get_particle_index_list_in_shape_strict(
-                data, bounding_box, sph
-            )
-        return self._tree._get_particle_index_list_in_shape(data, bounding_box, sph)
+            return self._tree._get_particle_index_list_in_shape(data, bounding_box, sph)
+        return self._tree._get_particle_index_list_in_shape(None, bounding_box, sph)
 
     def get_closest_particle(
         self, xyz: ArrayLike, *, check_neighbors: bool = True
