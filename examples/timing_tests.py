@@ -231,7 +231,8 @@ def packed_kdtree_query_ball_point(
     particle_numbers: list[int] = particle_numbers,
 ):
     for i, (c, r) in enumerate(zip(centers, radii, strict=True)):
-        sph_inds = tree.query_ball_point(x=c, r=r, strict=True, return_lists=False)
+        # Ensure kdtree output matches scipy's regardless of defaults
+        sph_inds = tree.query_ball_point(x=c, r=r, strict=True, return_lists=True)
         if particle_numbers and len(sph_inds) != particle_numbers[i]:
             raise ValueError(
                 f"""
