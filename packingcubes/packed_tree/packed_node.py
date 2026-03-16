@@ -14,6 +14,7 @@ from numba.experimental import jitclass
 from numba.extending import as_numba_type
 from numba.typed import List
 from numba.types import ListType, string
+from numpy.typing import NDArray  # type: ignore
 
 import packingcubes.bounding_box as bbox
 import packingcubes.octree as octree
@@ -220,6 +221,9 @@ class CurrentNode:
         self.level = level
         self.empty = empty
 
+    def __len__(self):
+        return self.node_end - self.node_start
+
 
 try:
     curr_node_type = as_numba_type(CurrentNode)
@@ -302,3 +306,11 @@ def is_root(node: CurrentNode) -> bool:
     Return True if node is the root node
     """
     return not node.index
+
+
+@njit
+def expand_range(node: CurrentNode) -> NDArray:
+    """
+    Return the array of indices contained within this node
+    """
+    return np.arange(node.node_start, node.node_end + 1)
