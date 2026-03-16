@@ -37,6 +37,7 @@ import numpy as np
 
 # %%
 n = [1.5e5, 1.5e6, 1.5e7]
+m = [100, 1000, 10000]
 
 creation = {
     "data resetting": [
@@ -97,27 +98,17 @@ search = {
 }
 
 search_cn = {
-    "python": [
-        np.nan,
-        np.nan,
-        np.nan,
-    ],
     "packed": [
-        0.120,
-        0.143,
-        0.168,
+        [0.0812, 0.113, 0.244],
+        [0.104, 0.162, 0.284],
+        [0.122, 0.171, 0.390],
     ],
-    "pack_list": [0.185, 2.38, 20.3],
-    "kdtree": [0.221, 2.62, 20.4],
-    "cubes": [
-        np.nan,
-        np.nan,
-        np.nan,
-    ],
+    "pack_list": [[0.080, 0.115, 0.250], [0.103, 0.164, 0.296], [0.121, 0.180, 0.400]],
+    "kdtree": [[0.0889, 0.132, 0.339], [0.112, 0.187, 0.395], [0.131, 0.204, 0.510]],
     "scipy": [
-        0.0262,
-        0.0473,
-        0.055,
+        [0.0609, 0.163, 0.449],
+        [0.586, 0.988, 2.39],
+        [2.78, 5.71, 9.22],
     ],
 }
 
@@ -151,6 +142,7 @@ illustris = {
     "search_cn": search_cn,
     "size": size,
     "n": n,
+    "m": m,
     "marker": "s",
     "ls": "-",
 }
@@ -160,6 +152,7 @@ illustris = {
 
 # %%
 n = [1.5e5, 1.5e6, 1.5e7]
+m = [100, 1000, 10000]
 
 creation = {
     "data resetting": [
@@ -222,26 +215,34 @@ search = {
 
 search_cn = {
     "python": [
-        np.nan,
-        np.nan,
-        np.nan,
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
     ],
     "packed": [
-        np.nan,
-        np.nan,
-        np.nan,
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
     ],
-    "pack_list": [np.nan, np.nan, np.nan],
-    "kdtree": [np.nan, np.nan, np.nan],
+    "pack_list": [
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+    ],
+    "kdtree": [
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+    ],
     "cubes": [
-        np.nan,
-        np.nan,
-        np.nan,
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
     ],
     "scipy": [
-        np.nan,
-        np.nan,
-        np.nan,
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
     ],
 }
 
@@ -275,6 +276,7 @@ simba = {
     "search_cn": search_cn,
     "size": size,
     "n": n,
+    "m": m,
     "marker": "x",
     "ls": "-",
 }
@@ -284,6 +286,7 @@ simba = {
 
 # %%
 n = [1.5e5, 1.5e6, 1.5e7]
+m = [100, 1000, 10000]
 
 creation = {
     "data resetting": [
@@ -346,26 +349,34 @@ search = {
 
 search_cn = {
     "python": [
-        np.nan,
-        np.nan,
-        np.nan,
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
     ],
     "packed": [
-        np.nan,
-        np.nan,
-        np.nan,
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
     ],
-    "pack_list": [np.nan, np.nan, np.nan],
-    "kdtree": [np.nan, np.nan, np.nan],
+    "pack_list": [
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+    ],
+    "kdtree": [
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+    ],
     "cubes": [
-        np.nan,
-        np.nan,
-        np.nan,
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
     ],
     "scipy": [
-        np.nan,
-        np.nan,
-        np.nan,
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
     ],
 }
 
@@ -399,6 +410,7 @@ sweagle = {
     "search_cn": search_cn,
     "size": size,
     "n": n,
+    "m": m,
     "marker": "+",
     "ls": "-",
 }
@@ -414,6 +426,7 @@ n = [
     1.1e8,
     1.1e9,
 ]
+m = [100, 1000, 10000]
 
 creation = {
     "data resetting": [2.4e-3, 0.0407, 0.325, 5.05, 25.8],
@@ -448,34 +461,46 @@ search = {
 
 search_cn = {
     "python": [
-        np.nan,
-        np.nan,
-        np.nan,
-        np.nan,
-        np.nan,
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
     ],
     "packed": [
-        np.nan,
-        np.nan,
-        np.nan,
-        np.nan,
-        np.nan,
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
     ],
-    "pack_list": [np.nan, np.nan, np.nan, np.nan, np.nan],
-    "kdtree": [np.nan, np.nan, np.nan, np.nan, np.nan],
+    "pack_list": [
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+    ],
+    "kdtree": [
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+    ],
     "cubes": [
-        np.nan,
-        np.nan,
-        np.nan,
-        np.nan,
-        np.nan,
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
     ],
     "scipy": [
-        np.nan,
-        np.nan,
-        np.nan,
-        np.nan,
-        np.nan,
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
     ],
 }
 
@@ -518,6 +543,7 @@ LB_L10_CDM = {
     "search_cn": search_cn,
     "size": size,
     "n": n,
+    "m": m,
     "marker": "o",
     "ls": "--",
     "extra": extra,
@@ -526,7 +552,7 @@ LB_L10_CDM = {
 # %% [markdown]
 # ## Metadata
 
-# %%
+# %% jupyter={"source_hidden": true}
 units = {
     "n": "particles",
     "creation": "s",
@@ -535,7 +561,7 @@ units = {
     "size": "bytes",
 }
 
-# %%
+# %% jupyter={"source_hidden": true}
 metrics = {
     "creation": {
         "data resetting": "k",
@@ -581,12 +607,19 @@ expected_label = {
     "creation": r"$n\; \log(n)$",
     "search": r"$\log(n)$",
     # "search": r"$\sqrt{n}$",
-    "search_cn": r"$\log(n)$",
+    "search_cn": r"$\log{(n)}$",
     # "size":(
     #     r"$1.2\times\frac{n}{10^{\left\lfloor n/"
     #     f"{particle_threshold}"
     #     r"\right\rfloor}}$")
     "size": r"$n$",
+}
+
+m_expected = {
+    "search_cn": lambda m: 1,
+}
+m_expected_label = {
+    "search_cn": r""  # r"$m \times$"
 }
 
 ignore_metrics = ["creation:data resetting"]
@@ -616,7 +649,7 @@ for i, t in enumerate(metrics):
     for m, c in metrics[t].items():
         for sim in sims:
             n = np.array(sim["n"])
-            y = np.array(sim[t][m])
+            y = np.array(sim[t].get(m, np.full_like(n, np.nan)))
             axs[i].loglog(n, y, color=c, marker=sim["marker"], ls=sim["ls"])
         axs[i].plot(np.nan, np.nan, color=c, label=m)
 
@@ -638,29 +671,47 @@ figs = []
 axs = []
 
 scale_index = 2
+m_scale_index = 0
 
 for i, t in enumerate(metrics):
     fig, ax = plt.subplots()
     figs.append(fig)
     axs.append(ax)
+    used_m = False
     for m, c in metrics[t].items():
         for sim in sims:
             if f"{t}:{m}" in ignore_metrics:
                 continue
-            y = np.array(sim[t][m])
             n = np.array(sim["n"])
-            expected_y = (
-                (y / y[scale_index]) * expected[t](n[scale_index]) / expected[t](n)
-            )
+            y = np.array(sim[t].get(m, np.full_like(n, np.nan)))
+            msim = np.array(sim["m"])
+            if len(y.shape) > 1:
+                expected_y = np.empty_like(y)
+                for j in range(y.shape[1]):
+                    expected_y[:, j] = (
+                        (y[:, j] / y[scale_index, j])
+                        * expected[t](n[scale_index])
+                        / expected[t](n)
+                        * m_expected[t](msim[m_scale_index])
+                        / m_expected[t](msim[j])
+                    )
+                used_m = True
+            else:
+                expected_y = (
+                    (y / y[scale_index]) * expected[t](n[scale_index]) / expected[t](n)
+                )
             axs[i].loglog(n, expected_y, color=c, marker=sim["marker"], ls=sim["ls"])
         axs[i].plot(np.nan, np.nan, color=c, label=m)
 
     axs[i].set_xlabel(f"n [{units['n']}]")
     axs[i].set_ylabel(f"{t}/{t}" r"$_0$ $/$ expected")
+    label = expected_label[t]
+    if used_m:
+        label = m_expected_label[t] + label
     axs[i].text(
         0.5,
         0.1,
-        expected_label[t],
+        label,
         transform=axs[i].transAxes,
         bbox={
             "boxstyle": "round",
@@ -678,7 +729,7 @@ for ax in axs:
 # %% [markdown]
 # ## Normalized
 
-# %%
+# %% jupyter={"source_hidden": true}
 figs = []
 axs = []
 
@@ -692,10 +743,17 @@ for i, t in enumerate(metrics):
         for sim in sims:
             if f"{t}:{m}" in ignore_metrics:
                 continue
-            y = np.array(sim[t][m])
-            yk = np.array(sim[t]["scipy"])
             n = np.array(sim["n"])
-            axs[i].loglog(n, y / yk, color=c, marker=sim["marker"], ls=sim["ls"])
+            yk = np.array(sim[t]["scipy"])
+            y = np.array(sim[t].get(m, np.full_like(yk, np.nan)))
+            msim = np.array(sim["m"])
+            if len(y.shape) > 1 and len(yk.shape) == 1:
+                norm_y = np.empty_like(y)
+                for j in range(y.shape[1]):
+                    norm_y[:, j] = y[:, j] / yk
+            else:
+                norm_y = y / yk
+            axs[i].loglog(n, norm_y, color=c, marker=sim["marker"], ls=sim["ls"])
         axs[i].plot(np.nan, np.nan, color=c, label=m)
 
     axs[i].set_xlabel(f"n [{units['n']}]")
