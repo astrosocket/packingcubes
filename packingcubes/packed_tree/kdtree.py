@@ -53,10 +53,47 @@ class KDTreeAPI:
     degeneracy levels above ~100 (i.e. 100 data points with the same values).
     Note that multiple degenerate regions are acceptable, assuming they are
     sufficiently separated.
+
+    Args:
+        data : array_like, shape (n,3)
+        The n 3-dimensional data points to be indexed. This array is
+        not copied and will be sorted in place, so modifying this data will
+        result in bogus results. The data are also copied if the kd-tree is
+        built with copy_data=True.
+
+        leafsize : positive int, optional
+        The number of points at which the algorithm switches over to
+        brute-force.  Default: 400.
+
+        compact_nodes : bool, optional
+        This parameter is irrelevant for PackedTrees and is only provided
+        to match the KDTree API.
+
+        copy_data : bool, optional
+        If True the data is copied to protect the kd-tree against
+        data corruption and to prevent the original data from being sorted.
+        Default: False.
+
+        balanced_tree : bool, optional
+        PackedTrees are always split at the bounding box midpoint, so this
+        option is only provided to match the KDTree API
+
+        boxsize : array_like or scalar, optional
+        Provide an explicit bounding box for the data in the form
+        [x_min, y_min, z_min, dx, dy, dz]. If len(boxsize)==3, x_min = y_min =
+        z_min = 0. If boxsize is a scalar, dx = dy = dz = boxsize. Other
+        boxsize lengths are unsupported. Scipy's KDTree will impose a toroidal
+        topology in addition; this functionality is currently unsupported.
     """
 
     _tree: PackedTree
+    """
+    The actual tree
+    """
     _dataset: Dataset
+    """
+    Link to the dataset used. Needed for returning strict index lists.
+    """
     _copied: bool
     """
     Whether the tree was constructed with copied data
