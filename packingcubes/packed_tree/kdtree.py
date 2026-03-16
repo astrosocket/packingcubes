@@ -591,3 +591,141 @@ class KDTreeAPI:
             return_data_indices=return_data_indices,
             strict=strict,
         )
+
+    def _query_ball_tree(
+        self,
+        *,
+        other: KDTreeAPI,
+        r: float,
+        p: float,
+        strict: bool,
+        return_lists: bool,
+        return_sorted: bool,
+    ) -> list[list[int]] | list[NDArray[np.int64]]:
+        """
+        Private wrapper method for PackedTree's _get_pilis_tree
+        """
+        pil = self._tree._get_pilis_tree(
+            data=self._data_container,
+            odata=other._data_container,
+            otree=other._tree,
+            r=r,
+            p=p,
+            strict=strict,
+        )
+        # These are the indices into the sorted data. If it was copied, we'll
+        # need to use the shuffle list(s). That applies for both self and other
+        print("original pil:", pil)  # noqa
+        if other._copied:
+            oindex = other._dataset._index
+            # at least this is vectorized
+            results = [oindex[a] for a in pil]
+        else:
+            results = pil
+        if self._copied:
+            # use empty array for typing. it'll be overwritten
+            shuffle_results: list[NDArray] = [
+                np.empty((1,)) for _ in self._dataset._index
+            ]
+            for i, ind in enumerate(self._dataset._index):
+                shuffle_results[ind] = results[i]
+            results = shuffle_results
+
+        if return_sorted:
+            for res in results:
+                res.sort()
+
+        if return_lists:
+            return [r.tolist() for r in results]
+
+        return results
+
+    def query_ball_tree(
+        self,
+        other: KDTreeAPI,
+        r,
+        p: float = 2,
+        eps: float | None = None,
+        *,
+        strict: bool | None = None,
+        return_lists: bool | None = None,
+        return_sorted: bool | None = None,
+    ) -> list[list[int]] | list[NDArray[np.int64]]:
+        """
+        Find all pairs of points between self and other whose distance is at most r.
+
+        Args:
+            other: KDTree
+            The tree containing points to search against
+
+            r: float
+            The maximum distance, has to be positive
+
+            p: float, optional
+            Which Minkowski norm to use. p has to meet the condition 1 <= p <= infinity
+
+            eps: float, optional
+            Approximate search. Branches of the tree are not explored if their
+            nearest points are further than `r/(1+eps)`, and branches are added
+            in bulk if their furthest points are nearer than `r * (1+eps)`. eps
+            has to be non-negative.
+
+            strict: bool, optional
+            If False, compare only the approximate node distance. Should be
+            significantly faster, but may include substantial amounts of false
+            positives. Default True
+
+            return_lists: bool, optional
+            Force returning lists instead of arrays. PackedTrees return
+            arrays of indices by default, but this doesn't match the
+            expected query_ball_point signature. For a slight performance
+            increase, set this to False
+
+            return_sorted: bool, optional
+            Force returning sorted lists. If the copy_data flag was passed
+            during tree construction, the data used to generate the results
+            may be in a different order than originally imposed. For example,
+            results[0] = [5, 1, 2]. If order of output is important, set this
+            flag to True, at a performance penalty.
+
+        Returns:
+            results: list of lists
+            For each element `self.data[i]` of this tree, `results[i]` is a
+            list of the indices of its neighbors in other.data
+
+        Raises:
+            NotImplementedError if p!=2
+        """
+
+        if r <= 0:
+            raise ValueError("r must be positive")
+
+        if p < 1:
+            raise ValueError("p must be greater than or equal to 1.")
+
+        if eps:
+            strict = True
+            if eps > 0:
+                warnings.warn(
+                    """
+                    PackedTrees approximates search differently than KDTrees.
+                    As such, numeric values for eps are not applicable. To skip
+                    this warning, pass strict=False instead of a positive eps.
+                    """,
+                    KDTreeWarning,
+                    stacklevel=1,
+                )
+                strict = False
+
+        strict = True if strict is None else strict
+        return_lists = True if return_lists is None else return_lists
+        return_sorted = False if return_sorted is None else return_sorted
+
+        return self._query_ball_tree(
+            other=other,
+            r=r,
+            p=p,
+            strict=strict,
+            return_lists=return_lists,
+            return_sorted=return_sorted,
+        )
