@@ -195,11 +195,11 @@ def packed_octree_query_ball_point(tree: optree.PackedTree):
 
 
 def packed_octree_query_ball_point_indices(
-    dataset: data_objects.Dataset, tree: optree.PackedTree
+    data: data_objects.DataContainer, tree: optree.PackedTree
 ):
     for c, r in zip(centers, radii, strict=True):
         sph_inds = tree.get_particle_index_list_in_sphere(
-            dataset=dataset,
+            data=data,
             center=c,
             radius=r,
             strict=False,
@@ -399,7 +399,7 @@ search_dict = {
     },
     "packli": {
         "fun": (
-            "packed_octree_query_ball_point_indices(dataset, search_obj)"
+            "packed_octree_query_ball_point_indices(data, search_obj)"
         ),  # needs dataset + tree
         "tree": "packed",
         "precomp": True,
@@ -447,7 +447,7 @@ def get_search_obj(
     cd = creation_dict[function]
     setup = cd.get("setup", lambda dataset: dataset)
     setup_data = setup(dataset=dataset)
-    globals()["dataset"] = dataset
+    globals()["data"] = dataset.data_container
     globals()["setup_data"] = setup_data
 
     if results is not None:
