@@ -496,6 +496,16 @@ class KDTreeAPI:
                 expected query_ball_point signature. For a slight performance
                 increase, set this to False
 
+            return_data_indices: bool | None, optional
+                Return indices into the sorted data if True instead of into the
+                original. Specify None to have this set by the copy_data argument
+                used during tree construction.
+
+            strict: bool, optional
+                If False, compare only the approximate node distance. Should be
+                significantly faster, but may include some amount of false
+                positives. Default True
+
         Returns:
             results : list or array of lists
                 If `x` is a single point, returns a list of the indices of the
