@@ -173,6 +173,20 @@ start = time()
 while (time() - start) < 30:
     sph_inds = ntree._get_particle_index_list_in_shape(data, sph_box, sph)
 
+# %%
+from packingcubes.packed_tree.packed_tree_numba import euclidean_distance  # noqa: E402
+
+dd, ii = ntree.get_closest_particles(data, center, euclidean_distance, 1e100, 10)
+
+# %%
+# %%profila
+
+start = time()
+while (time() - start) < 30:
+    dd, ii = ntree.get_closest_particles(data, center, euclidean_distance, 1e100, 10)
+
+# %%
+
 # %% [markdown]
 # # Python profiling
 
