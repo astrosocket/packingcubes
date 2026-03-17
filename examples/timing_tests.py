@@ -242,6 +242,11 @@ def packed_kdtree_query_ball_point(
             )
 
 
+def packed_kdtree_query(tree: optree.KDTree, *, centers=centers, k=10):
+    for c in centers:
+        dd, ii = tree.query(c, k=k)
+
+
 def brute_force_creation(ds):
     return ds.positions
 
@@ -293,6 +298,11 @@ def scipy_kdtree_query_ball_point(
                 for ball {i} and only got {len(sph_inds)}.
                 """
             )
+
+
+def scipy_kdtree_query(tree: KDTree, *, centers=centers, k=10):
+    for c in centers:
+        dd, ii = tree.query(c, k=k)
 
 
 def yt_setup(decimation_factor=10):
@@ -457,6 +467,11 @@ search_dict = {
         "tree": "kdtree",
         "precomp": True,
     },
+    "kdq": {
+        "fun": "packed_kdtree_query(search_obj)",
+        "tree": "kdtree",
+        "precomp": True,
+    },
     "brute": {
         "fun": "brute_force_search(search_obj)",
         "tree": "brute",
@@ -464,6 +479,11 @@ search_dict = {
     },
     "scipy": {
         "fun": "scipy_kdtree_query_ball_point(search_obj)",
+        "tree": "scipy",
+        "precomp": False,
+    },
+    "sciq": {
+        "fun": "scipy_kdtree_query(search_obj)",
         "tree": "scipy",
         "precomp": False,
     },
