@@ -477,7 +477,7 @@ def _get_particle_indices_in_shape(
     # add cube offset and flatten list of indices
     flattened_indices = List.empty_list(_big_index_tuple)
     for cube_indices, cube_offset in zip(indices, cube_offsets):  # noqa: B905
-        for cube_start, cube_end in cube_indices:
+        for cube_start, cube_end, _ in cube_indices:
             flattened_indices.append((cube_start + cube_offset, cube_end + cube_offset))
 
     return flattened_indices

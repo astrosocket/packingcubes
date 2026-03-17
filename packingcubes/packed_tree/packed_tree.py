@@ -199,7 +199,7 @@ class PackedTree(octree.Octree):
         self,
         *,
         box: bbox.BoxLike,
-    ) -> list[tuple[int, int]]:
+    ) -> list[tuple[int, int, int]]:
         """
         Return all particles contained within the box
 
@@ -210,6 +210,8 @@ class PackedTree(octree.Octree):
         Returns:
             indices: list[tuple[int, int]]
             List of particle start-stop indices contained within sphere
+            Third element of each tuple is a flag for whether only some
+            particles (1) among the start-stop indices are contained or all (0)
         """
         bounding_box = bbox.make_bounding_box(box)
         return self._tree._get_particle_indices_in_shape(bounding_box, bounding_box)
@@ -219,7 +221,7 @@ class PackedTree(octree.Octree):
         *,
         center: NDArray,
         radius: float,
-    ) -> list[tuple[int, int]]:
+    ) -> list[tuple[int, int, int]]:
         """
         Return all particles contained within the sphere defined by center and radius
 
@@ -231,8 +233,10 @@ class PackedTree(octree.Octree):
             Radius of the sphere
 
         Returns:
-            indices: list[tuple[int, int]]
+            indices: list[tuple[int, int, int]]
             List of particle start-stop indices contained within sphere
+            Third element of each tuple is a flag for whether only some
+            particles (1) among the start-stop indices are contained or all (0)
         """
         sph = bbox.make_bounding_sphere(center=center, radius=radius)
         return self._tree._get_particle_indices_in_shape(sph.bounding_box, sph)

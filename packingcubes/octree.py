@@ -734,7 +734,7 @@ class Octree(Iterable[OctreeNode], Protocol):
         self,
         *,
         box: bbox.BoxLike,
-    ) -> list[tuple[int, int]]:
+    ) -> list[tuple[int, int, int]]:
         pass
 
     def get_particle_indices_in_sphere(
@@ -742,7 +742,7 @@ class Octree(Iterable[OctreeNode], Protocol):
         *,
         center: NDArray,
         radius: float,
-    ) -> list[tuple[int, int]]:
+    ) -> list[tuple[int, int, int]]:
         pass
 
     def get_closest_particle(
@@ -1027,7 +1027,7 @@ class PythonOctree(Octree):
         *,
         bounding_box: bbox.BoundingBox,
         containment_obj: bbox.BoundingVolume | None = None,
-    ) -> list[tuple[int, int]]:
+    ) -> list[tuple[int, int, int]]:
         """
         Return all particles contained within a shape that fits inside bounding box
 
@@ -1043,7 +1043,7 @@ class PythonOctree(Octree):
             box
 
         Returns:
-            indices: list[tuple[int, int]]
+            indices: list[tuple[int, int, int]]
             List of particle start-stop indices contained within shape
         """
 
@@ -1070,7 +1070,7 @@ class PythonOctree(Octree):
             else:
                 node, is_full = partial_leaves.pop(), False
 
-            indices.append((node.node_start, node.node_end + 1))
+            indices.append((node.node_start, node.node_end + 1, 1 - is_full))
 
         return indices
 
@@ -1078,7 +1078,7 @@ class PythonOctree(Octree):
         self,
         *,
         box: bbox.BoxLike,
-    ) -> list[tuple[int, int]]:
+    ) -> list[tuple[int, int, int]]:
         """
         Return all particles contained within the box
 
@@ -1087,8 +1087,10 @@ class PythonOctree(Octree):
             Box to check
 
         Returns:
-            indices: list[tuple[int, int]]
+            indices: list[tuple[int, int, int]]
             List of particle start-stop indices contained within sphere
+            Third element of each tuple is a flag for whether only some
+            particles (1) among the start-stop indices are contained or all (0)
         """
         bounding_box = bbox.make_bounding_box(box)
 
@@ -1101,7 +1103,7 @@ class PythonOctree(Octree):
         *,
         center: NDArray,
         radius: float,
-    ) -> list[tuple[int, int]]:
+    ) -> list[tuple[int, int, int]]:
         """
         Return all particles contained within the sphere defined by center and radius
 
@@ -1113,8 +1115,10 @@ class PythonOctree(Octree):
             Radius of the sphere
 
         Returns:
-            indices: list[tuple[int, int]]
+            indices: list[tuple[int, int, int]]
             List of particle start-stop indices contained within sphere
+            Third element of each tuple is a flag for whether only some
+            particles (1) among the start-stop indices are contained or all (0)
         """
 
         if len(center) != 3:

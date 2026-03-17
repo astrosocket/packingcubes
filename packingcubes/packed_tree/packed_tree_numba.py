@@ -477,7 +477,7 @@ def _construct_node_recursive(
 
 
 # treetype = MemoryView(uint32, 1, "C")
-_index_tuple_type = types.UniTuple(uint32, 2)
+_index_tuple_type = types.UniTuple(uint32, 3)
 _list_index_tuple = types.ListType(_index_tuple_type)
 
 
@@ -861,7 +861,7 @@ class PackedTreeNumba:
         self,
         bounding_box: bbox.BoundingBox,
         containment_obj: bbox.BoundingVolume,
-    ) -> list[tuple[int, int]]:
+    ) -> list[tuple[int, int, int]]:
         """
         Return all particles contained within a shape that fits inside bounding box
 
@@ -874,8 +874,10 @@ class PackedTreeNumba:
             a more exact containment test (e.g. contained within a sphere).
 
         Returns:
-            indices: list[tuple[int, int]]
+            indices: list[tuple[int, int, int]]
             List of particle start-stop indices contained within shape
+            Third element of each tuple is a flag for whether only some
+            particles (1) among the start-stop indices are contained or all (0)
         """
 
         bbox_center = bounding_box.get_box_center()
@@ -888,7 +890,9 @@ class PackedTreeNumba:
         overlap = containment_obj.check_box_overlap(node.box)
         # 8 box vertices
         if overlap == 8 or (overlap and is_leaf(node)):
-            indices.append((node.node_start, np.uint32(node.node_end + 1)))
+            indices.append(
+                (node.node_start, np.uint32(node.node_end + 1), np.uint32(0))
+            )
             return indices
 
         next_child = List([0])
@@ -906,7 +910,7 @@ class PackedTreeNumba:
 
             # Compute node overlap
             overlap = containment_obj.check_box_overlap(node.box)
-            partial = 0 < overlap < 8  # 8 box vertices
+            partial = np.uint32(0 < overlap < 8)  # 8 box vertices
 
             if partial and not is_leaf(node):
                 # visit children
@@ -916,7 +920,7 @@ class PackedTreeNumba:
             # for remaining cases we will move to parent regardless
             if overlap:
                 # at least some overlap
-                indices.append((node.node_start, np.uint32(node.node_end + 1)))
+                indices.append((node.node_start, np.uint32(node.node_end + 1), partial))
 
             _move_to_parent(self.tree, node)
 
@@ -927,7 +931,7 @@ class PackedTreeNumba:
     def get_particle_indices_in_box(
         self,
         box: bbox.BoxLike,
-    ) -> list[tuple[int, int]]:
+    ) -> list[tuple[int, int, int]]:
         """
         Return all particles contained within the box
 
@@ -936,8 +940,10 @@ class PackedTreeNumba:
             Box to check
 
         Returns:
-            indices: list[tuple[int, int]]
+            indices: list[tuple[int, int, int]]
             List of particle start-stop indices contained within sphere
+            Third element of each tuple is a flag for whether only some
+            particles (1) among the start-stop indices are contained or all (0)
         """
         with objmode(numba_box=bbox.bbn_type):
             numba_box = bbox.make_bounding_box(box)
@@ -947,7 +953,7 @@ class PackedTreeNumba:
         self,
         center: NDArray,
         radius: float,
-    ) -> list[tuple[int, int]]:
+    ) -> list[tuple[int, int, int]]:
         """
         Return all particles contained within the sphere defined by center and radius
 
@@ -961,6 +967,8 @@ class PackedTreeNumba:
         Returns:
             indices: list[tuple[int, int]]
             List of particle start-stop indices contained within sphere
+            Third element of each tuple is a flag for whether only some
+            particles (1) among the start-stop indices are contained or all (0)
         """
         with objmode(sph=bbox.bs_type):
             sph = bbox.make_bounding_sphere(center=center, radius=radius)
@@ -972,7 +980,7 @@ class PackedTreeNumba:
 
     def _node_node_query_ball_tree(
         self, other: PackedTreeNumba, r: float
-    ) -> List[List[tuple[int, int]]]:
+    ) -> List[List[tuple[int, int, int]]]:
         node = self._make_root_node()
         query = List.empty_list(_list_index_tuple)
         with objmode(sph=bbox.bs_type):
@@ -1025,7 +1033,7 @@ class PackedTreeNumba:
             num_pairs = 0
             sph.center[0], sph.center[1], sph.center[2] = node.box.midplane()
             pair_nodes = other._get_particle_indices_in_shape(sph.bounding_box, sph)
-            for other_start, other_end in pair_nodes:
+            for other_start, other_end, _ in pair_nodes:
                 num_pairs += (node.node_end - node.node_start + 1) * (
                     other_end - other_start + 1
                 )
@@ -1096,17 +1104,31 @@ class PackedTreeNumba:
 
         indices = np.empty((num_particles,), dtype=np.int64)
         ind = 0
+        if data is None:
+            #  ignore information about partial/full, just return indices as
+            # fast as possible
+            for s in slices:
+                for i, index in enumerate(range(s[0], s[1])):
+                    indices[ind + i] = index
+                ind += s[1] - s[0]
+            return indices
+
         for s in slices:
-            for i, index in enumerate(range(s[0], s[1])):
-                indices[ind + i] = index
-            ind += s[1] - s[0]
+            if not s[2]:
+                # fully enclosed
+                for i, index in enumerate(range(s[0], s[1])):
+                    indices[ind + i] = index
+                ind += s[1] - s[0]
+                continue
+            positions = data._positions[s[0] : s[1], 0:3]
+            i = 0
+            for x, y, z in positions:
+                if containment_obj.contains_point(x, y, z):
+                    indices[ind] = i + s[0]
+                    ind += 1
+                i += 1
 
-        if data is not None:
-            pos = data._positions[indices]
-            data_mask = containment_obj.contains_pointlist(pos)
-            return indices[data_mask]
-
-        return indices
+        return indices[0:ind]
 
     def _get_pilis_tree(
         self,
@@ -1272,7 +1294,7 @@ class PackedTreeNumba:
         # Need to check all nodes in neighborhood, which is all nodes
         # overlapping with the sphere with same radius as the closest distance
         sph_inds = self.get_particle_indices_in_sphere(center=xyz, radius=closest_dist)
-        for s, e in sph_inds:
+        for s, e, _ in sph_inds:
             # skip subnodes of node. Only need to check node_start since nodes
             # are pure super/sub-sets
             if node.node_start <= s <= node.node_end:
