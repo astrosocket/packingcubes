@@ -781,10 +781,9 @@ class PackedTreeNumba:
         partial_leaves = List.empty_list(pack_node_type)
 
         # check root
-        node_vertices = node.box.get_box_vertices()
-        in_shape = containment_obj.count_inside(node_vertices)
-        if in_shape == len(node_vertices):
-            # if all root vertices enclosed, shape is bigger than tree...
+        overlap = containment_obj.check_box_overlap(node.box)
+        if overlap == 8:
+            # if all 8 root vertices enclosed, shape is bigger than tree...
             entire_nodes.append(_create_from_current_node(node))
             return entire_nodes, partial_leaves
 
@@ -802,20 +801,8 @@ class PackedTreeNumba:
             next_child[-1] = child + 1
 
             # Test if node entirely contained in shape
-            node_vertices = node.box.get_box_vertices()
-            vertices_enclosed = containment_obj.count_inside(node_vertices)
-
-            if not vertices_enclosed:
-                # check for edge overlap
-                x, y, z = node.box.project_point_on_box(bbox_center)
-                # need bool to convert NDArray[bool] to bool
-                # if containment_test returns something besides a length-1
-                # array, we should error (that's why we don't just e.g. take
-                # the first element)
-                partial = containment_obj.contains_point(x, y, z)
-            else:
-                # check for degree of containment
-                partial = 0 < vertices_enclosed < len(node_vertices)
+            overlap = containment_obj.check_box_overlap(node.box)
+            partial = 0 < overlap < 8  # 8 box vertices
 
             if partial and not is_leaf(node):
                 # visit children
@@ -823,8 +810,8 @@ class PackedTreeNumba:
                 continue
 
             # for remaining cases we will move to parent regardless
-            if vertices_enclosed and not partial:
-                # all vertices enclosed
+            if overlap == 8:
+                # all 8 vertices enclosed
                 entire_nodes.append(_create_from_current_node(node))
             elif partial:
                 # (less than all vertices enclosed or edge overlap) and leaf
@@ -898,11 +885,9 @@ class PackedTreeNumba:
 
         # check root - need to check if either all corners are contained or if
         # root is leaf and there exists *any* overlap
-        node_vertices = node.box.get_box_vertices()
-        partial = containment_obj.count_inside(node_vertices)
-        x, y, z = node.box.project_point_on_box(bbox_center)
-        overlap = containment_obj.contains_point(x, y, z)
-        if partial == len(node_vertices) or ((partial or overlap) and is_leaf(node)):
+        overlap = containment_obj.check_box_overlap(node.box)
+        # 8 box vertices
+        if overlap == 8 or (overlap and is_leaf(node)):
             indices.append((node.node_start, np.uint32(node.node_end + 1)))
             return indices
 
@@ -919,17 +904,9 @@ class PackedTreeNumba:
                 continue
             next_child[-1] = child + 1
 
-            # Test if node entirely contained in shape
-            node_vertices = node.box.get_box_vertices()
-            vertices_enclosed = containment_obj.count_inside(node_vertices)
-
-            if not vertices_enclosed:
-                # Check for edge overlap
-                x, y, z = node.box.project_point_on_box(bbox_center)
-                partial = containment_obj.contains_point(x, y, z)
-            else:
-                # check for degree of containment
-                partial = 0 < vertices_enclosed < len(node_vertices)
+            # Compute node overlap
+            overlap = containment_obj.check_box_overlap(node.box)
+            partial = 0 < overlap < 8  # 8 box vertices
 
             if partial and not is_leaf(node):
                 # visit children
@@ -937,7 +914,7 @@ class PackedTreeNumba:
                 continue
 
             # for remaining cases we will move to parent regardless
-            if vertices_enclosed or partial:
+            if overlap:
                 # at least some overlap
                 indices.append((node.node_start, np.uint32(node.node_end + 1)))
 

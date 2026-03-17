@@ -175,6 +175,9 @@ class BoundingVolume:
     def count_inside(self, xyz: NDArray) -> int:
         raise NotImplementedError("Must be called from an implementing class")
 
+    def check_box_overlap(self, obox: BoundingBox) -> int:
+        raise NotImplementedError("Must be called from an implementing class")
+
 
 # KW-only arguments with defaults seem to be just completely broken. Likely
 # related to https://github.com/numba/numba/issues/5903
@@ -586,6 +589,105 @@ class BoundingBox(BoundingVolume):
         cz = min(max(z, bz + jz), bz + dz - jz)
         return cx, cy, cz
 
+    def check_box_overlap(self, obox: BoundingBox) -> int:
+        """
+        Return the "overlap" between this box and obox
+
+        Define pxyz as the closest point to our center on the obox
+        We'll define the "overlap" as
+         - 0 if none of the obox vertices nor pxyz are contained within self
+         - 1-7 if some but not all of the vertices or pxyz are contained within self
+         - 8 if all of the vertices are contained within self
+
+        Args:
+            obox: BoundingBox
+            The other box to check
+
+        Returns:
+            overlap: int
+            The amount of overlap as defined above
+        """
+
+        # check if any overlap at all
+        # pxyz = obox.project_point_on_box( our center)
+        # overlap = self.contains(pxyz)
+        x, y, z, odx, ody, odz = obox.box
+        mx, my, mz = self.midplane()
+        bx, by, bz, dx, dy, dz = self.box
+
+        cx = min(max(mx, x), x + odx)
+        cy = min(max(my, y), y + ody)
+        cz = min(max(mz, z), z + odz)
+
+        overlap = (
+            ((bx <= cx) & (cx <= bx + dx))
+            & ((by <= cy) & (cy <= by + dy))
+            & ((bz <= cz) & (cz <= bz + dz))
+        )
+
+        if not overlap:
+            return 0
+
+        # check how many vertices are contained
+        x0 = x
+        x1 = x + odx
+        y0 = y
+        y1 = y + ody
+        z0 = z
+        z1 = z + odz
+
+        overlap = (
+            ((bx <= x0) & (x0 <= bx + dx))
+            & ((by <= y0) & (y0 <= by + dy))
+            & ((bz <= z0) & (z0 <= bz + dz))
+        )
+
+        overlap += (
+            ((bx <= x1) & (x1 <= bx + dx))
+            & ((by <= y0) & (y0 <= by + dy))
+            & ((bz <= z0) & (z0 <= bz + dz))
+        )
+
+        overlap += (
+            ((bx <= x0) & (x0 <= bx + dx))
+            & ((by <= y1) & (y1 <= by + dy))
+            & ((bz <= z0) & (z0 <= bz + dz))
+        )
+
+        overlap += (
+            ((bx <= x1) & (x1 <= bx + dx))
+            & ((by <= y1) & (y1 <= by + dy))
+            & ((bz <= z0) & (z0 <= bz + dz))
+        )
+
+        overlap += (
+            ((bx <= x0) & (x0 <= bx + dx))
+            & ((by <= y0) & (y0 <= by + dy))
+            & ((bz <= z1) & (z1 <= bz + dz))
+        )
+
+        overlap += (
+            ((bx <= x1) & (x1 <= bx + dx))
+            & ((by <= y0) & (y0 <= by + dy))
+            & ((bz <= z1) & (z1 <= bz + dz))
+        )
+
+        overlap += (
+            ((bx <= x0) & (x0 <= bx + dx))
+            & ((by <= y1) & (y1 <= by + dy))
+            & ((bz <= z1) & (z1 <= bz + dz))
+        )
+
+        overlap += (
+            ((bx <= x1) & (x1 <= bx + dx))
+            & ((by <= y1) & (y1 <= by + dy))
+            & ((bz <= z1) & (z1 <= bz + dz))
+        )
+
+        # if we've gotten to here, we at least know there's some overlap, even
+        # if it's not a vertex
+        return max(overlap, 1)
+
 
 try:
     bbn_type = as_numba_type(BoundingBox)
@@ -715,6 +817,69 @@ class BoundingSphere(BoundingVolume):
             x, y, z = xyz[i, :]
             in_sph += (cx - x) ** 2 + (cy - y) ** 2 + (cz - z) ** 2 < r2
         return in_sph
+
+    def check_box_overlap(self, obox: BoundingBox) -> int:
+        """
+        Return the "overlap" between this box and obox
+
+        Define pxyz as the closest point to our center on the obox
+        We'll define the "overlap" as
+         - 0 if none of the obox vertices nor pxyz are contained within self
+         - 1-7 if some but not all of the vertices or pxyz are contained within self
+         - 8 if all of the vertices are contained within self
+
+        Args:
+            obox: BoundingBox
+            The other box to check
+
+        Returns:
+            overlap: int
+            The amount of overlap as defined above
+        """
+
+        # check if any overlap at all
+        # pxyz = obox.project_point_on_box( our center)
+        # overlap = self.contains(pxyz)
+        x, y, z, odx, ody, odz = obox.box
+        cx, cy, cz = self.center
+        r2 = self.radius * self.radius
+
+        px = min(max(cx, x), x + odx)
+        py = min(max(cy, y), y + ody)
+        pz = min(max(cz, z), z + odz)
+
+        overlap = (cx - px) ** 2 + (cy - py) ** 2 + (cz - pz) ** 2 < r2
+
+        if not overlap:
+            return 0
+
+        # check how many vertices are contained
+        x0 = x
+        x1 = x + odx
+        y0 = y
+        y1 = y + ody
+        z0 = z
+        z1 = z + odz
+
+        overlap = (cx - x0) ** 2 + (cy - y0) ** 2 + (cz - z0) ** 2 < r2
+
+        overlap += (cx - x1) ** 2 + (cy - y0) ** 2 + (cz - z0) ** 2 < r2
+
+        overlap += (cx - x0) ** 2 + (cy - y1) ** 2 + (cz - z0) ** 2 < r2
+
+        overlap += (cx - x1) ** 2 + (cy - y1) ** 2 + (cz - z0) ** 2 < r2
+
+        overlap += (cx - x0) ** 2 + (cy - y0) ** 2 + (cz - z1) ** 2 < r2
+
+        overlap += (cx - x1) ** 2 + (cy - y0) ** 2 + (cz - z1) ** 2 < r2
+
+        overlap += (cx - x0) ** 2 + (cy - y1) ** 2 + (cz - z1) ** 2 < r2
+
+        overlap += (cx - x1) ** 2 + (cy - y1) ** 2 + (cz - z1) ** 2 < r2
+
+        # if we've gotten to here, we at least know there's some overlap, even
+        # if it's not a vertex
+        return max(overlap, 1)
 
     @property
     def bounding_box(self) -> BoundingBox:
