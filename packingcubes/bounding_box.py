@@ -544,7 +544,9 @@ class BoundingBox(BoundingVolume):
             a_max=1.0,
         )
 
-    def project_point_on_box(self, xyz: NDArray, jitter: float = 0) -> NDArray:
+    def project_point_on_box(
+        self, xyz: NDArray, jitter: float = 0
+    ) -> tuple[float, float, float]:
         """
         Return coordinates of projection of (x, y, z) on nearest box face.
 

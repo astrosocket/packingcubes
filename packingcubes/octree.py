@@ -974,7 +974,7 @@ class PythonOctree(Octree):
             # Also need to check closest point. Should take care of overlapping
             # edges
             closest_point = node.box.project_point_on_box(bbox_center)
-            if containment_obj.contains(closest_point):
+            if containment_obj.contains(np.array(closest_point)):
                 if node.is_leaf:
                     partial_leaves.append(node)
                 else:
@@ -1186,7 +1186,7 @@ class PythonOctree(Octree):
         neighbors = entirely_in + partial_leaves
         for neighbor in neighbors:
             pxyz = neighbor.box.project_point_on_box(xyz)
-            neigh_proj_dist = _distance(xyz, pxyz)
+            neigh_proj_dist = _distance(xyz, np.array(pxyz))
             # Only care about neighbor if neighbor box could contain a closer
             # point than what we've found so far
             if neigh_proj_dist < closest_dist:

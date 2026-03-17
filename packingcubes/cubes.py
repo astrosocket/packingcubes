@@ -468,7 +468,8 @@ def _get_particle_indices_in_shape(
         # be int64. We'll explicitly cast to avoid the warning and because
         # len(cubes) **better** be < 2**63 !
         li = np.int_(i)
-        overlap = shape.contains(cubes[li].project_point_on_box(shape_midpoint))
+        px, py, pz = cubes[li].project_point_on_box(shape_midpoint)
+        overlap = shape.contains_point(px, py, pz)
         if overlap:
             indices[li] = trees[li]._get_particle_indices_in_shape(
                 bounding_box=shape_box, containment_obj=shape
