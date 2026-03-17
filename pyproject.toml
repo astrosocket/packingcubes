@@ -15,6 +15,23 @@ dependencies = [
     "numba",
     "xxhash>=3.6.0,<4",
 ]
+authors = [
+    {name = "Michael Ryan"},
+    {name = "Josh Borrow", email="josh@joshborrow.com"}
+]
+description="PackingCubes octree implementation for astro data"
+classifiers = [
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Operating System :: OS Independent",
+    "Development Status:: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Astronomy",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+keywords = ["astronomy", "astrophysics"]
 license = "MIT"
 license-files = ["LICENSE.txt"]
 dynamic = ["version","readme"]
