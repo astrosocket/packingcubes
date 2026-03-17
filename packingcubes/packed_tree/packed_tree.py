@@ -473,3 +473,20 @@ class PackedTree(octree.Octree):
             k,
             brute_threshold,
         )
+
+    def count_neighbors(self, *, other: PackedTree, r: float) -> int:
+        """
+        Count how many nearby pairs can be formed.
+
+        Args:
+            other: PackedTree
+            The other tree to compare against
+
+            r: float | 1-d float array
+            The radius to produce a count for.
+
+        Returns:
+            result: scalar or 1-d array
+            The number of pairs
+        """
+        return self._tree.count_neighbors(other._tree, r)
