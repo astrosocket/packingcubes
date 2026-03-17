@@ -13,7 +13,7 @@ from numba import (  # type: ignore
 from numba.experimental import jitclass
 from numba.extending import as_numba_type
 from numba.typed import List
-from numba.types import ListType, string
+from numba.types import string
 from numpy.typing import NDArray  # type: ignore
 
 import packingcubes.bounding_box as bbox
@@ -150,11 +150,11 @@ except TypingError:
 
 
 @njit
-def _convert_list_to_tag_str(tag: list[int]) -> str:
+def _convert_array_to_tag_str(tag: NDArray[np.uint8]) -> str:
     """
-    Convert list of ints to a str
+    Convert array of ints to a str
     """
-    return "0" + "".join([str(t) for t in tag])
+    return "".join([str(t) for t in tag[: tag[63] + 1]])
 
 
 @njit
@@ -164,14 +164,11 @@ def _create_from_current_node(node: CurrentNode) -> PackedNodeNumba:
         int(node.node_start),
         int(node.node_end),
         node.box.copy(),
-        _convert_list_to_tag_str(node.tag),
+        _convert_array_to_tag_str(node.tag),
     )
     packed.index = np.uint(node.index)
     packed.is_leaf = is_leaf(node)
     return packed
-
-
-tagtype = ListType(uint8)
 
 
 # Numba version
@@ -180,7 +177,7 @@ tagtype = ListType(uint8)
         ("index", uint32),
         ("node_start", uint32),
         ("node_end", uint32),
-        ("tag", tagtype),
+        ("tag", uint8[:]),
         ("child_flag", uint8),
         ("my_index", uint8),
         ("level", uint8),
@@ -192,7 +189,11 @@ class CurrentNode:
     index: int
     node_start: int
     node_end: int
-    tag: List[int]
+    tag: NDArray[np.uint8]
+    """
+    tag is a (64,) uint8 array where tag[63] is a pointer to the current level
+    So node 0264 would look like [0, 2, 6, 4, 0, 0, ..., 0, 3]
+    """
     child_flag: int
     my_index: int
     level: int
@@ -205,7 +206,7 @@ class CurrentNode:
         index: int = 0,
         node_start: int = 0,
         node_end: int = 0,
-        tag: List[int] | None = None,
+        tag: NDArray | None = None,
         child_flag: int = 0,
         my_index: int = 0,
         level: int = 0,
@@ -215,7 +216,7 @@ class CurrentNode:
         self.index = index
         self.node_start = node_start
         self.node_end = node_end
-        self.tag = List.empty_list(uint8) if tag is None else None
+        self.tag = np.zeros((64,), dtype=np.uint8) if tag is None else tag
         self.child_flag = child_flag
         self.my_index = my_index
         self.level = level
@@ -248,7 +249,8 @@ def _update_node_state(node: CurrentNode, child_index: int, old_my_index: int):
     if not child_index:
         # moving to parent - need index of current node to remove offsets
         # need zero-based for positions
-        node.tag.pop()
+        node.tag[node.tag[63]] = 0
+        node.tag[63] = max(node.tag[63] - 1, 1)
         curr_child_index = old_my_index - 1  # need 0-based index
         node.box.box[0] -= node.box.box[3] * (curr_child_index & 1)
         node.box.box[1] -= node.box.box[4] * ((curr_child_index & 2) >> 1)
@@ -264,7 +266,8 @@ def _update_node_state(node: CurrentNode, child_index: int, old_my_index: int):
                 f"Child index ({child_index}) does not "
                 + f"match expected ({node.my_index})"
             )
-        node.tag.append(np.uint8(child_index))
+        node.tag[63] = min(node.tag[63] + 1, 63)
+        node.tag[node.tag[63]] = np.uint8(child_index)
         # need to shrink box _before_ moving
         node.box.box[3] /= 2
         node.box.box[4] /= 2
@@ -281,7 +284,7 @@ def get_name(node: CurrentNode) -> str:
     """
     Get the name (tag) of this CurrentNode
     """
-    return _convert_list_to_tag_str(node.tag)
+    return _convert_array_to_tag_str(node.tag)
 
 
 @njit

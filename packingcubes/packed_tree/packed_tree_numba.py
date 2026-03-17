@@ -11,7 +11,6 @@ from numba import (  # type: ignore
     njit,
     objmode,
     types,
-    uint8,
     uint32,
 )
 from numba.experimental import jitclass
@@ -32,7 +31,6 @@ from packingcubes.packed_tree.packed_node import (
     is_leaf,
     is_root,
     pack_node_type,
-    tagtype,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -623,19 +621,31 @@ class PackedTreeNumba:
         """
         return [n for n in self._get_nodes_numba() if n.is_leaf]
 
-    def _get_current_node(self, tag: str) -> CurrentNode | None:
+    def _get_current_node(self, tag: str) -> CurrentNode | None:  # noqa: C901
         """
         Get the CurrentNode object represented by tag or None if non-existent
         """
-        with objmode(int_tag=tagtype):
-            if tag[0] == "0":
-                tag = tag[1:]
-            if tag:
-                int_tag = List([np.uint8(int(child) - 1) for child in tag])
-            else:
-                int_tag = List.empty_list(uint8)
         node = self._make_root_node()
-        for child in int_tag:
+        for child_str in tag:
+            # ideally we'd just do int(child_str), but that's not supported
+            if child_str == "1":
+                child = 1
+            elif child_str == "2":
+                child = 2
+            elif child_str == "3":
+                child = 3
+            elif child_str == "4":
+                child = 4
+            elif child_str == "5":
+                child = 5
+            elif child_str == "6":
+                child = 6
+            elif child_str == "7":
+                child = 7
+            elif child_str == "8":
+                child = 8
+            else:
+                return None
             offset = _move_to_child(self.tree, node, child)
             if not offset and child:
                 # check child to ensure tags starting with 0 are allowed
