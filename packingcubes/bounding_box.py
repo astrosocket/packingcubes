@@ -763,7 +763,7 @@ class BoundingSphere(BoundingVolume):
         """
         return (self.center[0] - x) ** 2 + (self.center[1] - y) ** 2 + (
             self.center[2] - z
-        ) ** 2 < self.radius * self.radius
+        ) ** 2 <= self.radius * self.radius
 
     def contains_pointlist(self, xyz: NDArray) -> NDArray[np.bool_]:
         """
@@ -787,7 +787,7 @@ class BoundingSphere(BoundingVolume):
         in_sph = np.empty((xyz.shape[0],), dtype=np.bool_)
         for i in range(xyz.shape[0]):
             x, y, z = xyz[i, :]
-            in_sph[i] = (cx - x) ** 2 + (cy - y) ** 2 + (cz - z) ** 2 < r2
+            in_sph[i] = (cx - x) ** 2 + (cy - y) ** 2 + (cz - z) ** 2 <= r2
         return in_sph
 
     def count_inside(self, xyz: NDArray) -> int:
@@ -815,7 +815,7 @@ class BoundingSphere(BoundingVolume):
         cx, cy, cz = self.center
         for i in range(xyz.shape[0]):
             x, y, z = xyz[i, :]
-            in_sph += (cx - x) ** 2 + (cy - y) ** 2 + (cz - z) ** 2 < r2
+            in_sph += (cx - x) ** 2 + (cy - y) ** 2 + (cz - z) ** 2 <= r2
         return in_sph
 
     def check_box_overlap(self, obox: BoundingBox) -> int:
@@ -848,7 +848,7 @@ class BoundingSphere(BoundingVolume):
         py = min(max(cy, y), y + ody)
         pz = min(max(cz, z), z + odz)
 
-        overlap = (cx - px) ** 2 + (cy - py) ** 2 + (cz - pz) ** 2 < r2
+        overlap = (cx - px) ** 2 + (cy - py) ** 2 + (cz - pz) ** 2 <= r2
 
         if not overlap:
             return 0
@@ -861,21 +861,21 @@ class BoundingSphere(BoundingVolume):
         z0 = z
         z1 = z + odz
 
-        overlap = (cx - x0) ** 2 + (cy - y0) ** 2 + (cz - z0) ** 2 < r2
+        overlap = (cx - x0) ** 2 + (cy - y0) ** 2 + (cz - z0) ** 2 <= r2
 
-        overlap += (cx - x1) ** 2 + (cy - y0) ** 2 + (cz - z0) ** 2 < r2
+        overlap += (cx - x1) ** 2 + (cy - y0) ** 2 + (cz - z0) ** 2 <= r2
 
-        overlap += (cx - x0) ** 2 + (cy - y1) ** 2 + (cz - z0) ** 2 < r2
+        overlap += (cx - x0) ** 2 + (cy - y1) ** 2 + (cz - z0) ** 2 <= r2
 
-        overlap += (cx - x1) ** 2 + (cy - y1) ** 2 + (cz - z0) ** 2 < r2
+        overlap += (cx - x1) ** 2 + (cy - y1) ** 2 + (cz - z0) ** 2 <= r2
 
-        overlap += (cx - x0) ** 2 + (cy - y0) ** 2 + (cz - z1) ** 2 < r2
+        overlap += (cx - x0) ** 2 + (cy - y0) ** 2 + (cz - z1) ** 2 <= r2
 
-        overlap += (cx - x1) ** 2 + (cy - y0) ** 2 + (cz - z1) ** 2 < r2
+        overlap += (cx - x1) ** 2 + (cy - y0) ** 2 + (cz - z1) ** 2 <= r2
 
-        overlap += (cx - x0) ** 2 + (cy - y1) ** 2 + (cz - z1) ** 2 < r2
+        overlap += (cx - x0) ** 2 + (cy - y1) ** 2 + (cz - z1) ** 2 <= r2
 
-        overlap += (cx - x1) ** 2 + (cy - y1) ** 2 + (cz - z1) ** 2 < r2
+        overlap += (cx - x1) ** 2 + (cy - y1) ** 2 + (cz - z1) ** 2 <= r2
 
         # if we've gotten to here, we at least know there's some overlap, even
         # if it's not a vertex
