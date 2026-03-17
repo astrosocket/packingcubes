@@ -738,3 +738,133 @@ class KDTreeAPI:
             return_lists=return_lists,
             return_sorted=return_sorted,
         )
+
+    def _query_pairs(
+        self, *, r: float, strict: bool, return_set: bool
+    ) -> set | NDArray:
+        """
+        Private wrapper method for PackedTree's _get_pilis_tree
+        """
+        pil = self._tree._get_pilis_tree(
+            data=self._data_container,
+            odata=self._data_container,
+            otree=self._tree,
+            r=r,
+            p=2.0,
+            strict=strict,
+        )
+        # These are the indices into the sorted data. If it was copied, we'll
+        # need to use the shuffle list(s). That applies for both self and other
+        if self._copied:
+            index = self._dataset._index
+            # at least this is vectorized
+            index_list = [index[a] for a in pil]
+            # use empty array for typing. it'll be overwritten
+            shuffle_index_list: list[NDArray] = [
+                np.empty((1,)) for _ in self._dataset._index
+            ]
+            for i, ind in enumerate(self._dataset._index):
+                shuffle_index_list[ind] = index_list[i]
+            index_list = shuffle_index_list
+        else:
+            index_list = pil
+
+        results = []
+        for i, sublist in enumerate(index_list):
+            for ind in sublist:
+                if ind < i:
+                    results.append((i, ind))
+
+        return set(results) if return_set else np.array(results)
+
+    def query_pairs(
+        self,
+        r: float,
+        p: float = 2.0,
+        *,
+        eps: float | None = None,
+        output_type: str | None = None,
+        strict: bool | None = None,
+    ) -> set | NDArray:
+        """
+        Find all pairs of points in self whose distance is at most r.
+
+        Args:
+            r: float
+            The maximum distance, has to be positive
+
+            p: float, optional
+            Which Minkowski norm to use. p has to meet the condition 1 <= p <= infinity
+
+            eps: float, optional
+            Approximate search. Branches of the tree are not explored if their
+            nearest points are further than `r/(1+eps)`, and branches are added
+            in bulk if their furthest points are nearer than `r * (1+eps)`. eps
+            has to be non-negative.
+
+            output_type: str, optional
+            Choose the output container, 'set' or 'ndarray'. Default: 'set'
+
+            strict: bool, optional
+            If False, compare only the approximate node distance. Should be
+            significantly faster, but may include substantial amounts of false
+            positives. Default True
+
+
+        Returns:
+            results: set or NDArray
+            Set of pairs (i, j) with i<j, for which the corresponding positions
+            are close. If output_type is 'ndarray', an ndarray is returned
+            instead of a set.
+
+        Raises:
+            NotImplementedError if p!=2
+        """
+        if r <= 0:
+            raise ValueError("r must be positive")
+
+        if p < 1:
+            raise ValueError("p must be greater than or equal to 1.")
+
+        if eps:
+            strict = True
+            if eps > 0:
+                warnings.warn(
+                    """
+                    PackedTrees approximates search differently than KDTrees.
+                    As such, numeric values for eps are not applicable. To skip
+                    this warning, pass strict=False instead of a positive eps.
+                    """,
+                    KDTreeWarning,
+                    stacklevel=1,
+                )
+                strict = False
+
+        output_type = "set" if output_type is None else output_type
+        if output_type not in ("set", "kdtree"):
+            raise ValueError(f"Unknown output_type option: {output_type}")
+
+        strict = True if strict is None else strict
+
+        return self._query_pairs(r=r, strict=strict, return_set=output_type == "set")
+
+    def count_neighbors(
+        self,
+        *,
+        other: KDTreeAPI,
+        r: float | NDArray,
+        p: float | None = None,
+        weights: tuple[float | None, float | None] | NDArray | None = None,
+        cumulative: bool | None = None,
+    ) -> int | float | NDArray:
+        raise NotImplementedError()
+
+    def sparse_distance_matrix(
+        self,
+        *,
+        other: KDTreeAPI,
+        max_distance: float,
+        p: float | None = None,
+        output_type: str | None = None,
+    ) -> dict[int, int] | NDArray:
+        raise NotImplementedError()

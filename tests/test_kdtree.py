@@ -182,3 +182,65 @@ def plot_query_ball_tree_example():
                 )
         ax.set_title(title)
     plt.show(block=True)
+
+
+# The following are modified from the scipy.KDTree.query_ball_tree example
+def scipy_query_pairs_example_unwrapped():
+    rng = np.random.default_rng()
+    points_2d = rng.random((20, 2))
+    points = np.zeros_like(points_2d, shape=(points_2d.shape[0], 3))
+    points[:, :2] = points_2d
+    # our kdtree has a different leafsize by default than scipy's
+    tree = KDTree(
+        data=points,
+        leafsize=10,
+    )
+    stree = SciTree(data=points, leafsize=10)
+    return tree, stree, points
+
+
+@pytest.fixture
+def scipy_query_pairs_example():
+    return scipy_query_pairs_example_unwrapped()[:2]
+
+
+@pytest.mark.xfail(reason="Work in progress")
+def test_query_pairs_example(scipy_query_pairs_example):
+    tree, stree = scipy_query_pairs_example
+
+    pairs = tree.query_pairs(r=0.2)
+    spairs = stree.query_pairs(r=0.2)
+
+    assert len(pairs) == len(spairs)
+
+    for (i, j), (si, sj) in zip(pairs, spairs, strict=True):
+        assert i == si
+        assert j == sj
+
+
+def plot_query_pairs_example():
+    """
+    Diagnostic method for test_query_pairs_example
+    """
+    tree, stree, points = scipy_query_ball_tree_example_unwrapped()
+    import matplotlib.pyplot as plt
+
+    fig, axs = plt.subplots(1, 2, layout="constrained")
+    fig.set_figwidth(12)
+    fig.set_figheight(6)
+    for ax, t1, title in zip(axs, [tree, stree], ["kdtree", "scipy"], strict=True):
+        ax.plot(points[:, 0], points[:, 1], "xk", markersize=14)
+        for i, xyz in enumerate(points):
+            ax.annotate(f"{i}", xy=xyz[:2] + 0.01, color="k")
+        pairs = t1.query_pairs(r=0.2)
+        if isinstance(t1, KDTree):
+            pass
+        for i, j in pairs:
+            ax.annotate(
+                "",
+                xytext=points[i, :2],
+                xy=points[j, :2],
+                arrowprops={"color": "r", "ls": "-", "lw": 0.5},
+            )
+        ax.set_title(title)
+    plt.show(block=True)
