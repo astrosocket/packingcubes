@@ -435,8 +435,12 @@ def test_project_point_on_box_invalid_point_nan(
     xyz: ArrayLike,
     jitter: float,
 ):
-    with pytest.raises(ValueError, match="contains NaN"):
-        bounding_box.project_point_on_box(xyz, jitter)
+    for txyz in xyz:
+        #  we only care about points with NaNs
+        if not np.any(np.isnan(txyz)):
+            continue
+        with pytest.raises(ValueError, match="contains NaN"):
+            bounding_box.project_point_on_box(txyz, jitter)
 
 
 @example(
@@ -462,23 +466,40 @@ def test_project_point_on_box_invalid_point_nan(
 def test_project_point_on_box_valid(
     bounding_box: bbox.BoundingBox, xyz: ArrayLike, jitter: float
 ):
-    xyz = np.atleast_2d(xyz)[0]
-    assert len(xyz) == 3
-    pxyz = bounding_box.project_point_on_box(xyz, 0)
-    pxyz_w_jitter = bounding_box.project_point_on_box(xyz, jitter)
-
-    assert np.all(bounding_box.contains(pxyz))
-
     xyzs = np.atleast_2d(xyz)
-    pxyzs = np.atleast_2d(pxyz)
-    pxyz_w_jitters = np.atleast_2d(pxyz_w_jitter)
-    for txyz, tpxyz, tpxyz_w_jitter in zip(xyzs, pxyzs, pxyz_w_jitters, strict=True):
+    assert xyzs.shape[1] == 3
+    note(f"box={bounding_box.box}")
+
+    for txyz in xyzs:
+        note(f"{txyz=}")
+        px, py, pz = bounding_box.project_point_on_box(txyz, 0)
+        note(f"{px=}, {py=}, {pz=}")
+        pxj, pyj, pzj = bounding_box.project_point_on_box(txyz, jitter)
+        note(f"{pxj=}, {pyj=}, {pzj=}")
+        assert bounding_box.contains_point(px, py, pz)
         # test we didn't mess up already contained points
         if bounding_box.contains(txyz):
-            assert txyz == pytest.approx(tpxyz)
+            assert txyz == pytest.approx([px, py, pz])
         elif jitter:  # if xyz in box then jitter is ignored
-            assert np.any((tpxyz != tpxyz_w_jitter) | np.isinf(txyz))
-            assert np.all(bounding_box.contains(tpxyz_w_jitter)) != (jitter < 0)
+            # terms should be different from 0-jitter unless already in box
+            # in that dimension
+            assert (
+                (px != pxj)
+                or np.isinf(txyz[0])
+                or bounding_box.contains_point(txyz[0], py, pz)
+            )
+            assert (
+                (py != pyj)
+                or np.isinf(txyz[1])
+                or bounding_box.contains_point(px, txyz[1], pz)
+            )
+            assert (
+                (pz != pzj)
+                or np.isinf(txyz[2])
+                or bounding_box.contains_point(px, pz, txyz[2])
+            )
+
+            assert bounding_box.contains_point(pxj, pyj, pzj) != (jitter < 0)
 
 
 #############################

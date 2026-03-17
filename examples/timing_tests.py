@@ -32,6 +32,7 @@ rng = np.random.default_rng(0xBA55ADE89)
 
 centers = []
 radii = []
+particle_numbers = []
 
 
 def load_data(
@@ -39,6 +40,7 @@ def load_data(
     *,
     name: str = simname,
     filepath: str = snapfile,
+    use_constant_number: int | None = None,
     number_balls: int = 100,
 ):
     ds = data_objects.GadgetishHDF5Dataset(name=name, filepath=filepath)
@@ -54,23 +56,121 @@ def load_data(
     dataset = data_objects.InMemory(
         positions=ds._positions[:: int(decimation_factor), :]
     )
-    random_search_balls(dataset, number_balls=number_balls)
+    if use_constant_number:
+        if use_constant_number < 10:
+            LOGGER.warning(
+                "Specifying search balls with fewer than 10 particles."
+                " I hope you're sure!"
+            )
+        random_search_balls_constant_number(
+            dataset, number_balls=number_balls, num_particles=use_constant_number
+        )
+    else:
+        random_search_balls_constant_volume(dataset, number_balls=number_balls)
+
     return dataset
 
 
-def reset_data(ds):
+def reset_data(ds: data_objects.Dataset) -> data_objects.Dataset:
     original_inds = np.argsort(ds.index)
-    ds._positions = ds._positions[original_inds, :]
-    del ds._index
-    ds._setup_index()
+    ds.reorder(original_inds)
     return ds
 
 
-def random_search_balls(ds, *, number_balls: int = 100):
+def random_search_balls_constant_volume(ds, *, number_balls: int = 100):
     box = ds.bounding_box
     for _ in range(number_balls):
         centers.append(rng.random(box.size.size) * box.size + box.position)
         radii.append(10 ** (rng.random() * np.log10(rng.choice(box.size))))
+
+
+def random_search_balls_constant_number(
+    ds: data_objects.Dataset,
+    *,
+    num_particles: int = 1000,
+    number_balls: int = 100,
+    error_threshold: float = 0.1,
+    iterations_threshold: int = 20,
+):
+    LOGGER.info(
+        f"Generating constant particle number search balls of size {num_particles}"
+    )
+    # kdtree = optree.KDTree(data=ds.positions)
+    kdtree = KDTree(data=ds.positions, leafsize=octree._DEFAULT_PARTICLE_THRESHOLD)
+    box = ds.bounding_box
+    bad_balls = 0
+    for i in range(number_balls):
+        # bisection method:
+        # keep center generation and use radius generation for initial radii
+        # assume r = 0 => n_enclosed = 0
+        # bisect radii until |n_enclosed - num_particles|/num_particles < 5%
+        center = rng.random(box.size.size) * box.size + box.position
+        r = 10 ** (rng.random() * np.log10(rng.choice(box.size)))
+        LOGGER.debug(f"Starting search for ball {i} with center {center} and r0={r}")
+        n_enclosed = len(
+            kdtree.query_ball_point(
+                center,
+                r,
+                # strict=True,
+            )
+        )
+        rlower = 0
+        # ensure we're starting from a big enough radii
+        # can update lower limit at same time
+        while n_enclosed < num_particles:
+            LOGGER.debug(f"{r=:.3g} too small, only {n_enclosed} particles. Doubling")
+            rlower = r
+            r *= 2
+            n_enclosed = len(
+                kdtree.query_ball_point(
+                    center,
+                    r,
+                    # strict=True,
+                )
+            )
+        rupper = r
+        LOGGER.debug(
+            f"Starting refined search with r1={rlower:.4g} and rupper={rupper:.4g}"
+            f" and {n_enclosed} particles"
+        )
+        num_iterations = 0
+        error = abs(n_enclosed - num_particles) / num_particles
+        while num_iterations < iterations_threshold and error >= error_threshold:
+            r = (rupper + rlower) / 2
+            LOGGER.debug(
+                f"Have {n_enclosed} particles ({error=:.3g}). Checking {r=:.4g}"
+            )
+            n_enclosed = len(
+                kdtree.query_ball_point(
+                    center,
+                    r,
+                )
+            )  # strict=True))
+            error = abs(n_enclosed - num_particles) / num_particles
+            if n_enclosed > num_particles:
+                rupper = r
+            else:
+                rlower = r
+            num_iterations += 1
+        LOGGER.debug(
+            f"Finished with r = {r}, {error=:.3g}, and "
+            f"{n_enclosed} particles after {num_iterations} iterations"
+        )
+        if num_iterations >= iterations_threshold:
+            LOGGER.info(f"Taking too long, skipping sphere {i}")
+            bad_balls += 1
+            continue
+        centers.append(center)
+        radii.append(r)
+        particle_numbers.append(n_enclosed)
+    if bad_balls:
+        LOGGER.debug(f"Skipped {bad_balls} spheres")
+    if bad_balls > number_balls / 10:
+        LOGGER.warning(
+            f"More than 10% of spheres ({bad_balls}) were skipped."
+            " Timing stats may suffer"
+        )
+    reset_data(ds)  # need to undo changes to get accurate timing later
 
 
 def python_octree_creation(ds):
@@ -79,7 +179,9 @@ def python_octree_creation(ds):
     )
 
 
-def python_octree_query_ball_point(tree: octree.Octree):
+def python_octree_query_ball_point(
+    tree: octree.Octree, *, centers=centers, radii=radii
+):
     for c, r in zip(centers, radii, strict=True):
         sph_inds = tree.get_particle_indices_in_sphere(
             center=c,
@@ -91,7 +193,9 @@ def packed_octree_creation(ds):
     return optree.PackedTree(dataset=ds)
 
 
-def packed_octree_query_ball_point(tree: optree.PackedTree):
+def packed_octree_query_ball_point(
+    tree: optree.PackedTree, *, centers=centers, radii=radii
+):
     for c, r in zip(centers, radii, strict=True):
         sph_inds = tree.get_particle_indices_in_sphere(
             center=c,
@@ -100,15 +204,70 @@ def packed_octree_query_ball_point(tree: optree.PackedTree):
 
 
 def packed_octree_query_ball_point_indices(
-    dataset: data_objects.Dataset, tree: optree.PackedTree
+    data: data_objects.DataContainer,
+    tree: optree.PackedTree,
+    *,
+    centers=centers,
+    radii=radii,
 ):
     for c, r in zip(centers, radii, strict=True):
         sph_inds = tree.get_particle_index_list_in_sphere(
-            dataset=dataset,
+            data=data,
             center=c,
             radius=r,
             strict=True,
         )
+
+
+def packed_kdtree_creation(ds):
+    return optree.KDTree(data=ds.positions, leafsize=octree._DEFAULT_PARTICLE_THRESHOLD)
+
+
+def packed_kdtree_query_ball_point(
+    tree: optree.KDTree,
+    *,
+    centers=centers,
+    radii=radii,
+    particle_numbers: list[int] = particle_numbers,
+):
+    for i, (c, r) in enumerate(zip(centers, radii, strict=True)):
+        # Ensure kdtree output matches scipy's regardless of defaults
+        sph_inds = tree.query_ball_point(x=c, r=r, strict=True, return_lists=True)
+        if particle_numbers and len(sph_inds) != particle_numbers[i]:
+            raise ValueError(
+                f"""
+                Particle number mismatch: expected {particle_numbers[i]} particles
+                for ball {i} and only got {len(sph_inds)}.
+                """
+            )
+
+
+def packed_kdtree_query(tree: optree.KDTree, *, centers=centers, k=10):
+    for c in centers:
+        dd, ii = tree.query(c, k=k)
+
+
+def brute_force_creation(ds):
+    return ds.positions
+
+
+def brute_force_search(
+    positions,
+    *,
+    centers=centers,
+    radii=radii,
+    particle_numbers: list[int] = particle_numbers,
+):
+    for i, (c, r) in enumerate(zip(centers, radii, strict=True)):
+        mask = np.sum((positions - c) ** 2, axis=1) <= r**2
+        number = np.sum(mask)
+        if particle_numbers and number != particle_numbers[i]:
+            raise ValueError(
+                f"""
+                Particle number mismatch: expected {particle_numbers[i]} particles
+                for ball {i} and only got {number}.
+                """
+            )
 
 
 # we want the PackedTree stuff to be pre-compiled
@@ -116,15 +275,34 @@ def precompile():
     dataset = data_objects.InMemory(positions=np.array([0, 0, 0]))
     tree = packed_octree_creation(dataset)
     packed_octree_query_ball_point(tree)
+    packed_octree_query_ball_point_indices(dataset, tree)
 
 
 def scipy_kdtree_creation(ds):
     return KDTree(data=ds.positions, leafsize=octree._DEFAULT_PARTICLE_THRESHOLD)
 
 
-def scipy_kdtree_query_ball_point(tree: KDTree):
-    for c, r in zip(centers, radii, strict=True):
+def scipy_kdtree_query_ball_point(
+    tree: KDTree,
+    *,
+    centers=centers,
+    radii=radii,
+    particle_numbers: list[int] = particle_numbers,
+):
+    for i, (c, r) in enumerate(zip(centers, radii, strict=True)):
         sph_inds = tree.query_ball_point(x=c, r=r)
+        if particle_numbers and len(sph_inds) != particle_numbers[i]:
+            raise ValueError(
+                f"""
+                Particle number mismatch: expected {particle_numbers[i]} particles
+                for ball {i} and only got {len(sph_inds)}.
+                """
+            )
+
+
+def scipy_kdtree_query(tree: KDTree, *, centers=centers, k=10):
+    for c in centers:
+        dd, ii = tree.query(c, k=k)
 
 
 def yt_setup(decimation_factor=10):
@@ -236,7 +414,7 @@ def cubing(setup):
     )
 
 
-def cubes_query_ball_points(cubes):
+def cubes_query_ball_points(cubes, *, centers=centers, radii=radii):
     for c, r in zip(centers, radii, strict=True):
         sph_inds = cubes.get_particle_indices_in_sphere(
             particle_types=particle_type,
@@ -256,7 +434,9 @@ creation_dict = {
         "setup": cubing_setup,
         "precomp": True,
     },
+    "kdtree": {"fun": "packed_kdtree_creation", "precomp": True},
     "scipy": {"fun": "scipy_kdtree_creation", "precomp": False},
+    "brute": {"fun": "brute_force_creation", "precomp": False},
     # skipping yt creation for now
 }
 search_dict = {
@@ -270,13 +450,40 @@ search_dict = {
         "tree": "packed",
         "precomp": True,
     },
+    "packli": {
+        "fun": (
+            "packed_octree_query_ball_point_indices(data, search_obj)"
+        ),  # needs dataset + tree
+        "tree": "packed",
+        "precomp": True,
+    },
     "cubes": {
         "fun": "cubes_query_ball_points(search_obj)",
         "tree": "cubes",
         "precomp": True,
     },
+    "kdtree": {
+        "fun": "packed_kdtree_query_ball_point(search_obj)",
+        "tree": "kdtree",
+        "precomp": True,
+    },
+    "kdq": {
+        "fun": "packed_kdtree_query(search_obj)",
+        "tree": "kdtree",
+        "precomp": True,
+    },
+    "brute": {
+        "fun": "brute_force_search(search_obj)",
+        "tree": "brute",
+        "precomp": False,
+    },
     "scipy": {
         "fun": "scipy_kdtree_query_ball_point(search_obj)",
+        "tree": "scipy",
+        "precomp": False,
+    },
+    "sciq": {
+        "fun": "scipy_kdtree_query(search_obj)",
         "tree": "scipy",
         "precomp": False,
     },
@@ -308,7 +515,7 @@ def get_search_obj(
     cd = creation_dict[function]
     setup = cd.get("setup", lambda dataset: dataset)
     setup_data = setup(dataset=dataset)
-    globals()["dataset"] = dataset
+    globals()["data"] = dataset.data_container
     globals()["setup_data"] = setup_data
 
     if results is not None:
@@ -331,7 +538,17 @@ def get_search_obj(
     return globals()[cd["fun"]](setup_data)
 
 
-def check_precompile(*, creation_list: list[str], search_list: list[str]):
+def check_precompile(
+    *,
+    creation_list: list[str],
+    search_list: list[str],
+    use_constant_number: int | None = None,
+):
+    if use_constant_number:
+        LOGGER.info("Constant number spheres require precompiling")
+        precompile()
+        LOGGER.debug("Finished precompiling")
+        return
     for test in creation_list:
         if creation_dict[test]["precomp"]:
             LOGGER.info(f"{test}-creation requires precompiling")
@@ -354,6 +571,7 @@ def manual_timing(
     creation_list: list[str] = None,
     search_list: list[str] = None,
     dry_run: bool = False,
+    use_constant_number: int | None = None,
     number_balls: int | None = 100,
 ):
     if snapshot is None:
@@ -377,10 +595,19 @@ def manual_timing(
     if search_list:
         LOGGER.info(f"Search:{search_list}")
 
-    check_precompile(creation_list=creation_list, search_list=search_list)
+    check_precompile(
+        creation_list=creation_list,
+        search_list=search_list,
+        use_constant_number=use_constant_number,
+    )
 
     LOGGER.debug("Beginning data loading")
-    ds = load_data(decimation_factor, filepath=snapshot, number_balls=number_balls)
+    ds = load_data(
+        decimation_factor,
+        filepath=snapshot,
+        use_constant_number=use_constant_number,
+        number_balls=number_balls,
+    )
     LOGGER.info(
         f"Loaded {snapshot} with decimation factor {decimation_factor}"
         f"={len(ds):.3e} particles"
@@ -406,14 +633,19 @@ def manual_timing(
                 dry_run=dry_run,
             )
             creation_dict[creation_name]["search_obj"] = search_obj
-        globals()["dataset"] = ds
+        globals()["data"] = ds.data_container
         globals()["search_obj"] = search_obj
         if not dry_run:
-            timer = timeit.Timer(sd["fun"], globals=globals())
+            timer = timeit.Timer(
+                sd["fun"], setup="import gc;gc.enable()", globals=globals()
+            )
+            # do additional run for any missing precompile
+            timer.timeit(1)
             number, _ = timer.autorange()
-            time_vec = timer.repeat(number=number) * second
+            time_vec = timer.repeat(number=number)
+            time_vec *= second
             time_vec /= number  # change to per-loop
-            time_vec /= len(centers)  # change to per-sphere (average)
+            time_vec /= len(radii)  # change to per-sphere (average)
         else:
             number = -1
             time_vec = [-1, -1] * second
@@ -493,6 +725,16 @@ def parse_arguments(argv=None):
         type=int,
     )
     parser.add_argument(
+        "-s",
+        "--number-search",
+        help="""
+        Use constant particle number search balls with the specified number of
+        particles instead of constant volume search balls. This will be a
+        slower startup!
+        """,
+        type=int,
+    )
+    parser.add_argument(
         "--dry",
         default=False,
         action="store_true",
@@ -546,6 +788,13 @@ def parse_arguments(argv=None):
         const="cubes",
     )
     group_list_args.add_argument(
+        "--kdtree",
+        help="Create and search a Packed KDTree object",
+        dest="combined_list",
+        action="append_const",
+        const="kdtree",
+    )
+    group_list_args.add_argument(
         "--scipy",
         help="Create and search a SciPy KDTree object",
         dest="combined_list",
@@ -595,6 +844,7 @@ if __name__ == "__main__":
         creation_list=creation_list,
         search_list=search_list,
         dry_run=args.dry,
+        use_constant_number=args.number_search,
         number_balls=args.number_balls,
     )
     print(results)  # noqa: T201

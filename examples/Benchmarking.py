@@ -1,0 +1,780 @@
+# ---
+# jupyter:
+#   jupytext:
+#     formats: ipynb,py:percent
+#     text_representation:
+#       extension: .py
+#       format_name: percent
+#       format_version: '1.3'
+#       jupytext_version: 1.19.1
+#   kernelspec:
+#     display_name: packingcubes-jupyter
+#     language: python
+#     name: python3
+# ---
+
+# %% [markdown]
+# # Benchmarking Plots
+
+# %%
+
+# %% [markdown]
+# # Imports
+
+# %%
+import matplotlib.pyplot as plt
+import numpy as np
+
+# %%
+
+# %% [markdown]
+# # Data
+# (Note: master data source for Illustris and LB_L10_CDM in notes. This may not
+# be up to date)
+
+# %% [markdown]
+# ## IllustrisTNG
+
+# %%
+n = [1.5e5, 1.5e6, 1.5e7]
+m = [100, 1000, 10000]
+
+creation = {
+    "data resetting": [
+        1.13e-3,
+        0.012,
+        0.127,
+    ],
+    "python": [
+        0.0482,
+        0.54,
+        6.49,
+    ],
+    "packed": [
+        0.012,
+        0.184,
+        2.17,
+    ],
+    "kdtree": [
+        np.nan,
+        np.nan,
+        np.nan,
+    ],
+    "cubes": [
+        0.016,
+        0.147,
+        2.00,
+    ],
+    "scipy": [
+        0.0208,
+        0.300,
+        4.33,
+    ],
+}
+
+search = {
+    "python": [
+        1.25,
+        4.49,
+        17.8,
+    ],
+    "packed": [
+        0.0529,
+        0.121,
+        0.415,
+    ],
+    "pack_list": [0.0604, 0.289, 2.28],
+    "kdtree": [0.160, 1.65, 18.9],
+    "cubes": [
+        0.0587,
+        0.0933,
+        0.218,
+    ],
+    "scipy": [
+        0.118,
+        1.66,
+        20.1,
+    ],
+}
+
+search_cn = {
+    "brute": [
+        [2.03, 2.08, 2.04],
+        [24, 24.3, 23.6],
+        [236, 243, 238],
+    ],
+    "packed": [
+        [0.0376, 0.0465, 0.082],
+        [0.0417, 0.0559, 0.0924],
+        [0.044, 0.0587, 0.114],
+    ],
+    "pack_list": [
+        [0.0371, 0.047, 0.108],
+        [0.0421, 0.0576, 0.128],
+        [0.0443, 0.0608, 0.160],
+    ],
+    "kdtree": [[0.041, 0.0619, 0.219], [0.046, 0.0727, 0.234], [0.0485, 0.0755, 0.269]],
+    "cubes": [[0.0381, 0.053, 0.111], [0.0373, 0.0563, 0.077], [0.0434, 0.055, 0.066]],
+    "scipy": [
+        [0.0063, 0.0199, 0.154],
+        [0.00808, 0.0225, 0.200],
+        [0.00707, 0.0258, 0.204],
+    ],
+}
+
+size = {
+    "dataset": [
+        1871217,
+        18710649,
+        187104885,
+    ],
+    "python": [
+        545461,
+        5231664,
+        50810413,
+    ],
+    "packed": [
+        38088,
+        359177,
+        3468337,
+    ],
+    "scipy": [
+        5063559,
+        50484807,
+        508383527,
+    ],
+}
+
+illustris = {
+    "name": "IllustrisTNG",
+    "creation": creation,
+    "search": search,
+    "search_cn": search_cn,
+    "size": size,
+    "n": n,
+    "m": m,
+    "marker": "s",
+    "ls": "-",
+}
+
+# %% [markdown]
+# ## Simba
+
+# %%
+n = [1.5e5, 1.5e6, 1.5e7]
+m = [100, 1000, 10000]
+
+creation = {
+    "data resetting": [
+        1.15e-3,
+        12.3e-3,
+        134e-3,
+    ],
+    "python": [
+        0.0482,
+        0.575,
+        6.65,
+    ],
+    "packed": [
+        0.0379,
+        0.460,
+        5.53,
+    ],
+    "kdtree": [
+        np.nan,
+        np.nan,
+        np.nan,
+    ],
+    "cubes": [
+        np.nan,
+        np.nan,
+        np.nan,
+    ],
+    "scipy": [
+        0.0186,
+        0.231,
+        2.82,
+    ],
+}
+
+search = {
+    "python": [
+        1.26,
+        4.87,
+        20.3,
+    ],
+    "packed": [
+        0.87,
+        2.07,
+        4.66,
+    ],
+    "pack_list": [np.nan, np.nan, np.nan],
+    "kdtree": [np.nan, np.nan, np.nan],
+    "cubes": [
+        np.nan,
+        np.nan,
+        np.nan,
+    ],
+    "scipy": [
+        0.523,
+        3.68,
+        32.9,
+    ],
+}
+
+
+search_cn = {
+    "python": [
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+    ],
+    "packed": [
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+    ],
+    "pack_list": [
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+    ],
+    "kdtree": [
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+    ],
+    "cubes": [
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+    ],
+    "scipy": [
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+    ],
+}
+
+size = {
+    "dataset": [
+        1909377,
+        19092225,
+        190920693,
+    ],
+    "python": [
+        475785,
+        4987588,
+        50087794,
+    ],
+    "packed": [
+        33288,
+        342857,
+        3423397,
+    ],
+    "scipy": [
+        5165319,
+        51502343,
+        518559015,
+    ],
+}
+
+simba = {
+    "name": "SIMBA",
+    "creation": creation,
+    "search": search,
+    "search_cn": search_cn,
+    "size": size,
+    "n": n,
+    "m": m,
+    "marker": "x",
+    "ls": "-",
+}
+
+# %% [markdown]
+# ## Swift-EAGLE
+
+# %%
+n = [1.5e5, 1.5e6, 1.5e7]
+m = [100, 1000, 10000]
+
+creation = {
+    "data resetting": [
+        1.22e-3,
+        14.3e-3,
+        142e-3,
+    ],
+    "python": [
+        0.050,
+        0.578,
+        6.59,
+    ],
+    "packed": [
+        0.0405,
+        0.463,
+        5.42,
+    ],
+    "kdtree": [
+        np.nan,
+        np.nan,
+        np.nan,
+    ],
+    "cubes": [
+        np.nan,
+        np.nan,
+        np.nan,
+    ],
+    "scipy": [
+        0.0186,
+        0.244,
+        3.05,
+    ],
+}
+
+search = {
+    "python": [
+        3.21,
+        12.2,
+        52.2,
+    ],
+    "packed": [
+        1.7,
+        4.68,
+        12.2,
+    ],
+    "pack_list": [np.nan, np.nan, np.nan],
+    "kdtree": [np.nan, np.nan, np.nan],
+    "cubes": [
+        np.nan,
+        np.nan,
+        np.nan,
+    ],
+    "scipy": [
+        1.06,
+        8.02,
+        90.2,
+    ],
+}
+
+
+search_cn = {
+    "python": [
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+    ],
+    "packed": [
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+    ],
+    "pack_list": [
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+    ],
+    "kdtree": [
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+    ],
+    "cubes": [
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+    ],
+    "scipy": [
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+    ],
+}
+
+size = {
+    "dataset": [
+        3813237,
+        38130837,
+        381306861,
+    ],
+    "python": [
+        545559,
+        4974569,
+        48502428,
+    ],
+    "packed": [
+        38088,
+        341617,
+        3312897,
+    ],
+    "scipy": [
+        5158217,
+        51431113,
+        517846503,
+    ],
+}
+
+sweagle = {
+    "name": "Swift-EAGLE",
+    "creation": creation,
+    "search": search,
+    "search_cn": search_cn,
+    "size": size,
+    "n": n,
+    "m": m,
+    "marker": "+",
+    "ls": "-",
+}
+
+# %% [markdown]
+# ## LB_L10_CDM
+
+# %%
+n = [
+    1.1e5,
+    1.1e6,
+    1.1e7,
+    1.1e8,
+    1.1e9,
+]
+m = [100, 1000, 10000]
+
+creation = {
+    "data resetting": [2.4e-3, 0.0407, 0.325, 5.05, 25.8],
+    "python": [0.180, 0.866, 11, 101, 1100],
+    "packed": [0.0133, 0.167, 2.12, 17.5, 223.2],
+    "kdtree": [
+        np.nan,
+        np.nan,
+        np.nan,
+        np.nan,
+        np.nan,
+    ],
+    "cubes": [
+        0.02,
+        0.0998,
+        1.11,
+        12,
+        130.8,
+    ],
+    "scipy": [0.0402, 0.393, 4.79, 38, 403.2],
+}
+
+search = {
+    "python": [2.5, 8.7, 61, 208, 850],
+    "packed": [0.257, 0.667, 2.31, 9.44, 32],
+    "pack_list": [0.328, 0.795, 3.83, 27.3, 216],
+    "kdtree": [np.nan, np.nan, np.nan, np.nan, np.nan],
+    "cubes": [0.187, 0.256, 0.572, 1.92, 8.0],
+    "scipy": [0.248, 2.94, 33.2, 463, 2340],
+}
+
+
+search_cn = {
+    "python": [
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+    ],
+    "packed": [
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+    ],
+    "pack_list": [
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+    ],
+    "kdtree": [
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+    ],
+    "cubes": [
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+    ],
+    "scipy": [
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+        [np.nan, np.nan, np.nan],
+    ],
+}
+
+size = {
+    "dataset": [2577165, 25769973, 257698221, 2576980557, 25769803917],
+    "python": [174704, 2062787, 27842084, 328732478, 3499040395],
+    "packed": [12488, 142417, 1908497, 22438977, 237917597],
+    "scipy": [3510121, 34949961, 348316393, 3511474721, 34963718503],
+}
+
+extra = {
+    "notes": [
+        (
+            "Run on nvdimm(DR,PyOct creation & search) & snapshot 6/"
+            "icx otherwise, snapshot 13"
+        ),
+        (
+            "Run on nvdimm(DR,PyOct creation & search) & snapshot 6/"
+            "icx otherwise, snapshot 13"
+        ),
+        (
+            "Run on nvdimm(DR,PyOct creation & search) & snapshot 6/"
+            "icx otherwise, snapshot 13"
+        ),
+        (
+            "Run on nvdimm(DR,PyOct creation & search) & snapshot 6/"
+            "icx otherwise, snapshot 13"
+        ),
+        (
+            "Run on nvdimm(DR,PyOct creation & search) & snapshot 6/"
+            "icx otherwise, snapshot 13"
+        ),
+    ]
+}
+
+LB_L10_CDM = {
+    "name": "LB_L10_CDM",
+    "creation": creation,
+    "search": search,
+    "search_cn": search_cn,
+    "size": size,
+    "n": n,
+    "m": m,
+    "marker": "o",
+    "ls": "--",
+    "extra": extra,
+}
+
+# %% [markdown]
+# ## Metadata
+
+# %% jupyter={"source_hidden": true}
+units = {
+    "n": "particles",
+    "creation": "s",
+    "search": "ms",
+    "search_cn": "ms",
+    "size": "bytes",
+}
+
+# %% jupyter={"source_hidden": true}
+metrics = {
+    "creation": {
+        "data resetting": "k",
+        "packed": "tab:orange",
+        "cubes": "tab:purple",
+        "scipy": "tab:green",
+    },
+    "search": {
+        "packed": "tab:orange",
+        "pack_list": "tab:brown",
+        "kdtree": "tab:olive",
+        "cubes": "tab:purple",
+        "scipy": "tab:green",
+    },
+    "search_cn": {
+        "brute": "k",
+        "packed": "tab:orange",
+        "pack_list": "tab:brown",
+        "kdtree": "tab:olive",
+        "cubes": "tab:purple",
+        "scipy": "tab:green",
+    },
+    "size": {
+        "dataset": "k",
+        "python": "tab:blue",
+        "packed": "tab:orange",
+        "scipy": "tab:green",
+    },
+}
+
+
+# %%
+particle_threshold = 400
+
+expected = {
+    "creation": lambda n: n * np.log10(n),
+    "search": lambda n: np.log10(n),
+    # "search": lambda n: np.sqrt(n),
+    # "size":lambda n: 1.2*n/10**(np.floor(np.log10(n/particle_threshold)))
+    "search_cn": lambda n: np.log2(n),
+    "size": lambda n: n,
+}
+expected_label = {
+    "creation": r"$n\; \log(n)$",
+    "search": r"$\log(n)$",
+    # "search": r"$\sqrt{n}$",
+    "search_cn": r"$\log{(n)}$",
+    # "size":(
+    #     r"$1.2\times\frac{n}{10^{\left\lfloor n/"
+    #     f"{particle_threshold}"
+    #     r"\right\rfloor}}$")
+    "size": r"$n$",
+}
+
+m_expected = {
+    "search_cn": lambda m: np.log(m),
+}
+m_expected_label = {
+    "search_cn": r""  # r"$m \times$"
+}
+
+ignore_metrics = ["creation:data resetting", "search_cn:brute"]
+
+# %% [markdown]
+# # Plotting
+
+# %% [markdown]
+# ## Sim choice
+
+# %%
+sims = [illustris, LB_L10_CDM, simba, sweagle]
+sims = [illustris, LB_L10_CDM]
+# sims = [LB_L10_CDM]
+
+# %% [markdown]
+# ## Raw
+
+# %% jupyter={"source_hidden": true}
+figs = []
+axs = []
+
+for i, t in enumerate(metrics):
+    fig, ax = plt.subplots()
+    figs.append(fig)
+    axs.append(ax)
+    for m, c in metrics[t].items():
+        for sim in sims:
+            n = np.array(sim["n"])
+            y = np.array(sim[t].get(m, np.full_like(n, np.nan)))
+            axs[i].loglog(n, y, color=c, marker=sim["marker"], ls=sim["ls"])
+        axs[i].plot(np.nan, np.nan, color=c, label=m)
+
+    axs[i].set_xlabel(f"n [{units['n']}]")
+    axs[i].set_ylabel(f"{t} [{units[t]}]")
+
+for sim in sims:
+    axs[0].plot(
+        np.nan, np.nan, color="k", marker=sim["marker"], ls=sim["ls"], label=sim["name"]
+    )
+for ax in axs:
+    ax.legend()
+
+# %% [markdown]
+# ## Expected
+
+# %% jupyter={"source_hidden": true}
+figs = []
+axs = []
+
+scale_index = 2
+m_scale_index = 0
+
+for i, t in enumerate(metrics):
+    fig, ax = plt.subplots()
+    figs.append(fig)
+    axs.append(ax)
+    used_m = False
+    for m, c in metrics[t].items():
+        for sim in sims:
+            if f"{t}:{m}" in ignore_metrics:
+                continue
+            n = np.array(sim["n"])
+            y = np.array(sim[t].get(m, np.full_like(n, np.nan)))
+            msim = np.array(sim["m"])
+            if len(y.shape) > 1:
+                expected_y = np.empty_like(y)
+                for j in range(y.shape[1]):
+                    expected_y[:, j] = (
+                        (y[:, j] / y[scale_index, j])
+                        * expected[t](n[scale_index])
+                        / expected[t](n)
+                        * m_expected[t](msim[m_scale_index])
+                        / m_expected[t](msim[j])
+                    )
+                used_m = True
+            else:
+                expected_y = (
+                    (y / y[scale_index]) * expected[t](n[scale_index]) / expected[t](n)
+                )
+            axs[i].loglog(n, expected_y, color=c, marker=sim["marker"], ls=sim["ls"])
+        axs[i].plot(np.nan, np.nan, color=c, label=m)
+
+    axs[i].set_xlabel(f"n [{units['n']}]")
+    axs[i].set_ylabel(f"{t}/{t}" r"$_0$ $/$ expected")
+    label = expected_label[t]
+    if used_m:
+        label = m_expected_label[t] + label
+    axs[i].text(
+        0.5,
+        0.1,
+        label,
+        transform=axs[i].transAxes,
+        bbox={
+            "boxstyle": "round",
+            "fc": "w",
+        },
+    )
+
+for sim in sims:
+    axs[0].plot(
+        np.nan, np.nan, color="k", marker=sim["marker"], ls=sim["ls"], label=sim["name"]
+    )
+for ax in axs:
+    ax.legend()
+
+# %% [markdown]
+# ## Normalized
+
+# %% jupyter={"source_hidden": true}
+figs = []
+axs = []
+
+scale_index = 0
+
+for i, t in enumerate(metrics):
+    fig, ax = plt.subplots()
+    figs.append(fig)
+    axs.append(ax)
+    for m, c in metrics[t].items():
+        for sim in sims:
+            if f"{t}:{m}" in ignore_metrics:
+                continue
+            n = np.array(sim["n"])
+            yk = np.array(sim[t]["scipy"])
+            y = np.array(sim[t].get(m, np.full_like(yk, np.nan)))
+            msim = np.array(sim["m"])
+            if len(y.shape) > 1 and len(yk.shape) == 1:
+                norm_y = np.empty_like(y)
+                for j in range(y.shape[1]):
+                    norm_y[:, j] = y[:, j] / yk
+            else:
+                norm_y = y / yk
+            axs[i].loglog(n, norm_y, color=c, marker=sim["marker"], ls=sim["ls"])
+        axs[i].plot(np.nan, np.nan, color=c, label=m)
+
+    axs[i].set_xlabel(f"n [{units['n']}]")
+    axs[i].set_ylabel(f"{t}/{t}" r"$_{\text{scipy}}$")
+
+for sim in sims:
+    axs[0].plot(
+        np.nan, np.nan, color="k", marker=sim["marker"], ls=sim["ls"], label=sim["name"]
+    )
+for ax in axs:
+    ax.legend()
+
+# %%

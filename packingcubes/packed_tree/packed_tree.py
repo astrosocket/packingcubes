@@ -8,7 +8,7 @@ from numpy.typing import ArrayLike, NDArray
 
 import packingcubes.bounding_box as bbox
 import packingcubes.octree as octree
-from packingcubes.data_objects import Dataset, InMemory
+from packingcubes.data_objects import DataContainer, Dataset, InMemory
 from packingcubes.packed_tree.packed_node import PackedNode
 from packingcubes.packed_tree.packed_tree_meta import (
     TreeMeta,
@@ -17,7 +17,12 @@ from packingcubes.packed_tree.packed_tree_meta import (
     extract_metadata,
     pack_metadata,
 )
-from packingcubes.packed_tree.packed_tree_numba import PackedTreeNumba, _construct_tree
+from packingcubes.packed_tree.packed_tree_numba import (
+    PackedTreeNumba,
+    _construct_tree,
+    euclidean_d2,
+    euclidean_distance,
+)
 
 LOGGER = logging.getLogger(__name__)
 logging.captureWarnings(capture=True)
@@ -194,7 +199,7 @@ class PackedTree(octree.Octree):
         self,
         *,
         box: bbox.BoxLike,
-    ) -> list[tuple[int, int]]:
+    ) -> list[tuple[int, int, int]]:
         """
         Return all particles contained within the box
 
@@ -205,6 +210,8 @@ class PackedTree(octree.Octree):
         Returns:
             indices: list[tuple[int, int]]
             List of particle start-stop indices contained within sphere
+            Third element of each tuple is a flag for whether only some
+            particles (1) among the start-stop indices are contained or all (0)
         """
         bounding_box = bbox.make_bounding_box(box)
         return self._tree._get_particle_indices_in_shape(bounding_box, bounding_box)
@@ -214,7 +221,7 @@ class PackedTree(octree.Octree):
         *,
         center: NDArray,
         radius: float,
-    ) -> list[tuple[int, int]]:
+    ) -> list[tuple[int, int, int]]:
         """
         Return all particles contained within the sphere defined by center and radius
 
@@ -226,8 +233,10 @@ class PackedTree(octree.Octree):
             Radius of the sphere
 
         Returns:
-            indices: list[tuple[int, int]]
+            indices: list[tuple[int, int, int]]
             List of particle start-stop indices contained within sphere
+            Third element of each tuple is a flag for whether only some
+            particles (1) among the start-stop indices are contained or all (0)
         """
         sph = bbox.make_bounding_sphere(center=center, radius=radius)
         return self._tree._get_particle_indices_in_shape(sph.bounding_box, sph)
@@ -235,7 +244,7 @@ class PackedTree(octree.Octree):
     def get_particle_index_list_in_box(
         self,
         *,
-        dataset: Dataset,
+        data: DataContainer | Dataset,
         box: bbox.BoxLike,
         strict: bool = False,
     ) -> NDArray[np.int64]:
@@ -243,6 +252,10 @@ class PackedTree(octree.Octree):
         Return all particles contained within the box
 
         Args:
+            data: DataContainer | Dataset
+            Dataset containing the particle positions. Pass a DataContainer
+            object for a slight performance increase
+
             box: BoxLike
             Box to check
 
@@ -255,19 +268,20 @@ class PackedTree(octree.Octree):
             indices: NDArray[int]]
             List of original particle indices contained within sphere
         """
+        data = data.data_container if isinstance(data, Dataset) else data
         bounding_box = bbox.make_bounding_box(box)
         if strict:
-            return self._tree._get_particle_index_list_in_shape_strict(
-                dataset.data_container, bounding_box, bounding_box
+            return self._tree._get_particle_index_list_in_shape(
+                data, bounding_box, bounding_box
             )
         return self._tree._get_particle_index_list_in_shape(
-            dataset.data_container, bounding_box, bounding_box
+            None, bounding_box, bounding_box
         )
 
     def get_particle_index_list_in_sphere(
         self,
         *,
-        dataset: Dataset,
+        data: DataContainer | Dataset,
         center: NDArray,
         radius: float,
         strict: bool = False,
@@ -276,6 +290,10 @@ class PackedTree(octree.Octree):
         Return all particles contained within the sphere defined by center and radius
 
         Args:
+            data: DataContainer | Dataset
+            Dataset containing the particle positions. Pass a DataContainer
+            object for a slight performance increase
+
             center: NDArray
             Center point of the sphere
 
@@ -291,14 +309,64 @@ class PackedTree(octree.Octree):
             indices: NDArray[int]
             List of original particle indices contained within sphere
         """
+        data = data.data_container if isinstance(data, Dataset) else data
         sph = bbox.make_bounding_sphere(radius, center=center)
         bounding_box = sph.bounding_box
         if strict:
-            return self._tree._get_particle_index_list_in_shape_strict(
-                dataset.data_container, bounding_box, sph
-            )
-        return self._tree._get_particle_index_list_in_shape(
-            dataset.data_container, bounding_box, sph
+            return self._tree._get_particle_index_list_in_shape(data, bounding_box, sph)
+        return self._tree._get_particle_index_list_in_shape(None, bounding_box, sph)
+
+    def _get_pilis_tree(
+        self,
+        *,
+        data: DataContainer | Dataset,
+        odata: DataContainer | Dataset,
+        otree: PackedTree,
+        r: float,
+        p: float,
+        strict: bool,
+    ) -> list[NDArray[np.int64]]:
+        """
+        Compute list of all pairs of points in data/odata whose distance < r
+
+        Args:
+            data, odata: DataContainer
+            The actual particle data for self and other
+
+            otree: PackedTree
+            The PackedTree corresponding to the other data
+
+            r: float
+            The maximum distance
+
+            p: float
+            Which Minkowski norm to use. Currently only p==2 is supported
+
+            strict: bool
+            If False, compare only the approximate node distance. Should be
+            significantly faster, but may include substantial amounts of false
+            positives
+
+        Return:
+            results: list of arrays
+            For every point data[i], results[i] is the array of indices of points
+            within r in odata
+
+        Raises:
+            NotImplementedError if p != 2
+
+        """
+        if p != 2:
+            raise NotImplementedError("Only p=2 is currently supported")
+        distance_fun = euclidean_d2
+
+        return self._tree._get_pilis_tree(
+            data if isinstance(data, DataContainer) else data.data_container,
+            odata if isinstance(odata, DataContainer) else odata.data_container,
+            otree._tree,
+            r,
+            distance_fun,
+            strict,
         )
 
     def get_closest_particle(
@@ -328,5 +396,97 @@ class PackedTree(octree.Octree):
 
             closest_dist: float
             Distance to closest particle
+
+        Raises:
+            NotImplementedError
+            This function is not implemented, see get_closest_particles instead
         """
-        return self._tree.get_closest_particle(xyz, check_neighbors)
+        raise NotImplementedError("See get_closest_particles instead")
+
+    def get_closest_particles(
+        self,
+        *,
+        data: DataContainer | Dataset,
+        xyz: NDArray,
+        distance_upper_bound: float | None = None,
+        p: float = 2,
+        k: int = 1,
+        brute_threshold: int = 10,
+    ) -> tuple[NDArray[np.float64], NDArray[np.uint32]]:
+        """
+        Get kth nearest particle distances and indices to point
+
+        Args:
+            data: DataContainer | Dataset
+            Source of particle position data
+
+            xyz: ArrayLike
+            Coordinates of point to check
+
+            distance_upper_bound: nonnegative float, optional
+            Return only neighbors from other nodes within this distance. This
+            is used for tree pruning, so if you are doing a series of
+            nearest-neighbor queries, it may help to supply the distance to the
+            nearest neighbor of the most recent point.
+
+            p: float, optional
+            Which Minkowski p-norm to use. 1 is the sum of absolute-values
+            distance ("Manhattan" distance). 2 is the usual Euclidean distance.
+            Infinity is the maximum-coordinate-difference distance. Currently,
+            only p=2 is supported.
+
+            k: int, optional
+            Number of closest particles to return. Default 1
+
+            brute_threshold: int, optional
+            Number of particles used for per-node brute search. Above this
+            the per-node search switches to sorting the particles in the node.
+            Default 10.
+
+        Returns:
+            distances: NDArray[float]
+            Distances to the kth nearest neighbors. Has shape (min(N,k),),
+            where N is the number of particles in the sphere bounded by
+            distance_upper_bound
+
+            indices: NDArray[int]
+            Indices in data of the kth nearest neighbors. Has same shape as
+            distances
+
+        Raises:
+            NotImplementedError
+            If a p value of then 2 is provided
+        """
+        if p != 2:
+            raise NotImplementedError("Only p=2 is currently supported")
+        distance_fun = euclidean_distance
+
+        distance_upper_bound = (
+            1e100 if distance_upper_bound is None else distance_upper_bound
+        )
+
+        return self._tree.get_closest_particles(
+            data if isinstance(data, DataContainer) else data.data_container,
+            xyz,
+            distance_fun,
+            distance_upper_bound,
+            k,
+            brute_threshold,
+        )
+
+    def count_neighbors(self, *, other: PackedTree, r: float) -> int:
+        """
+        Count how many nearby pairs can be formed.
+
+        Args:
+            other: PackedTree
+            The other tree to compare against
+
+            r: float | 1-d float array
+            The radius to produce a count for.
+
+        Returns:
+            result: scalar or 1-d array
+            The number of pairs
+        """
+        return self._tree.count_neighbors(other._tree, r)

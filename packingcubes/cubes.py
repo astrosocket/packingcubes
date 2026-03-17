@@ -468,7 +468,8 @@ def _get_particle_indices_in_shape(
         # be int64. We'll explicitly cast to avoid the warning and because
         # len(cubes) **better** be < 2**63 !
         li = np.int_(i)
-        overlap = shape.contains(cubes[li].project_point_on_box(shape_midpoint))
+        px, py, pz = cubes[li].project_point_on_box(shape_midpoint)
+        overlap = shape.contains_point(px, py, pz)
         if overlap:
             indices[li] = trees[li]._get_particle_indices_in_shape(
                 bounding_box=shape_box, containment_obj=shape
@@ -477,7 +478,7 @@ def _get_particle_indices_in_shape(
     # add cube offset and flatten list of indices
     flattened_indices = List.empty_list(_big_index_tuple)
     for cube_indices, cube_offset in zip(indices, cube_offsets):  # noqa: B905
-        for cube_start, cube_end in cube_indices:
+        for cube_start, cube_end, _ in cube_indices:
             flattened_indices.append((cube_start + cube_offset, cube_end + cube_offset))
 
     return flattened_indices

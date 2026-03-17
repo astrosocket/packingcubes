@@ -166,6 +166,18 @@ class BoundingVolume:
     def contains(self, xyz: NDArray) -> NDArray[np.bool_]:
         raise NotImplementedError("Must be called from an implementing class")
 
+    def contains_point(self, x: float, y: float, z: float) -> bool:
+        raise NotImplementedError("Must be called from an implementing class")
+
+    def contains_pointlist(self, xyz: NDArray) -> NDArray[np.bool_]:
+        raise NotImplementedError("Must be called from an implementing class")
+
+    def count_inside(self, xyz: NDArray) -> int:
+        raise NotImplementedError("Must be called from an implementing class")
+
+    def check_box_overlap(self, obox: BoundingBox) -> int:
+        raise NotImplementedError("Must be called from an implementing class")
+
 
 # KW-only arguments with defaults seem to be just completely broken. Likely
 # related to https://github.com/numba/numba/issues/5903
@@ -382,9 +394,6 @@ class BoundingBox(BoundingVolume):
         Check if points are inside box
 
         Args:
-            self: BoxLike
-            Box to check
-
             xyz: ArrayLike
             Array of points with shape Nx3 to test. (3,) arrays will be converted
 
@@ -406,6 +415,90 @@ class BoundingBox(BoundingVolume):
             & ((by <= y) & (y <= by + dy))
             & ((bz <= z) & (z <= bz + dz))
         )
+
+    def contains_point(self, x: float, y: float, z: float) -> bool:
+        """
+        Check if point is inside box
+
+        Args:
+            x, y, z: float
+            3D coordinates of the point
+
+        Returns:
+            in_box: bool
+            True if point is inside box
+
+        See Also:
+            contains_pointlist, count_inside
+        """
+        bx, by, bz = self.box[:3]
+        dx, dy, dz = self.box[3:]
+        return (
+            ((bx <= x) & (x <= bx + dx))
+            & ((by <= y) & (y <= by + dy))
+            & ((bz <= z) & (z <= bz + dz))
+        )
+
+    def contains_pointlist(self, xyz: NDArray) -> NDArray[np.bool_]:
+        """
+        Check if points are inside box
+
+        Args:
+            xyz: NDArray
+            Array of points with shape Nx3 to test.
+
+        Returns:
+            in_box: NDArray[np.bool_]
+            Boolean array where True means point is inside box
+
+        See Also:
+            contains_point, count_inside
+        """
+        assert len(xyz.shape) == 2
+        assert xyz.shape[1] == 3
+        in_box = np.empty((xyz.shape[0],), dtype=np.bool_)
+        bx, by, bz = self.box[:3]
+        dx, dy, dz = self.box[3:]
+        for i in range(xyz.shape[0]):
+            x, y, z = xyz[i, :]
+            in_box[i] = (
+                ((bx <= x) & (x <= bx + dx))
+                & ((by <= y) & (y <= by + dy))
+                & ((bz <= z) & (z <= bz + dz))
+            )
+        return in_box
+
+    def count_inside(self, xyz: NDArray) -> int:
+        """
+        Return a count of how many points in xyz are inside the box
+
+        Prefer this function to sum(contains_pointlist) or similar to prevent
+        unnecessary array creation.
+
+        Args:
+            xyz: NDArray
+            Array of points with shape Nx3 to test.
+
+        Returns:
+            count: int
+            The count of points that are inside this box
+
+        See Also:
+            contains_point, contains_pointlist
+        """
+        assert len(xyz.shape) == 2
+        assert xyz.shape[1] == 3
+        in_box = 0
+        bx, by, bz = self.box[:3]
+        dx, dy, dz = self.box[3:]
+        for i in range(xyz.shape[0]):
+            x, y, z = xyz[i, :]
+            in_box += (
+                ((bx <= x) & (x <= bx + dx))
+                & ((by <= y) & (y <= by + dy))
+                & ((bz <= z) & (z <= bz + dz))
+            )
+        return in_box
 
     def max_depth(self) -> int:
         """
@@ -451,7 +544,9 @@ class BoundingBox(BoundingVolume):
             a_max=1.0,
         )
 
-    def project_point_on_box(self, xyz: NDArray, jitter: float = 0) -> NDArray:
+    def project_point_on_box(
+        self, xyz: NDArray, jitter: float = 0
+    ) -> tuple[float, float, float]:
         """
         Return coordinates of projection of (x, y, z) on nearest box face.
 
@@ -475,7 +570,9 @@ class BoundingBox(BoundingVolume):
             pxyz: numpy.ndarray
             Projected coordinates
         """
-        if np.any(np.isnan(xyz)):
+        x, y, z = xyz
+
+        if np.isnan(x) or np.isnan(y) or np.isnan(z):
             raise ValueError("Point contains NaN!")
 
         if np.isnan(jitter):
@@ -484,18 +581,114 @@ class BoundingBox(BoundingVolume):
         if jitter < 0:
             raise NotImplementedError()
 
-        box_pos = self.box[:3]
-        box_size = self.box[3:]
-        assert len(box_pos) == 3
-        assert len(box_size) == 3
-        assert len(xyz) == 3
-        jitter_arr = np.sign(jitter) * box_size / 100
-        assert len(jitter_arr) == 3
-        return np.clip(
-            xyz,
-            a_min=box_pos + jitter_arr,
-            a_max=box_pos + box_size - jitter_arr,
-        ).astype(np.float64)
+        bx, by, bz, dx, dy, dz = self.box
+        jf = 0 if jitter == 0 else (-1 if jitter < 0 else 1)
+        jx = jf * dx / 100
+        jy = jf * dy / 100
+        jz = jf * dz / 100
+        cx = min(max(x, bx + jx), bx + dx - jx)
+        cy = min(max(y, by + jy), by + dy - jy)
+        cz = min(max(z, bz + jz), bz + dz - jz)
+        return cx, cy, cz
+
+    def check_box_overlap(self, obox: BoundingBox) -> int:
+        """
+        Return the "overlap" between this box and obox
+
+        Define pxyz as the closest point to our center on the obox
+        We'll define the "overlap" as
+         - 0 if none of the obox vertices nor pxyz are contained within self
+         - 1-7 if some but not all of the vertices or pxyz are contained within self
+         - 8 if all of the vertices are contained within self
+
+        Args:
+            obox: BoundingBox
+            The other box to check
+
+        Returns:
+            overlap: int
+            The amount of overlap as defined above
+        """
+
+        # check if any overlap at all
+        # pxyz = obox.project_point_on_box( our center)
+        # overlap = self.contains(pxyz)
+        x, y, z, odx, ody, odz = obox.box
+        mx, my, mz = self.midplane()
+        bx, by, bz, dx, dy, dz = self.box
+
+        cx = min(max(mx, x), x + odx)
+        cy = min(max(my, y), y + ody)
+        cz = min(max(mz, z), z + odz)
+
+        overlap = (
+            ((bx <= cx) & (cx <= bx + dx))
+            & ((by <= cy) & (cy <= by + dy))
+            & ((bz <= cz) & (cz <= bz + dz))
+        )
+
+        if not overlap:
+            return 0
+
+        # check how many vertices are contained
+        x0 = x
+        x1 = x + odx
+        y0 = y
+        y1 = y + ody
+        z0 = z
+        z1 = z + odz
+
+        overlap = (
+            ((bx <= x0) & (x0 <= bx + dx))
+            & ((by <= y0) & (y0 <= by + dy))
+            & ((bz <= z0) & (z0 <= bz + dz))
+        )
+
+        overlap += (
+            ((bx <= x1) & (x1 <= bx + dx))
+            & ((by <= y0) & (y0 <= by + dy))
+            & ((bz <= z0) & (z0 <= bz + dz))
+        )
+
+        overlap += (
+            ((bx <= x0) & (x0 <= bx + dx))
+            & ((by <= y1) & (y1 <= by + dy))
+            & ((bz <= z0) & (z0 <= bz + dz))
+        )
+
+        overlap += (
+            ((bx <= x1) & (x1 <= bx + dx))
+            & ((by <= y1) & (y1 <= by + dy))
+            & ((bz <= z0) & (z0 <= bz + dz))
+        )
+
+        overlap += (
+            ((bx <= x0) & (x0 <= bx + dx))
+            & ((by <= y0) & (y0 <= by + dy))
+            & ((bz <= z1) & (z1 <= bz + dz))
+        )
+
+        overlap += (
+            ((bx <= x1) & (x1 <= bx + dx))
+            & ((by <= y0) & (y0 <= by + dy))
+            & ((bz <= z1) & (z1 <= bz + dz))
+        )
+
+        overlap += (
+            ((bx <= x0) & (x0 <= bx + dx))
+            & ((by <= y1) & (y1 <= by + dy))
+            & ((bz <= z1) & (z1 <= bz + dz))
+        )
+
+        overlap += (
+            ((bx <= x1) & (x1 <= bx + dx))
+            & ((by <= y1) & (y1 <= by + dy))
+            & ((bz <= z1) & (z1 <= bz + dz))
+        )
+
+        # if we've gotten to here, we at least know there's some overlap, even
+        # if it's not a vertex
+        return max(overlap, 1)
 
 
 try:
@@ -554,6 +747,141 @@ class BoundingSphere(BoundingVolume):
         # We don't need to calculate the actual distance, we only need to compare dist^2
         dist2 = np.sum(np.atleast_2d((xyz - self.center) ** 2), axis=1)
         return dist2 <= self.radius**2
+
+    def contains_point(self, x: float, y: float, z: float) -> bool:
+        """
+        Check if point is inside sphere
+
+        Args:
+            x, y, z: float
+            3D coordinates of the point
+
+        Returns:
+            in_sph: bool
+            True if point is inside sphere
+
+        See Also:
+            contains_pointlist, count_inside
+        """
+        return (self.center[0] - x) ** 2 + (self.center[1] - y) ** 2 + (
+            self.center[2] - z
+        ) ** 2 <= self.radius * self.radius
+
+    def contains_pointlist(self, xyz: NDArray) -> NDArray[np.bool_]:
+        """
+        Check if points are inside sphere
+
+        Args:
+            xyz: NDArray
+            Array of points with shape Nx3 to test.
+
+        Returns:
+            in_sph: NDArray[np.bool_]
+            Boolean array where True means point is inside sphere
+
+        See Also:
+            contains_point, count_inside
+        """
+        assert len(xyz.shape) == 2
+        assert xyz.shape[1] == 3
+        r2 = self.radius * self.radius
+        cx, cy, cz = self.center
+        in_sph = np.empty((xyz.shape[0],), dtype=np.bool_)
+        for i in range(xyz.shape[0]):
+            x, y, z = xyz[i, :]
+            in_sph[i] = (cx - x) ** 2 + (cy - y) ** 2 + (cz - z) ** 2 <= r2
+        return in_sph
+
+    def count_inside(self, xyz: NDArray) -> int:
+        """
+        Return a count of how many points in xyz are inside the sphere
+
+        Prefer this function to sum(contains_pointlist) or similar to prevent
+        unnecessary array creation.
+
+        Args:
+            xyz: NDArray
+            Array of points with shape Nx3 to test.
+
+        Returns:
+            count: int
+            The count of points that are inside this sphere
+
+        See Also:
+            contains_point, contains_pointlist
+        """
+        assert len(xyz.shape) == 2
+        assert xyz.shape[1] == 3
+        in_sph = 0
+        r2 = self.radius * self.radius
+        cx, cy, cz = self.center
+        for i in range(xyz.shape[0]):
+            x, y, z = xyz[i, :]
+            in_sph += (cx - x) ** 2 + (cy - y) ** 2 + (cz - z) ** 2 <= r2
+        return in_sph
+
+    def check_box_overlap(self, obox: BoundingBox) -> int:
+        """
+        Return the "overlap" between this box and obox
+
+        Define pxyz as the closest point to our center on the obox
+        We'll define the "overlap" as
+         - 0 if none of the obox vertices nor pxyz are contained within self
+         - 1-7 if some but not all of the vertices or pxyz are contained within self
+         - 8 if all of the vertices are contained within self
+
+        Args:
+            obox: BoundingBox
+            The other box to check
+
+        Returns:
+            overlap: int
+            The amount of overlap as defined above
+        """
+
+        # check if any overlap at all
+        # pxyz = obox.project_point_on_box( our center)
+        # overlap = self.contains(pxyz)
+        x, y, z, odx, ody, odz = obox.box
+        cx, cy, cz = self.center
+        r2 = self.radius * self.radius
+
+        px = min(max(cx, x), x + odx)
+        py = min(max(cy, y), y + ody)
+        pz = min(max(cz, z), z + odz)
+
+        overlap = (cx - px) ** 2 + (cy - py) ** 2 + (cz - pz) ** 2 <= r2
+
+        if not overlap:
+            return 0
+
+        # check how many vertices are contained
+        x0 = x
+        x1 = x + odx
+        y0 = y
+        y1 = y + ody
+        z0 = z
+        z1 = z + odz
+
+        overlap = (cx - x0) ** 2 + (cy - y0) ** 2 + (cz - z0) ** 2 <= r2
+
+        overlap += (cx - x1) ** 2 + (cy - y0) ** 2 + (cz - z0) ** 2 <= r2
+
+        overlap += (cx - x0) ** 2 + (cy - y1) ** 2 + (cz - z0) ** 2 <= r2
+
+        overlap += (cx - x1) ** 2 + (cy - y1) ** 2 + (cz - z0) ** 2 <= r2
+
+        overlap += (cx - x0) ** 2 + (cy - y0) ** 2 + (cz - z1) ** 2 <= r2
+
+        overlap += (cx - x1) ** 2 + (cy - y0) ** 2 + (cz - z1) ** 2 <= r2
+
+        overlap += (cx - x0) ** 2 + (cy - y1) ** 2 + (cz - z1) ** 2 <= r2
+
+        overlap += (cx - x1) ** 2 + (cy - y1) ** 2 + (cz - z1) ** 2 <= r2
+
+        # if we've gotten to here, we at least know there's some overlap, even
+        # if it's not a vertex
+        return max(overlap, 1)
 
     @property
     def bounding_box(self) -> BoundingBox:
