@@ -582,7 +582,7 @@ class BoundingBox(BoundingVolume):
             raise NotImplementedError()
 
         bx, by, bz, dx, dy, dz = self.box
-        jf = -1 if jitter < 0 else 1
+        jf = 0 if jitter == 0 else (-1 if jitter < 0 else 1)
         jx = jf * dx / 100
         jy = jf * dy / 100
         jz = jf * dz / 100
