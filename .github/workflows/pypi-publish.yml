@@ -27,7 +27,7 @@ jobs:
           environments: build
       - name: Build
         run: |
-          python -m build
+          pixi run -e build python -m build
 
       - name: Upload distributions
         uses: actions/upload-artifact@v7
