@@ -50,7 +50,7 @@ jobs:
       - name: Retrieve release distributions
         uses: actions/download-artifact@v8
         with:
-          name: release-dists
+          name: releases-dists
           path: dist/
 
       - name: Publish release distributions to PyPI
