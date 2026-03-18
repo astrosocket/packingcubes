@@ -139,7 +139,7 @@ default = { solve-group = "default" }
 dev = { features = ["test","viz","jupyter","dev","profile"], solve-group = "default" }
 test = { features = ["test","viz", "jupyter"], solve-group = "default" }
 viz = { features = ["viz", "jupyter"], solve-group = "default" }
-jupyter = ["jupyter"]
+jupyter = { features = ["jupyter"], solve-group = "default" }
 
 [tool.pixi.tasks]
 
