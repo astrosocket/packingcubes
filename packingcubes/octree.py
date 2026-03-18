@@ -4,34 +4,20 @@ import abc
 import logging
 import warnings
 from collections.abc import Iterable, Iterator, Sized
-from enum import IntEnum
-from functools import partial
 from typing import TYPE_CHECKING, Protocol
 
 import numpy as np
+from numba import njit  # type: ignore
 from numpy.typing import ArrayLike, NDArray
-from tqdm.auto import tqdm
 
 import packingcubes.bounding_box as bbox
 from packingcubes.configuration import FIELD_FORMAT
-from packingcubes.data_objects import Dataset
+from packingcubes.data_objects import DataContainer, Dataset
 
 LOGGER = logging.getLogger(__name__)
 logging.captureWarnings(capture=True)
 
 _DEFAULT_PARTICLE_THRESHOLD = 400
-
-
-# Octants
-class Octants(IntEnum):
-    LEFTFRONTBOTTOM = 1
-    RIGHTFRONTBOTTOM = 2
-    LEFTBACKBOTTOM = 3
-    RIGHTBACKBOTTOM = 4
-    LEFTFRONTTOP = 5
-    RIGHTFRONTTOP = 6
-    LEFTBACKTOP = 7
-    RIGHTBACKTOP = 8
 
 
 class OctreeError(Exception):
@@ -42,13 +28,9 @@ class OctreeWarning(UserWarning):
     pass
 
 
-class ContainmentFunc(Protocol):
-    def __call__(self, xyz: ArrayLike) -> NDArray[np.bool_]:
-        pass
-
-
 # Convenience functions
-def _partition(data: Dataset, lo: int, hi: int, ax: int, pivot: float) -> int:
+@njit
+def _partition(data: DataContainer, lo: int, hi: int, ax: int, pivot: float) -> int:
     """
     Partition a portion of 3D data between lo and hi along the axis ax
 
@@ -58,26 +40,26 @@ def _partition(data: Dataset, lo: int, hi: int, ax: int, pivot: float) -> int:
     the pivot)
     """
     if lo < 0:
-        raise ValueError(f"Low index out of bounds {lo=}")
+        raise ValueError(f"Low index out of bounds, lo={lo}")
     if lo > hi:
         # nothing to do
         return lo
     if lo == hi:
         # return early to avoid unnecessary swap
         # ternary to avoid data cast
-        return lo + (1 if data.positions[lo, ax] < pivot else 0)
+        return lo + (1 if data._positions[lo, ax] < pivot else 0)
     if len(data) <= hi:
         # OOB upper index only an issue if we're actually going to use it
-        raise ValueError(f"High index out of bounds {hi=}")
+        raise ValueError(f"High index out of bounds, hi={hi}")
     r = hi  # right edge (constant)
     while lo < hi:
         # pivot is not guaranteed to be in data
         # need additional check to guard against out-of-bounds
         # access
-        while lo < r and data.positions[lo, ax] < pivot:
+        while lo < r and data._positions[lo, ax] < pivot:
             lo += 1
         # Don't want hi<=lo anyway, so don't need equivalent left edge constant
-        while hi > lo and data.positions[hi, ax] >= pivot:
+        while hi > lo and data._positions[hi, ax] >= pivot:
             hi -= 1
         data._swap(lo, hi)
     if lo >= hi:
@@ -88,11 +70,12 @@ def _partition(data: Dataset, lo: int, hi: int, ax: int, pivot: float) -> int:
     # this is equivalent to the single element case
     # if lo == r:
     #     return r + (1 if data.positions[lo, ax] < pivot else 0)
-    return lo + (1 if data.positions[lo, ax] < pivot else 0)
+    return lo + (1 if data._positions[lo, ax] < pivot else 0)
 
 
+@njit
 def _partition_data(
-    data: Dataset,
+    data: DataContainer,
     box: bbox.BoundingBox,
     lo: int,
     hi: int,
@@ -107,7 +90,7 @@ def _partition_data(
     than hi. This means all data was contained in octants
     [lo,*child_list[0:i-1]]
     """
-    midplane = bbox.midplane(box)
+    midplane = box.midplane()
     child_list = [-1, -1, -1, -1, -1, -1, -1, -1, -1]
     # child_list is defined such that data in c0 (child node 1) is prior to
     # child_list[0], c1 data is between child_list[0] and child_list[1], etc.
@@ -174,68 +157,6 @@ def _partition_data(
     return child_list
 
 
-def _box_neighbors_in_node(
-    box_ind: int,
-) -> list[Octants]:
-    """
-    Return the neighbor Octants that are in the same node.
-    """
-    # TODO: look into a case/control-flow free formula
-    match box_ind:
-        case Octants.LEFTFRONTBOTTOM:  # 1
-            return [
-                Octants.RIGHTFRONTBOTTOM,
-                Octants.LEFTBACKBOTTOM,
-                Octants.LEFTFRONTTOP,
-            ]  # [2,3,5]
-        case Octants.RIGHTFRONTBOTTOM:  # 2
-            return [
-                Octants.LEFTFRONTBOTTOM,
-                Octants.RIGHTBACKBOTTOM,
-                Octants.RIGHTFRONTTOP,
-            ]  # [1,4,6]
-        case Octants.LEFTBACKBOTTOM:  # 3
-            return [
-                Octants.LEFTFRONTBOTTOM,
-                Octants.RIGHTBACKBOTTOM,
-                Octants.LEFTBACKTOP,
-            ]  # [1,4,7]
-        case Octants.RIGHTBACKBOTTOM:  # 4
-            return [
-                Octants.RIGHTFRONTBOTTOM,
-                Octants.LEFTBACKBOTTOM,
-                Octants.RIGHTBACKTOP,
-            ]  # [2,3,8]
-        case Octants.LEFTFRONTTOP:  # 5
-            return [
-                Octants.LEFTFRONTBOTTOM,
-                Octants.LEFTBACKTOP,
-                Octants.RIGHTFRONTTOP,
-            ]  # [1,6,7]
-        case Octants.RIGHTFRONTTOP:  # 6
-            return [
-                Octants.RIGHTFRONTBOTTOM,
-                Octants.LEFTFRONTTOP,
-                Octants.RIGHTBACKTOP,
-            ]  # [2,5,8]
-        case Octants.LEFTBACKTOP:  # 7
-            return [
-                Octants.LEFTBACKBOTTOM,
-                Octants.LEFTFRONTTOP,
-                Octants.RIGHTBACKTOP,
-            ]  # [3,6,8]
-        case Octants.RIGHTBACKTOP:  # 8
-            return [
-                Octants.RIGHTBACKBOTTOM,
-                Octants.RIGHTFRONTTOP,
-                Octants.LEFTBACKTOP,
-            ]  # [4,6,7]
-        case _:
-            raise ValueError(
-                f"Invalid {box_ind=} specified! Valid options are in octree.Octants",
-            )
-
-
 def morton(positions: NDArray, box: bbox.BoxLike) -> NDArray[np.int_]:
     """
     Given array of positions and box to look at, compute morton encoding
@@ -259,7 +180,8 @@ def morton(positions: NDArray, box: bbox.BoxLike) -> NDArray[np.int_]:
     # point, putting anything in subbox 1 in subbox 2. But it'll match the
     # behavior of _partition, and if your data looks like that, there's not
     # much we can do...
-    midplane = bbox.midplane(box)
+    box = bbox.make_bounding_box(box)
+    midplane = box.midplane()
     # We do not attempt to convert to Octants here because that would create a
     # numpy *object* array. Just leave them as ints
     return (
@@ -268,6 +190,100 @@ def morton(positions: NDArray, box: bbox.BoxLike) -> NDArray[np.int_]:
         + 2 * (positions[:, 1] >= midplane[1])
         + 4 * (positions[:, 2] >= midplane[2])
     ).astype(int)
+
+
+def full_morton(positions: NDArray, box: bbox.BoxLike) -> NDArray[np.uint64]:
+    """
+    Return the full morton indices of positions in box
+
+    Computes and returns the full morton encoding of positions in the provided
+    box using bit interleaving. Essentially:
+    ```python
+    xyz = (0b1111, 0b0101, 0b1001)
+    # morton = 0bz4y4x4_z3y3x3_z2y2x2_z1y1x1
+    morton = 0b101_101_001_111
+    ```
+    Note that the final morton code needs to fit into a uint64 (the largest
+    width uint numpy/numba supports), which means we only have **21** bits to
+    work with per coordinate (instead of 64). This corresponds to a dynamic
+    range of ~2e6, well below what most larger simulations work with, so use
+    these indices with **caution**!
+
+    Args:
+        positions: NDArray
+        Array of particle positions. Note: any precision beyond 21 bits will be
+        lost!
+
+        box: BoundingBox
+        Bounding box of all positions
+
+    Returns:
+        mortons: NDArray[np.uint64]
+        Full morton indices of the provided positions.
+    """
+    box = bbox.make_bounding_box(box)
+
+    # Normalize the coordinates to [0,1)
+    normalized = box.normalize_to_box(positions).astype(np.float32)
+    # Convert to [0, 2^32]
+    int_pos = (normalized * 0x0000_0001_0000_0000).astype(np.uint64)
+    # only allowed 21 bits, so bit shift everything 11 spots
+    int_pos = int_pos >> np.uint64(11)
+    # initialize morton codes
+    mortons = np.zeros((len(int_pos),), dtype=np.uint64)
+    # Compute morton indices using the magic bits implementation from
+    # https://www.forceflow.be/2013/10/07/morton-encodingdecoding-through-bit-interleaving-implementations/
+    # mortons[0] = mortons[0] << 2
+    for i in range(3):
+        x = int_pos[:, i].astype(np.uint64)
+        x = x & np.uint64(0x1FFFFF)  # this step is probably unnecessary
+        # shift left 32 bits, OR with self, and with
+        # 00011111000000000000000000000000000000001111111111111111
+        x = (x | x << np.uint64(32)) & np.uint64(0x1F00000000FFFF)
+        # shift left 16 bits, OR with self, and with
+        # 00011111000000000000000011111111000000000000000011111111
+        x = (x | x << np.uint64(16)) & np.uint64(0x1F0000FF0000FF)
+        # shift left 8 bits, OR with self, and with
+        # 0001000000001111000000001111000000001111000000001111000000000000
+        x = (x | x << np.uint64(8)) & np.uint64(0x100F00F00F00F00F)
+        # shift left 4 bits, OR with self, and with
+        # 0001000011000011000011000011000011000011000011000011000100000000
+        x = (x | x << np.uint64(4)) & np.uint64(0x10C30C30C30C30C3)
+        # shift left 2 bits, OR with self, and with
+        # 1001001001001001001001001001001001001001001001001001001001001
+        x = (x | x << np.uint64(2)) & np.uint64(0x1249249249249249)
+        mortons = mortons | (x << np.uint64(i))
+    return x
+
+
+@njit
+def pre_sort(
+    data: DataContainer, particle_threshold=_DEFAULT_PARTICLE_THRESHOLD
+) -> dict:
+    root_box = data.bounding_box
+    partition_list = [("0", root_box, 0, len(data) - 1)]
+    node_bounds = {"0": (0, len(data) - 1)}
+    max_depth = root_box.max_depth()
+    while partition_list:
+        partition = partition_list.pop()
+        tag = partition[0]
+        box = partition[1]
+        child_list = _partition_data(data, box, partition[2], partition[3])
+
+        for i in range(1, 9):
+            child1 = child_list[i - 1]
+            child2 = child_list[i]
+
+            if child1 >= child2:
+                continue
+
+            child_tag = tag + str(i)
+            child_box = box.get_child_box(i - 1)
+            node_bounds[child_tag] = (child1, child2 - 1)
+
+            if child2 - child1 >= particle_threshold and len(child_tag) < max_depth:
+                partition_list.append((child_tag, child_box, child1, child2 - 1))
+    return node_bounds
 
 
 class OctreeNode(Sized):
@@ -368,8 +384,8 @@ class PythonOctreeNode(OctreeNode):
     of its own octree and has either 8 children or is a leaf node.
 
     Attributes:
-        data: Dataset
-        The backing Dataset for the octree
+        data: DataContainer
+        The backing DataContainer for the octree
 
         node_start, node_end: int
         The start and end data indices for this node. OctreeNodes have
@@ -392,8 +408,8 @@ class PythonOctreeNode(OctreeNode):
 
     """
 
-    data: Dataset
-    """ Reference to backing dataset of this OctreeNode """
+    data: DataContainer
+    """ Reference to backing DataContainer of this OctreeNode """
     _node_start: int
     """ Starting index in data of this OctreeNode """
     _node_end: int
@@ -436,25 +452,24 @@ class PythonOctreeNode(OctreeNode):
     def __init__(
         self,
         *,
-        data: Dataset,
+        data: DataContainer,
         node_start: int | None = None,
         node_end: int | None = None,
-        box: bbox.BoxLike | None = None,
+        box: bbox.BoundingBox | None = None,
         tag: str | None = None,
         parent: PythonOctreeNode | None = None,
         particle_threshold: int = 1,
-        pbar: tqdm | None = None,
     ) -> None:
         """
         Args:
-            data: Dataset
-            The backing Dataset for the octree
+            data: DataContainer
+            The backing DataContainer for the octree
 
             node_start, node_end: int, optional
             The start and end data indices for this node. Defaults to 0 and
             len(data)-1
 
-            box: BoxLike, optional
+            box: BoundingBox, optional
             Bounding box of the form [x, y, z, dx, dy, dz] where (x, y, z) is the
             left-front-bottom corner. All particles are assumed to lie inside.
             Defaults to data.bounding_box
@@ -473,8 +488,6 @@ class PythonOctreeNode(OctreeNode):
             leaf before splitting into subtrees. Note that currently particle
             sorting stops at this level. Default 1.
 
-            pbar: tqdm, optional
-            A tqdm() instance for optional progress updates
         """
         particle_threshold = int(particle_threshold)
         if particle_threshold <= 0:
@@ -482,7 +495,7 @@ class PythonOctreeNode(OctreeNode):
         self._particle_threshold = particle_threshold
 
         if not len(data):
-            raise OctreeError("Empty dataset provided")
+            raise OctreeError("Empty DataContainer provided")
         self.data = data
 
         if node_start is None:
@@ -498,14 +511,14 @@ class PythonOctreeNode(OctreeNode):
         else:
             self._node_end = node_end
         self._children = []
-        self._box = bbox.make_valid(box) if box is not None else data.bounding_box
+        self._box = box if box is not None else data.bounding_box
         self._tag = tag if tag is not None else "0"
         self._parent = parent
 
         if self._parent is None:
             # we are at the root, set max depth based on floating point
             # precision
-            self._max_depth = bbox.max_depth(self.box) - 1
+            self._max_depth = self.box.max_depth() - 1
             if len(self) == 1:
                 self._max_depth = 0
         else:
@@ -514,8 +527,6 @@ class PythonOctreeNode(OctreeNode):
             raise OctreeError(
                 "Attempted to create an OctreeNode with negative max depth!",
             )
-
-        self._pbar = pbar
 
         # begin recursion
         self._construct()
@@ -555,8 +566,6 @@ class PythonOctreeNode(OctreeNode):
                     OctreeWarning,
                     stacklevel=1,
                 )
-            if self._pbar is not None:
-                self._pbar.update(len(self))
             return
 
         # Loop through children sections and recurse.
@@ -576,7 +585,7 @@ class PythonOctreeNode(OctreeNode):
                 continue
 
             # recursing on child i not i-1!
-            child_box = bbox.get_child_box(self.box, i - 1)
+            child_box = self.box.get_child_box(i - 1)
             # LOGGER.debug(
             #     f"Making child box{i + 1} for {child2}-{child1}"
             #     f"={child2 - child1} particles in box {child_box}"
@@ -589,14 +598,11 @@ class PythonOctreeNode(OctreeNode):
                 tag=self._tag + str(i),
                 parent=self,
                 particle_threshold=self._particle_threshold,
-                pbar=self._pbar,
             )
             children.append(node)
         # Only _keep_ children if above _particle_threshold
         if len(self) > self._particle_threshold:
             self._children.extend(children)
-        if self._pbar is not None and self.is_leaf:
-            self._pbar.update(len(self))
 
     @property
     def node_start(self) -> int:
@@ -659,7 +665,7 @@ class PythonOctreeNode(OctreeNode):
 
     def distance(
         self,
-        xyz: ArrayLike,
+        xyz: NDArray,
     ) -> NDArray[np.float64]:
         """
         Return array of particle distances from given point
@@ -667,7 +673,7 @@ class PythonOctreeNode(OctreeNode):
         pos = self.data.positions
         return np.sqrt(np.sum((pos[self.slice, :] - xyz) ** 2, axis=1))
 
-    def closest_particle_index(self, xyz: ArrayLike) -> tuple[np.int_, float]:
+    def closest_particle_index(self, xyz: NDArray) -> tuple[np.int_, float]:
         """
         Return index (and distance) of closest particle
         """
@@ -678,7 +684,7 @@ class PythonOctreeNode(OctreeNode):
 
 def _top_down_containing_node(
     node: PythonOctreeNode,
-    xyz: ArrayLike,
+    xyz: NDArray,
 ) -> PythonOctreeNode | None:
     """
     For a given point, return the smallest child node that contains point or None
@@ -686,34 +692,23 @@ def _top_down_containing_node(
     while len(node) > 1:
         # find leaf or smallest subtree containing point
         for child in node.children:
-            if child is not None and bbox.in_box(child.box, xyz):
+            if child is not None and child.box.contains(xyz):
                 node = child
                 break  # for child loop
         else:
             break  # while loop
-    return node if bbox.in_box(node.box, xyz) else None
+    return node if node.box.contains(xyz) else None
 
 
-def _bottom_up_containing_node(node: PythonOctreeNode, xyz: ArrayLike):
+def _bottom_up_containing_node(node: PythonOctreeNode, xyz: NDArray):
     """
     For a given point, return the smallest parent node that contains point or None
     """
     while node.parent is not None:
-        if bbox.in_box(node.box, xyz):
+        if node.box.contains(xyz):
             return node
         node = node.parent
-    return node if bbox.in_box(node.box, xyz) else None
-
-
-def _point_in_sphere(
-    point: NDArray, center: NDArray, radius: float
-) -> NDArray[np.bool_]:
-    """
-    Return true if point is closer than (<=) radius to center. Vectorizable
-    """
-    # We don't need to calculate the actual distance, we only need to compare dist^2
-    dist2 = np.sum(np.atleast_2d((point - center) ** 2), axis=1)
-    return dist2 <= radius**2
+    return node if node.box.contains(xyz) else None
 
 
 class Octree(Iterable[OctreeNode], Protocol):
@@ -739,7 +734,7 @@ class Octree(Iterable[OctreeNode], Protocol):
         self,
         *,
         box: bbox.BoxLike,
-    ) -> list[list[int]]:
+    ) -> list[tuple[int, int, int]]:
         pass
 
     def get_particle_indices_in_sphere(
@@ -747,7 +742,7 @@ class Octree(Iterable[OctreeNode], Protocol):
         *,
         center: NDArray,
         radius: float,
-    ) -> list[list[int]]:
+    ) -> list[tuple[int, int, int]]:
         pass
 
     def get_closest_particle(
@@ -775,39 +770,29 @@ class PythonOctree(Octree):
 
     def __init__(
         self,
-        data: Dataset,
+        dataset: Dataset,
         *,
         particle_threshold: int | None = None,
-        show_pbar: bool = False,
     ) -> None:
         """
         Args:
-            data: Dataset
+            dataset: Dataset
             A Dataset containing particle data
 
             particle_threshold: int, optional
             Number of particles allowed in a leaf before splitting. Defaults to
             _DEFAULT_PARTICLE_THRESHOLD
-
-            show_pbar: bool, optional
-            Show a progress bar during tree construction
         """
         if particle_threshold is None:
             particle_threshold = _DEFAULT_PARTICLE_THRESHOLD
 
-        pbar = None
-        if show_pbar:
-            pbar = tqdm(total=len(data), miniters=1000)
+        data = dataset.data_container
 
         self.root = PythonOctreeNode(
             data=data,
             box=data.bounding_box,
             particle_threshold=particle_threshold,
-            pbar=pbar,
         )
-
-        if pbar is not None:
-            pbar.close()
 
     def get_leaves(self) -> list[PythonOctreeNode]:
         """
@@ -863,7 +848,7 @@ class PythonOctree(Octree):
 
     def _get_containing_node_of_point(
         self,
-        xyz: ArrayLike,
+        xyz: NDArray,
         *,
         start_node: PythonOctreeNode | None = None,
         top_down: bool = True,
@@ -920,8 +905,8 @@ class PythonOctree(Octree):
     def _get_nodes_in_shape(
         self,
         *,
-        bounding_box: bbox.BoxLike,
-        containment_test: ContainmentFunc | None = None,
+        bounding_box: bbox.BoundingBox,
+        containment_obj: bbox.BoundingVolume | None = None,
     ) -> tuple[list[PythonOctreeNode], list[PythonOctreeNode]]:
         """
         Return lists of all nodes entirely inside and partially inside shape
@@ -934,15 +919,13 @@ class PythonOctree(Octree):
                     < partial_leaves[j + 1].z_order
 
         Args:
-            bounding_box: BoxLike
+            bounding_box: BoundingBox
             Shape bounding box
 
-            containment_test: callable, optional
-            Function to test if point(s) are inside shape. Should have the
-            signature
-            containment_test(point: ArrayLike) -> NDArray[bool]
-            Defaults to testing if point(s) are inside the provided bounding
-            box
+            containment_obj: BoundingVolume, optional
+            Object with bounding box specified by bounding_box. Set to provide
+            a more exact containment test (e.g. contained within a sphere).
+            Defaults to bounding_box
 
         Returns:
             entirely_in: List[OctreeNode]
@@ -951,20 +934,13 @@ class PythonOctree(Octree):
             partial_leaves: List[OctreeNode]
             List of leaf nodes that are only partially within shape.
 
-        Raises:
-            IndexError:
-            When there are unexpected issues with the queue system.
         """
-        if containment_test is None:
-
-            def in_box(xyz: ArrayLike) -> NDArray[np.bool_]:
-                return bbox.in_box(bounding_box, xyz)
-
-            containment_test = in_box
+        if containment_obj is None:
+            containment_obj = bounding_box
 
         # node containing bounding box
-        bbox_vertices = bbox.get_box_vertices(bounding_box)
-        bbox_center = bbox.get_box_center(bounding_box)
+        bbox_vertices = bounding_box.get_box_vertices()
+        bbox_center = bounding_box.get_box_center()
         start_node = self._get_containing_node_of_pointlist(bbox_vertices)
 
         # depth-first traversal
@@ -973,7 +949,7 @@ class PythonOctree(Octree):
         # returned in z-order
         entire_nodes = []
         partial_leaves = []
-        child_queue = list(reversed(start_node.children))
+        child_queue: list[PythonOctreeNode | None] = [start_node]
         while len(child_queue):
             node = child_queue.pop()
 
@@ -981,9 +957,9 @@ class PythonOctree(Octree):
                 continue
 
             # Test if node entirely contained in shape
-            node_vertices = bbox.get_box_vertices(node.box)
+            node_vertices = node.box.get_box_vertices()
 
-            vertices_enclosed = sum(containment_test(node_vertices))
+            vertices_enclosed = sum(containment_obj.contains(node_vertices))
 
             if vertices_enclosed:
                 if vertices_enclosed == len(node_vertices):
@@ -997,8 +973,8 @@ class PythonOctree(Octree):
 
             # Also need to check closest point. Should take care of overlapping
             # edges
-            closest_point = bbox.project_point_on_box(node.box, bbox_center)
-            if containment_test(closest_point):
+            closest_point = node.box.project_point_on_box(bbox_center)
+            if containment_obj.contains(np.array(closest_point)):
                 if node.is_leaf:
                     partial_leaves.append(node)
                 else:
@@ -1015,8 +991,7 @@ class PythonOctree(Octree):
         """
         Return lists of all nodes entirely inside and nodes partially inside sphere
 
-        Calls _get_nodes_in_shape with sphere's bounding box and
-        _point_in_sphere as the containment_test
+        Calls _get_nodes_in_shape using a BoundingSphere
 
         Args:
             center: NDArray
@@ -1040,38 +1015,24 @@ class PythonOctree(Octree):
         if len(center) != 3:
             raise ValueError("Center should be a 3 element array")
 
-        # sphere bounding box
-        bounding_box = bbox.BoundingBox(
-            np.array(
-                [
-                    center[0] - radius,
-                    center[1] - radius,
-                    center[2] - radius,
-                    2 * radius,
-                    2 * radius,
-                    2 * radius,
-                ],
-            ),
-        )
-
-        containment_test = partial(_point_in_sphere, center=center, radius=radius)
+        sph = bbox.BoundingSphere(center, radius)
 
         return self._get_nodes_in_shape(
-            bounding_box=bounding_box,
-            containment_test=containment_test,
+            bounding_box=sph.bounding_box,
+            containment_obj=sph,
         )
 
     def _get_particle_indices_in_shape(
         self,
         *,
-        bounding_box: bbox.BoxLike,
-        containment_test: ContainmentFunc | None = None,
-    ) -> list[list[int]]:
+        bounding_box: bbox.BoundingBox,
+        containment_obj: bbox.BoundingVolume | None = None,
+    ) -> list[tuple[int, int, int]]:
         """
         Return all particles contained within a shape that fits inside bounding box
 
         Args:
-            bounding_box: BoxLike
+            bounding_box: BoundingBox
             Shape bounding box
 
             containment_test: Callable[NDArray], optional
@@ -1082,20 +1043,13 @@ class PythonOctree(Octree):
             box
 
         Returns:
-            indices: list[tuple[int]]
+            indices: list[tuple[int, int, int]]
             List of particle start-stop indices contained within shape
         """
 
-        if containment_test is None:
-
-            def in_box(xyz: ArrayLike) -> NDArray[np.bool_]:
-                return bbox.in_box(bounding_box, xyz)
-
-            containment_test = in_box
-
         entirely_in, partial_leaves = self._get_nodes_in_shape(
             bounding_box=bounding_box,
-            containment_test=containment_test,
+            containment_obj=containment_obj,
         )
         # reversed stack is a queue if you're not adding anything new and node
         # lists should be much shorter than final particle index list
@@ -1116,7 +1070,7 @@ class PythonOctree(Octree):
             else:
                 node, is_full = partial_leaves.pop(), False
 
-            indices.append([node.node_start, node.node_end + 1])
+            indices.append((node.node_start, node.node_end + 1, 1 - is_full))
 
         return indices
 
@@ -1124,7 +1078,7 @@ class PythonOctree(Octree):
         self,
         *,
         box: bbox.BoxLike,
-    ) -> list[list[int]]:
+    ) -> list[tuple[int, int, int]]:
         """
         Return all particles contained within the box
 
@@ -1133,10 +1087,12 @@ class PythonOctree(Octree):
             Box to check
 
         Returns:
-            indices: list[list[int]]
+            indices: list[tuple[int, int, int]]
             List of particle start-stop indices contained within sphere
+            Third element of each tuple is a flag for whether only some
+            particles (1) among the start-stop indices are contained or all (0)
         """
-        bounding_box = bbox.make_valid(box).copy()
+        bounding_box = bbox.make_bounding_box(box)
 
         return self._get_particle_indices_in_shape(
             bounding_box=bounding_box,
@@ -1147,7 +1103,7 @@ class PythonOctree(Octree):
         *,
         center: NDArray,
         radius: float,
-    ) -> list[list[int]]:
+    ) -> list[tuple[int, int, int]]:
         """
         Return all particles contained within the sphere defined by center and radius
 
@@ -1159,32 +1115,20 @@ class PythonOctree(Octree):
             Radius of the sphere
 
         Returns:
-            indices: list[tuple[int]]
+            indices: list[tuple[int, int, int]]
             List of particle start-stop indices contained within sphere
+            Third element of each tuple is a flag for whether only some
+            particles (1) among the start-stop indices are contained or all (0)
         """
 
         if len(center) != 3:
             raise ValueError("Center should be a 3 element array")
 
-        # sphere bounding box
-        bounding_box = bbox.BoundingBox(
-            np.array(
-                [
-                    center[0] - radius,
-                    center[1] - radius,
-                    center[2] - radius,
-                    2 * radius,
-                    2 * radius,
-                    2 * radius,
-                ],
-            ),
-        )
-
-        containment_test = partial(_point_in_sphere, center=center, radius=radius)
+        sph = bbox.make_bounding_sphere(center=center, radius=radius)
 
         return self._get_particle_indices_in_shape(
-            bounding_box=bounding_box,
-            containment_test=containment_test,
+            bounding_box=sph.bounding_box,
+            containment_obj=sph,
         )
 
     def get_closest_particle(
@@ -1218,9 +1162,9 @@ class PythonOctree(Octree):
         xyz = np.atleast_1d(xyz)
 
         # ensure point is in octree, project if not
-        if not bbox.in_box(self.root.box, xyz):
+        if not self.root.box.contains(xyz):
             # Project point onto root
-            xyz = bbox.project_point_on_box(self.root.box, xyz)
+            xyz = self.root.box.project_point_on_box(xyz)
 
         node = self._get_containing_node_of_point(xyz)
         node = node if node is not None else self.root
@@ -1241,8 +1185,8 @@ class PythonOctree(Octree):
         )
         neighbors = entirely_in + partial_leaves
         for neighbor in neighbors:
-            pxyz = bbox.project_point_on_box(neighbor.box, xyz)
-            neigh_proj_dist = _distance(xyz, pxyz)
+            pxyz = neighbor.box.project_point_on_box(xyz)
+            neigh_proj_dist = _distance(xyz, np.array(pxyz))
             # Only care about neighbor if neighbor box could contain a closer
             # point than what we've found so far
             if neigh_proj_dist < closest_dist:
@@ -1319,23 +1263,31 @@ class PythonOctree(Octree):
                 nodes.extend(filter(None, reversed(children)))
         return packed.tobytes()
 
+    @classmethod
+    def from_packed(cls, packed: bytes):
+        raise NotImplementedError
 
+
+@njit
 def unpack_node_metadata(
     metadata: int,
-) -> tuple[int, int, int, int]:
+) -> tuple[np.uint8, np.uint8, np.uint8, np.uint8]:
     """
     Unpack a node metadata field into child_flag, my_index, level, and empty
     """
     return (
-        metadata >> 24,
-        (metadata >> 16) & 255,
-        (metadata >> 8) & 255,
-        metadata & 255,
+        np.uint8(metadata >> 24),
+        np.uint8((metadata >> 16) & 255),
+        np.uint8((metadata >> 8) & 255),
+        np.uint8(metadata & 255),
     )
 
 
-def pack_node_metadata(child_flag: int, my_index: int, level: int, empty: int) -> int:
+@njit
+def pack_node_metadata(
+    child_flag: int, my_index: int, level: int, empty: int
+) -> np.uint32:
     """
     Pack child_flag, my_index, level, and empty ints into a metadata int
     """
-    return (child_flag << 24) + (my_index << 16) + (level << 8) + empty
+    return np.uint32((child_flag << 24) + (my_index << 16) + (level << 8) + empty)

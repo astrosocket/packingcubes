@@ -1,10 +1,16 @@
+from __future__ import annotations
+
 import contextlib
 import logging
 import warnings
+from abc import ABC, abstractmethod
 from pathlib import Path
 
 import h5py  # type: ignore
 import numpy as np
+from numba import TypingError, boolean, float64, int64, njit  # type: ignore
+from numba.experimental import jitclass
+from numba.extending import as_numba_type
 from numpy.typing import NDArray
 
 import packingcubes.bounding_box as bbox
@@ -19,6 +25,87 @@ class DatasetError(Exception):
 
 class DatasetWarning(UserWarning):
     pass
+
+
+@jitclass(
+    [
+        ("_positions", float64[:, :]),
+        ("_index", int64[:]),
+        ("_box", bbox.bbn_type),
+        ("_index_dirty", boolean),
+    ]
+)
+class DataContainer:
+    _positions: NDArray
+    _index: NDArray
+    _box: bbox.BoundingBox
+    _index_dirty: bool
+
+    def __init__(self, positions: NDArray, index: NDArray, box: bbox.BoundingBox):
+        self._positions = positions
+        self._index = index
+        self._box = box
+        self._index_dirty = False
+
+    @property
+    def positions(self) -> NDArray[np.float64]:
+        return self._positions
+
+    def _setup_index(self):
+        if not hasattr(self, "_positions"):
+            raise DatasetError("Dataset has no data!")
+        if hasattr(self, "_index"):
+            warnings.warn(
+                "Dataset already has an index. Overwriting!",
+                DatasetWarning,
+                stacklevel=2,
+            )
+        self._index = np.arange(len(self.positions))
+        self._index_dirty = False
+
+    @property
+    def index(self) -> NDArray[np.int_]:
+        if not hasattr(self, "_index"):
+            self._setup_index()
+        return self._index
+
+    def _swap(self, first: int, second: int) -> None:
+        # unrolling loop, to use faster numba code
+        temp = self._positions[first, 0]
+        self._positions[first, 0] = self._positions[second, 0]
+        self._positions[second, 0] = temp
+        temp = self._positions[first, 1]
+        self._positions[first, 1] = self._positions[second, 1]
+        self._positions[second, 1] = temp
+        temp = self._positions[first, 2]
+        self._positions[first, 2] = self._positions[second, 2]
+        self._positions[second, 2] = temp
+        temp = self._index[first]
+        self._index[first] = self._index[second]
+        self._index[second] = temp
+        self._index_dirty = True
+
+    def __len__(self) -> int:
+        return len(self._positions)
+
+    @property
+    def bounding_box(self) -> bbox.BoundingBox:
+        return self._box.copy()
+
+
+try:
+    dc_type = as_numba_type(DataContainer)
+except TypingError:
+    dc_type = type(DataContainer)
+
+
+@njit
+def subview(data: DataContainer, start_index: int, end_index: int) -> DataContainer:
+    return DataContainer(
+        data._positions[start_index:end_index],
+        data._index[start_index:end_index],
+        data._box,
+    )
 
 
 class Dataset:
@@ -39,7 +126,7 @@ class Dataset:
         self.name = name
 
         # the following will need to be set by the data loader
-        self._box = bbox.BoundingBox(np.array([0, 0, 0, 1, 1, 1], dtype=float))
+        self._box = bbox.make_bounding_box(np.array([0, 0, 0, 1, 1, 1], dtype=float))
 
     @property
     def positions(self) -> NDArray:
@@ -63,6 +150,10 @@ class Dataset:
             self._setup_index()
         return self._index
 
+    def reorder(self, new_order):
+        self._positions = self._positions[new_order, :]
+        self._index = self._index[new_order]
+
     def _swap(self, first: int, second: int) -> None:
         temp = self._positions[first, :].copy()
         self._positions[first, :] = self._positions[second, :]
@@ -82,8 +173,96 @@ class Dataset:
     def bounding_box(self) -> bbox.BoundingBox:
         return self._box.copy()
 
+    def _set_bounding_box(self):
+        """
+        Compute bounding box from data
+        """
+        if len(self.positions):
+            # sadly no numpy extrema function...
+            extremes = np.array(
+                [np.min(self.positions, axis=0), np.max(self.positions, axis=0)]
+            )
+            box = np.zeros(6)
+            box[:3] = extremes[0, :] - np.abs(extremes[0, :]) * np.finfo(np.float32).eps
+            box[3:] = extremes[1, :] - extremes[0, :]
+            box[3:] += (
+                np.maximum(box[3:], np.maximum(np.abs(box[:3]), 1))
+                * 2
+                * np.finfo(np.float32).eps
+            )
+        else:
+            box = np.array([0, 0, 0, 1, 1, 1])
+        self._box = bbox.make_bounding_box(box)
 
-class HDF5Dataset(Dataset):
+    @property
+    def data_container(self) -> DataContainer:
+        if not hasattr(self, "_data"):
+            self._data = DataContainer(self._positions, self._index, self._box)
+        return self._data
+
+
+class MultiParticleDataset(Dataset, ABC):
+    @property
+    @abstractmethod
+    def particle_type(self) -> str: ...
+    @particle_type.setter
+    @abstractmethod
+    def particle_type(self, new_type: str): ...
+    @property
+    @abstractmethod
+    def particle_types(self) -> list[str]: ...
+    @property
+    @abstractmethod
+    def particle_numbers(self) -> dict[str, int]: ...
+
+
+class InMemory(MultiParticleDataset):
+    """
+    In-memory Dataset
+
+    Class for datasets where the positions data is entirely in-memory. These
+    datasets generally are not expected to have a name or filepath and may
+    consist solely of positions data.
+    """
+
+    _particle_type: str = "PartType0"
+
+    def __init__(self, *, positions: NDArray, name: str = "", filepath: str = ""):
+        positions = np.atleast_2d(positions)
+        if positions.shape[1] != 3 or len(positions.shape) > 2:
+            raise ValueError(
+                "Only Nx3 arrays are allowed. "
+                + (
+                    f"You provided an {positions.shape[0]}x{positions.shape[1]} array."
+                    if len(positions.shape) == 2
+                    else "You provided an "
+                    + "x".join(f"{i}" for i in positions.shape)
+                    + " array."
+                )
+            )
+        self._positions = positions.astype(np.float64, copy=False)
+        super().__init__(name=name, filepath=filepath)
+        self._set_bounding_box()
+        self._setup_index()
+
+    @property
+    def particle_type(self) -> str:
+        return self._particle_type
+
+    @particle_type.setter
+    def particle_type(self, new_type: str):
+        self._particle_type = new_type
+
+    @property
+    def particle_types(self) -> list[str]:
+        return [self._particle_type]
+
+    @property
+    def particle_numbers(self) -> dict[str, int]:
+        return {self._particle_type: len(self)}
+
+
+class HDF5Dataset(MultiParticleDataset):
     """
     HDF5 Dataset
 
@@ -92,9 +271,24 @@ class HDF5Dataset(Dataset):
     entire dataset since this is for purely spatial sorting.
 
     Note that for simplicity, only one particle type is available at a time.
-    You can use the get_particle_types() and switch_particle_type() methods to
-    change particle types.
+    You can use the particle_type and particle_types attributes to change
+    particle type and get a list of valid particle types.
     """
+
+    _positions_field: str
+    """ Name of the positions dataset in the hdf5 file (e.g. "Coordinates") """
+    _particle_types: list[str]
+    """ List of all particle types in the hdf5 file """
+    _particle_numbers: dict[str, int]
+    """ Per particle type mapping of total number of particles """
+    _top_level_groups: list[str]
+    """ 
+    The top level groups in the file in lowercase (e.g. header, parttype0, cosmology)
+    """
+    _cache_file_name: str
+    """ Name of the cache file for temporary storage """
+    _particle_type: str
+    """ The currently loaded particle type """
 
     def __init__(
         self,
@@ -106,21 +300,18 @@ class HDF5Dataset(Dataset):
 
         self._preload()
         self._set_bounding_box()
-        self._setup_index()
+        self._load_positions()
 
     def _preload(self):
+        """
+        Method to load certain attributes at initialization
+
+        Must set _positions_field, _particle_types, _particle_numbers,
+        _top_level_groups, _cache_file_name, and _particle_type
+        """
         raise NotImplementedError(
             "You are trying to instantiate a base HDF5 class.\nUse a subclass instead.",
         )
-
-    def _set_bounding_box(self):
-        """
-        Compute bounding box from data
-        """
-        # sadly no numpy extrema function...
-        min_bounds = np.min(self.positions, axis=0)
-        max_bounds = np.max(self.positions, axis=0)
-        self._box = bbox.BoundingBox(np.hstack((min_bounds, max_bounds - min_bounds)))
 
     @property
     def particle_type(self):
@@ -150,13 +341,20 @@ class HDF5Dataset(Dataset):
         """
         return self._particle_types
 
+    @property
+    def particle_numbers(self):
+        """
+        Map of particle types to numbers in this dataset
+        """
+        return self._particle_numbers
+
     def _load_positions(self):
         """
         Load particle positions from file for the current particle type
         """
         with h5py.File(self.filepath, "r") as file:
             positions = file[self._particle_type][self._positions_field]
-            self._positions = np.array(positions)
+            self._positions = np.array(positions, dtype=np.float64)
         with h5py.File(self._cache_file_name, "r") as _cache_file:
             if self._particle_type in _cache_file:
                 self._index = np.array(_cache_file[self._particle_type])
@@ -180,11 +378,15 @@ class GadgetishHDF5Dataset(HDF5Dataset):
     def _preload(self):
         # TODO handle case where particles are split across multiple files...
         particle_types = []
+        groups = []
         self._positions_field = "Coordinates"
         with h5py.File(self.filepath) as file:
             self._header = dict(file["Header"].attrs)
-            groups = file.keys()
+            groups.extend(file.keys())
             particle_types.extend([p for p in groups if "Part" in p])
+        if not groups:
+            raise DatasetError("This dataset appears to be empty")
+        self._top_level_groups = [g.lower() for g in groups]
         if not particle_types:
             raise DatasetError(
                 "No particle types found in dataset. Looking for groups named Part*",
@@ -203,7 +405,12 @@ class GadgetishHDF5Dataset(HDF5Dataset):
                 file.create_dataset("Header", dtype=float)
 
         # set initial particle type and load data
-        self.particle_type = particle_types[0]
+        self._particle_type = particle_types[0]
+        self._particle_numbers = self._header["NumPart_Total"]
+        self._particle_numbers = self._particle_numbers[self._particle_numbers > 0]
+        self._particle_numbers = dict(
+            zip(self._particle_types, self._particle_numbers, strict=True)
+        )
 
     def _set_bounding_box(self):
         # Use BoxLen from header if provided
@@ -222,22 +429,6 @@ class GadgetishHDF5Dataset(HDF5Dataset):
                         "Don't know how to deal with a header "
                         f"BoxSize of {len(boxSize)}!",
                     )
-            self._box = bbox.BoundingBox(box)
+            self._box = bbox.make_bounding_box(box)
         else:
             super()._set_bounding_box()
-
-
-class TranslatedHDF5Dataset(HDF5Dataset):
-    """
-    Already translated HDF5 dataset
-
-    Represents an HDF5 dataset that has already been translated by the
-    translation function. Thus it is guaranteed to already have certain
-    fields.
-
-    """
-
-    def _preload(self):
-        raise NotImplementedError(
-            "Not yet implemented. Use GadgetishHDF5Dataset for now.",
-        )

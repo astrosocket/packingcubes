@@ -17,7 +17,7 @@ body = """
         - {% if commit.scope %}*({{ commit.scope }})* {% endif %}\
             {% if commit.breaking %}[**breaking**] {% endif %}\
             {{ commit.message | split(pat="\n") | first | upper_first | trim }} \
-            ([{{ commit.id | truncate(length=7, end="") }}]({{ commit.id }}))\
+            ([{{ commit.id | truncate(length=7, end="") }}](<COMMIT>{{ commit.id }}))\
     {% endfor %}
 {% endfor %}
 """
@@ -33,6 +33,7 @@ render_always = true
 postprocessors = [
     # Replace the placeholder <REPO> with a URL.
     { pattern = '<REPO>', replace = "https://github.com/astrosocket/packingcubes" },
+    { pattern = '<COMMIT>', replace = "https://github.com/astrosocket/packingcubes/commit/" },
 ]
 # render body even when there are no releases to process
 # render_always = true

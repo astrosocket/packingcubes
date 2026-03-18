@@ -2,16 +2,20 @@
 
 import copy
 import logging
+import warnings
 
 import numpy as np
 import pytest
-from hypothesis import assume
 from hypothesis import strategies as st
 from hypothesis.extra import numpy as hypnp
 from numpy.random import RandomState
 
-from packingcubes.bounding_box import BoundingBox
+from packingcubes.bounding_box import (
+    make_bounding_box,
+    make_bounding_sphere,
+)
 from packingcubes.data_objects import Dataset
+from packingcubes.packed_tree import PackedTree
 
 LOGGER = logging.getLogger(__name__)
 
@@ -37,12 +41,37 @@ def fake_basic_dataset(num_particles: int = 10, seed: int = 0xDEADBEEF) -> Datas
     return ds
 
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture(scope="package", autouse=True)
 def make_basic_data():
     def _basic_data(num_particles=10, seed=0xDEADBEEF):
         return fake_basic_dataset(num_particles, seed)
 
     return _basic_data
+
+
+#############################
+# Numba pre-compilation
+#############################
+@pytest.fixture(scope="package", autouse=True)
+def basic_bounding_box():
+    return make_bounding_box([0, 0, 0, 1, 1, 1])
+
+
+@pytest.fixture(scope="package", autouse=True)
+def basic_bounding_sphere():
+    return make_bounding_sphere(1, center=[0, 0, 0])
+
+
+@pytest.fixture(scope="package", autouse=True)
+def basic_data_container(make_basic_data):
+    return make_basic_data().data_container
+
+
+@pytest.fixture(scope="package", autouse=True)
+def basic_optree(make_basic_data):
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        return PackedTree(dataset=make_basic_data(), particle_threshold=1)
 
 
 #############################
@@ -78,6 +107,13 @@ def valid_boxes(draw):
         ),
     )
     return np.array(box_pos + box_dx)
+
+
+@st.composite
+def valid_sphere_radius(draw, center):
+    # use largest |coordinate| to specify radius
+    large_coord = np.max(np.abs(center))
+    return draw(valid_dx(x=large_coord))
 
 
 @st.composite
@@ -121,8 +157,58 @@ def invalid_boxes(draw):
 
 
 @st.composite
+def invalid_spheres(draw):
+    error_type = draw(st.integers(min_value=1, max_value=4))
+    use_bad_center = error_type == 2 or error_type == 4
+    use_bad_radii = error_type >= 3
+
+    if error_type == 1:
+        return draw(
+            st.tuples(
+                hypnp.arrays(
+                    float, hypnp.array_shapes().filter(lambda a: np.prod(a) != 3)
+                ),
+                st.just(1),
+            )
+        )
+
+    good_center = draw(valid_positions(max_particles=1))
+    center = draw(invalid_positions(max_particles=1)) if use_bad_center else good_center
+    center = center[0]
+
+    @st.composite
+    def bad_radii(draw, center):
+        ind = draw(st.integers(min_value=0, max_value=2))
+        return draw(
+            st.just(np.inf)
+            | st.just(np.nan)
+            | st.just(center[ind] * np.finfo(float).eps / 16)
+            | st.just(center[ind] / np.finfo(float).eps * 16)
+        )
+
+    if use_bad_radii:
+        radii = draw(bad_radii(center=center))
+    else:
+        radii = draw(valid_sphere_radius(center=good_center[0]))
+    return (center, radii)
+
+
+@st.composite
 def valid_bounding_boxes(draw):
-    return BoundingBox(draw(valid_boxes()))
+    return make_bounding_box(draw(valid_boxes()))
+
+
+@st.composite
+def valid_spheres(draw):
+    center = np.array(draw(st.tuples(valid_coord(), valid_coord(), valid_coord())))
+    radius = draw(valid_sphere_radius(center=center))
+    return (center, radius)
+
+
+@st.composite
+def valid_bounding_spheres(draw):
+    center, radius = draw(valid_spheres())
+    return make_bounding_sphere(radius=radius, center=center)
 
 
 def valid_positions(max_particles=3e2):
@@ -165,27 +251,19 @@ def invalid_positions(draw, max_particles=3e2):
 def basic_data_strategy(draw, max_particles=3e2):
     ds = Dataset(name="basic_strategy", filepath="")
     positions = draw(valid_positions(max_particles=max_particles))
-    extremes = np.array([np.min(positions, axis=0), np.max(positions, axis=0)])
-    if len(positions) == 0:
-        box = np.array([0, 0, 0, 1, 1, 1])
-    elif len(positions) == 1:
-        box = np.zeros(6)
-        box[:3] = positions
-        box[3:] = ((box[:3] == 0) + (box[:3] != 0) * np.abs(box[:3])) * np.finfo(
-            float,
-        ).eps
-    else:
-        box = np.zeros(6)
-        box[:3] = extremes[0, :]
-        box[3:] = extremes[1, :] - extremes[0, :]
-    assume(np.all(box[3:] > np.abs(box[:3]) / 1e10))
-    ds._box = BoundingBox(box)
 
     ds._positions = positions
+    ds._set_bounding_box()
 
     ds._setup_index()
 
     return ds
+
+
+@st.composite
+def basic_data_container_strategy(draw, max_particles=3e2):
+    ds = draw(basic_data_strategy(max_particles=max_particles))
+    return ds.data_container
 
 
 @st.composite
