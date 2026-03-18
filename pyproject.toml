@@ -33,7 +33,7 @@ classifiers = [
 ]
 keywords = ["astronomy", "astrophysics"]
 license = "MIT"
-license-files = ["LICENSE.txt"]
+license-files = ["LICENSE"]
 dynamic = ["version","readme"]
 
 [project.urls]
@@ -108,9 +108,14 @@ select = [
     "C90",
     # numpy
     "NPY",
+    # Docstrings - not yet ready
+    # "D",
 ]
 ignore = ["F841", "SIM300"]
 unfixable = ["B"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
 
 [tool.coverage.run]
 source = [
