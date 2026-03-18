@@ -86,7 +86,6 @@ readme = {file = ["README.md"]}
 [tool.setuptools_scm]
 version_scheme = "guess-next-dev"
 local_scheme = "dirty-tag"
-write_to = "packingcubes/_version.py"
 
 [tool.ruff.lint]
 select = [
