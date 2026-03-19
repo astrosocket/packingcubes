@@ -69,6 +69,7 @@ jupyter = [
     "ipykernel",
     "ipympl",
 ]
+build = ["setuptools", "wheel>=0.46.3,<0.47", "build>=1.4.0,<2", "setuptools-scm"]
 dev = [
     "ruff",
     "pre-commit",
@@ -86,7 +87,6 @@ readme = {file = ["README.md"]}
 [tool.setuptools_scm]
 version_scheme = "guess-next-dev"
 local_scheme = "dirty-tag"
-write_to = "packingcubes/_version.py"
 
 [tool.ruff.lint]
 select = [
@@ -145,6 +145,7 @@ dev = { features = ["test","viz","jupyter","dev","profile"], solve-group = "defa
 test = { features = ["test","viz", "jupyter"], solve-group = "default" }
 viz = { features = ["viz", "jupyter"], solve-group = "default" }
 jupyter = { features = ["jupyter"], solve-group = "default" }
+build = { features = ["build"], solve-group = "default" }
 
 [tool.pixi.tasks]
 
