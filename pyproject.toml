@@ -69,7 +69,7 @@ jupyter = [
     "ipykernel",
     "ipympl",
 ]
-build = ["setuptools", "wheel>=0.46.3,<0.47", "build>=1.4.0,<2"]
+build = ["setuptools", "wheel>=0.46.3,<0.47", "build>=1.4.0,<2", "setuptools-scm"]
 dev = [
     "ruff",
     "pre-commit",
@@ -184,8 +184,6 @@ ipykernel = ">=7.1.0,<8"
 ipympl = ">=0.9.8,<0.10"
 ipywidgets = ">=8.1.8,<9"
 jupyter-rfb = ">=0.5.4,<0.6"
-
-[tool.pixi.feature.build.dependencies]
 
 [tool.pixi.dependencies]
 numpy = "*"

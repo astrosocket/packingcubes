@@ -1,4 +1,3 @@
-import contextlib
 import logging
 from importlib.metadata import PackageNotFoundError, version
 
@@ -8,8 +7,10 @@ from packingcubes.data_objects import GadgetishHDF5Dataset as HDF5Dataset
 from packingcubes.packed_tree import KDTree as KDTree
 from packingcubes.packed_tree import PackedTree as Optree
 
-with contextlib.suppress(PackageNotFoundError):
-    __version__ = version("package-name")
+try:
+    __version__ = version("packingcubes")
+except PackageNotFoundError:
+    __version__ = "Not Found"
 
 __all__ = [
     "Optree",
