@@ -14,6 +14,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+        with:
+          # Fetch full history for setuptools-scm
+          fetch-depth: 0
 
       - uses: actions/setup-python@v6
         with:
@@ -52,6 +55,7 @@ jobs:
   #   environment:
   #     name: pypi
   #     url: https://pypi.org/p/packingcubes
+  #     SETUPTOOLS_SCM_OVERRIDES_FOR_PACKINGCUBES: '{local_scheme = "no-local-version"}'
 
   #   steps:
   #     - name: Retrieve release distributions
@@ -80,6 +84,7 @@ jobs:
   #   environment:
   #     name: testpypi
   #     url: https://test.pypi.org/p/packingcubes
+  #     SETUPTOOLS_SCM_OVERRIDES_FOR_PACKINGCUBES: '{local_scheme = "no-local-version"}'
 
   #   steps:
   #     - name: Retrieve release distributions
