@@ -33,11 +33,11 @@ jobs:
           pixi run -e build python -c "import packingcubes;print(packingcubes.__version__)"
           pixi run -e build python -m build
 
-      # - name: Upload distributions
-      #   uses: actions/upload-artifact@v7
-      #   with:
-      #     name: release-dists
-      #     path: dist/
+      - name: Upload distributions
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-dists
+          path: dist/
 
   # pypi-publish:
   #   runs-on: ubuntu-latest
@@ -70,32 +70,32 @@ jobs:
   #         print-hash: true
   #         verbose: true
 
-  # testpypi-publish:
-  #   runs-on: ubuntu-latest
+  testpypi-publish:
+    runs-on: ubuntu-latest
 
-  #   needs:
-  #     - release-build
+    needs:
+      - release-build
 
-  #   permissions:
-  #     # IMPORTANT: this permission is mandatory for trusted publishing
-  #     id-token: write
+    permissions:
+      # IMPORTANT: this permission is mandatory for trusted publishing
+      id-token: write
 
-  #   # Dedicated environments with protections for publishing are strongly recommended
-  #   environment:
-  #     name: testpypi
-  #     url: https://test.pypi.org/p/packingcubes
-  #     SETUPTOOLS_SCM_OVERRIDES_FOR_PACKINGCUBES: '{local_scheme = "no-local-version"}'
+    # Dedicated environments with protections for publishing are strongly recommended
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/packingcubes
+      SETUPTOOLS_SCM_OVERRIDES_FOR_PACKINGCUBES: '{local_scheme = "no-local-version"}'
 
-  #   steps:
-  #     - name: Retrieve release distributions
-  #       uses: actions/download-artifact@v8
-  #       with:
-  #         name: release-dists
-  #         path: dist/
+    steps:
+      - name: Retrieve release distributions
+        uses: actions/download-artifact@v8
+        with:
+          name: release-dists
+          path: dist/
 
-  #     - name: Publish release distributions to PyPI
-  #       uses: pypa/gh-action-pypi-publish@release/v1
-  #       with:
-  #         repository-url: https://test.pypi.org/legacy/
-  #         print-hash: true
-  #         verbose: true
+      - name: Publish release distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          print-hash: true
+          verbose: true
