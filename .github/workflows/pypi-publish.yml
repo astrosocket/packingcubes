@@ -84,6 +84,8 @@ jobs:
     environment:
       name: testpypi
       url: https://test.pypi.org/p/packingcubes
+
+    env:
       SETUPTOOLS_SCM_OVERRIDES_FOR_PACKINGCUBES: '{local_scheme = "no-local-version"}'
 
     steps:
