@@ -9,7 +9,7 @@ from numpy.typing import ArrayLike, NDArray
 
 import packingcubes.bounding_box as bbox
 import packingcubes.octree as octree
-from packingcubes.data_objects import Dataset, InMemory
+from packingcubes.data_objects import DataContainer, Dataset, InMemory
 from packingcubes.packed_tree.packed_tree import PackedTree
 
 LOGGER = logging.getLogger(__name__)
@@ -124,6 +124,10 @@ class KDTreeAPI:
     _dataset: Dataset
     """
     Link to the dataset used. Needed for returning strict index lists.
+    """
+    _data_container: DataContainer
+    """
+    Pointer to the dataset's DataContainer object. 
     """
     _copied: bool
     """
