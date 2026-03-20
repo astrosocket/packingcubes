@@ -28,6 +28,7 @@ from packingcubes.data_objects import (
     Dataset,
     GadgetishHDF5Dataset,
     HDF5Dataset,
+    InMemory,
     MultiParticleDataset,
     subview,
 )
@@ -756,12 +757,15 @@ class Cubes:
     def __init__(
         self,
         *,
-        dataset: str | MultiParticleDataset | None = None,
+        dataset: str | NDArray | MultiParticleDataset | None = None,
         cubes_dict: dict[str, dict] | None = None,
         **kwargs,
     ):
         if cubes_dict is None and dataset is None:
             raise CubesError("Must provide either a cubes_dict or dataset!")
+        dataset = (
+            InMemory(positions=dataset) if isinstance(dataset, np.ndarray) else dataset
+        )
         # we only want to load the dataset if we need to
         if cubes_dict is None:
             assert dataset is not None
