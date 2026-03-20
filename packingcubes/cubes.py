@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import contextlib
 import logging
 import sys
 from collections.abc import Collection
@@ -718,6 +717,38 @@ def load_cubes(
     return cubes_dict
 
 
+class CubesError(Exception):
+    pass
+
+
+def _has_trees(cubes_dict: dict[str, dict]) -> bool:
+    """
+    Check if cubes_dict has trees in it
+    """
+    return all("cube_trees" in cubes for _, cubes in cubes_dict.items())
+
+
+def _add_trees_to_cubes_dict(
+    *, cubes_dict: dict[str, dict], dataset: MultiParticleDataset, **kwargs
+):
+    """
+    Generate missing PackedTrees from dataset on per-particle-type basis
+    """
+    particle_threshold = getattr(
+        kwargs, "particle_threshold", _DEFAULT_PARTICLE_THRESHOLD
+    )
+    for pt, cubes in cubes_dict.items():
+        dataset.particle_type = pt
+        cube_indices = cast(NDArray, cubes["cube_indices"])
+        cube_boxes = cast(list[bbox.BoundingBox], cubes["cube_boxes"])
+        cube_trees = _make_trees(
+            data=dataset.data_container,
+            cube_indices=cube_indices,
+            cube_boxes=cube_boxes,
+            particle_threshold=particle_threshold,
+        )
+
+
 class Cubes:
     cubes_dict: dict[str, ParticleCubes]
     """ Mapping from particle type to ParticleCubes for this dataset """
@@ -725,43 +756,52 @@ class Cubes:
     def __init__(
         self,
         *,
-        dataset: MultiParticleDataset,
+        dataset: str | MultiParticleDataset | None = None,
         cubes_dict: dict[str, dict] | None = None,
         **kwargs,
     ):
+        if cubes_dict is None and dataset is None:
+            raise CubesError("Must provide either a cubes_dict or dataset!")
+        # we only want to load the dataset if we need to
         if cubes_dict is None:
-            with contextlib.suppress(NotImplementedError, ValueError):
+            assert dataset is not None
+            try:
                 cubes_dict = load_cubes(dataset)
-        self._make_cubes(dataset=dataset, cubes_dict=cubes_dict, **kwargs)
+            except (NotImplementedError, ValueError):
+                dataset = (
+                    GadgetishHDF5Dataset(filepath=dataset)
+                    if isinstance(dataset, str)
+                    else dataset
+                )
+                cubes_dict = make_cubes(dataset=dataset, **kwargs)
+        else:
+            if not _has_trees(cubes_dict):
+                if dataset is None:
+                    raise CubesError("cubes_dict has no trees and dataset not provided")
+                dataset = (
+                    GadgetishHDF5Dataset(filepath=dataset)
+                    if isinstance(dataset, str)
+                    else dataset
+                )
+                _add_trees_to_cubes_dict(
+                    cubes_dict=cubes_dict, dataset=dataset, **kwargs
+                )
+        self._make_cubes(cubes_dict=cubes_dict, **kwargs)
 
     def _make_cubes(
         self,
         *,
-        dataset: MultiParticleDataset,
-        cubes_dict: dict[str, dict] | None,
+        cubes_dict: dict[str, dict],
         **kwargs,
     ):
-        if cubes_dict is None:
-            cubes_dict = make_cubes(dataset=dataset, **kwargs)
         self.cubes_dict = {}
         for pt, cubes in cubes_dict.items():
             cube_indices = cast(NDArray, cubes["cube_indices"])
             cube_boxes = cast(list[bbox.BoundingBox], cubes["cube_boxes"])
-            if not hasattr(cubes, "cube_trees"):
-                particle_threshold = getattr(
-                    kwargs, "particle_threshold", _DEFAULT_PARTICLE_THRESHOLD
-                )
-                cube_trees = _make_trees(
-                    data=dataset.data_container,
-                    cube_indices=cube_indices,
-                    cube_boxes=cube_boxes,
-                    particle_threshold=particle_threshold,
-                )
-            else:
-                cube_trees = cast(
-                    list[PackedTree] | list[NDArray] | list[PackedTree | NDArray],
-                    cubes["cube_trees"],
-                )
+            cube_trees = cast(
+                list[PackedTree] | list[NDArray] | list[PackedTree | NDArray],
+                cubes["cube_trees"],
+            )
             self.cubes_dict[pt] = ParticleCubes(
                 cube_indices=cube_indices,
                 cube_boxes=cube_boxes,
