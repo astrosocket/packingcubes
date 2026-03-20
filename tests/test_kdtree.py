@@ -8,8 +8,8 @@ from packingcubes import KDTree
 # The following are modified from the scipy.KDTree.query example
 @pytest.fixture
 def scipy_query_example():
-    x, y, z = np.mgrid[0:5, 2:8, 0:1]
-    data = np.c_[x.ravel(), y.ravel(), z.ravel()]
+    x, y = np.mgrid[0:5, 2:8]
+    data = np.c_[x.ravel(), y.ravel()]
     # our kdtree has a different leafsize by default than scipy's
     # we return indices into the modified/sorted dataset by default
     # unless copy_data=True. So we could change all of the query calls,
@@ -20,7 +20,7 @@ def scipy_query_example():
 def test_query_example1(scipy_query_example):
     tree = scipy_query_example
 
-    dd, ii = tree.query([[0, 0, 0], [2.2, 2.9, 0]], k=1)
+    dd, ii = tree.query([[0, 0], [2.2, 2.9]], k=1)
     assert dd.shape == (2,)
     assert ii.shape == (2,)
     assert dd == pytest.approx([2.0, 0.2236068])
@@ -30,7 +30,7 @@ def test_query_example1(scipy_query_example):
 def test_query_example2(scipy_query_example):
     tree = scipy_query_example
 
-    dd, ii = tree.query([[0, 0, 0], [2.2, 2.9, 0]], k=[1])
+    dd, ii = tree.query([[0, 0], [2.2, 2.9]], k=[1])
     assert dd.shape == (2, 1)
     assert ii.shape == (2, 1)
     assert dd.flatten() == pytest.approx([2.0, 0.2236068])
@@ -40,7 +40,7 @@ def test_query_example2(scipy_query_example):
 def test_query_example3(scipy_query_example):
     tree = scipy_query_example
 
-    dd, ii = tree.query([[0, 0, 0], [2.2, 2.9, 0]], k=[2])
+    dd, ii = tree.query([[0, 0], [2.2, 2.9]], k=[2])
     assert dd.shape == (2, 1)
     assert ii.shape == (2, 1)
     assert dd.flatten() == pytest.approx([2.23606798, 0.80622577])
@@ -50,7 +50,7 @@ def test_query_example3(scipy_query_example):
 def test_query_example4(scipy_query_example):
     tree = scipy_query_example
 
-    dd, ii = tree.query([[0, 0, 0], [2.2, 2.9, 0]], k=2)
+    dd, ii = tree.query([[0, 0], [2.2, 2.9]], k=2)
     assert dd.shape == (2, 2)
     assert ii.shape == (2, 2)
     assert dd.flatten() == pytest.approx([2.0, 2.23606798, 0.2236068, 0.80622577])
@@ -60,7 +60,7 @@ def test_query_example4(scipy_query_example):
 def test_query_example5(scipy_query_example):
     tree = scipy_query_example
 
-    dd, ii = tree.query([[0, 0, 0], [2.2, 2.9, 0]], k=[1, 2])
+    dd, ii = tree.query([[0, 0], [2.2, 2.9]], k=[1, 2])
     assert dd.shape == (2, 2)
     assert ii.shape == (2, 2)
     assert dd.flatten() == pytest.approx([2.0, 2.23606798, 0.2236068, 0.80622577])
@@ -70,8 +70,8 @@ def test_query_example5(scipy_query_example):
 # The following are modified from the scipy.KDTree.query_ball_point example
 @pytest.fixture
 def scipy_query_ball_point_example():
-    x, y, z = np.mgrid[0:5, 0:5, 0:1]
-    data = np.c_[x.ravel(), y.ravel(), z.ravel()]
+    x, y = np.mgrid[0:5, 0:5]
+    data = np.c_[x.ravel(), y.ravel()]
     # our kdtree has a different leafsize by default than scipy's
     # we return indices into the modified/sorted dataset by default
     # unless copy_data=True. So we could change all of the query_ball calls,
@@ -81,7 +81,7 @@ def scipy_query_ball_point_example():
 
 def test_query_ball_point_example1(scipy_query_ball_point_example):
     tree = scipy_query_ball_point_example
-    qbp = tree.query_ball_point([2, 0, 0], 1)
+    qbp = tree.query_ball_point([2, 0], 1)
     qbps = sorted(qbp)
     true = [5, 10, 11, 15]
     for q, t in zip(qbps, true, strict=True):
@@ -90,7 +90,7 @@ def test_query_ball_point_example1(scipy_query_ball_point_example):
 
 def test_query_ball_point_example2(scipy_query_ball_point_example):
     tree = scipy_query_ball_point_example
-    qbp = tree.query_ball_point(([2, 0, 0], [3, 3, 0]), 1)
+    qbp = tree.query_ball_point(([2, 0], [3, 3]), 1)
 
     assert qbp.shape == (2,)
     assert qbp.dtype == np.dtype("O")
@@ -106,12 +106,8 @@ def test_query_ball_point_example2(scipy_query_ball_point_example):
 # The following are modified from the scipy.KDTree.query_ball_tree example
 def scipy_query_ball_tree_example_unwrapped():
     rng = np.random.default_rng()
-    points1_2d = rng.random((15, 2))
-    points2_2d = rng.random((15, 2))
-    points1 = np.zeros_like(points1_2d, shape=(points1_2d.shape[0], 3))
-    points1[:, :2] = points1_2d
-    points2 = np.zeros_like(points2_2d, shape=(points2_2d.shape[0], 3))
-    points2[:, :2] = points2_2d
+    points1 = rng.random((15, 2))
+    points2 = rng.random((15, 2))
     # our kdtree has a different leafsize by default than scipy's
     tree1 = KDTree(
         data=points1,
@@ -165,10 +161,10 @@ def plot_query_ball_tree_example():
     ):
         ax.plot(points1[:, 0], points1[:, 1], "xk", markersize=14)
         ax.plot(points2[:, 0], points2[:, 1], "og", markersize=14)
-        for i, xyz in enumerate(points1):
-            ax.annotate(f"{i}", xy=xyz[:2] + 0.01, color="k")
-        for i, xyz in enumerate(points2):
-            ax.annotate(f"{i}", xy=xyz[:2] + 0.01, color="g")
+        for i, xy in enumerate(points1):
+            ax.annotate(f"{i}", xy=xy + 0.01, color="k")
+        for i, xy in enumerate(points2):
+            ax.annotate(f"{i}", xy=xy + 0.01, color="g")
         indexes = t1.query_ball_tree(t2, r=0.2)
         if isinstance(t1, KDTree):
             indexes = [sorted(inds) for inds in indexes]
@@ -176,8 +172,8 @@ def plot_query_ball_tree_example():
             for j in indexes[i]:
                 ax.annotate(
                     "",
-                    xytext=points1[i, :2],
-                    xy=points2[j, :2],
+                    xytext=points1[i, :],
+                    xy=points2[j, :],
                     arrowprops={"color": "r", "ls": "-", "lw": 0.5},
                 )
         ax.set_title(title)
@@ -187,9 +183,7 @@ def plot_query_ball_tree_example():
 # The following are modified from the scipy.KDTree.query_ball_tree example
 def scipy_query_pairs_example_unwrapped():
     rng = np.random.default_rng()
-    points_2d = rng.random((20, 2))
-    points = np.zeros_like(points_2d, shape=(points_2d.shape[0], 3))
-    points[:, :2] = points_2d
+    points = rng.random((20, 2))
     # our kdtree has a different leafsize by default than scipy's
     tree = KDTree(
         data=points,
@@ -230,16 +224,16 @@ def plot_query_pairs_example():
     fig.set_figheight(6)
     for ax, t1, title in zip(axs, [tree, stree], ["kdtree", "scipy"], strict=True):
         ax.plot(points[:, 0], points[:, 1], "xk", markersize=14)
-        for i, xyz in enumerate(points):
-            ax.annotate(f"{i}", xy=xyz[:2] + 0.01, color="k")
+        for i, xy in enumerate(points):
+            ax.annotate(f"{i}", xy=xy + 0.01, color="k")
         pairs = t1.query_pairs(r=0.2)
         if isinstance(t1, KDTree):
             pass
         for i, j in pairs:
             ax.annotate(
                 "",
-                xytext=points[i, :2],
-                xy=points[j, :2],
+                xytext=points[i, :],
+                xy=points[j, :],
                 arrowprops={"color": "r", "ls": "-", "lw": 0.5},
             )
         ax.set_title(title)

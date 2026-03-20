@@ -9,7 +9,7 @@ from numpy.typing import ArrayLike, NDArray
 
 import packingcubes.bounding_box as bbox
 import packingcubes.octree as octree
-from packingcubes.data_objects import Dataset, InMemory
+from packingcubes.data_objects import DataContainer, Dataset, InMemory
 from packingcubes.packed_tree.packed_tree import PackedTree
 
 LOGGER = logging.getLogger(__name__)
@@ -24,18 +24,46 @@ class KDTreeError(octree.OctreeError):
     pass
 
 
-def _check_3d(x: ArrayLike) -> NDArray:
-    x = np.atleast_2d(x)
-    if len(x.shape) > 2 or x.shape[1] != 3:
+def _check_data_shape(*, data: ArrayLike, copy_data: bool) -> tuple[NDArray, bool]:
+    """
+    Check shape of provided data and coerce to 3D if possible
+
+    Args:
+        data: NDArray
+        Provided data array
+
+        copy_data: bool
+        Whether the data should be copied if it's already (N,3)
+
+    Returns:
+        data: NDArray
+        An (N,3) version of data
+
+        data_copied: bool
+        Whether the data was copied. data_copied=copy_data if data was already
+        (N,3), otherwise True
+
+    Raises:
+        KDTreeError if provided data cannot be coerced to (N,3)
+    """
+    data = np.atleast_2d(np.squeeze(data))
+    data_shape = data.shape
+    if len(data_shape) != 2 or data_shape[1] > 3:
         raise KDTreeError(
-            "PackedTrees only support 3-dimensional query points. "
+            "PackedTrees only support (N,m) data. Provided data "
             + (
-                f"Provided point(s) were {x.shape[1]}-dimensional"
-                if x.shape[1] != 3
-                else (f"Provided inputs were {'x'.join(f'{x1}' for x1 in x.shape[1:])}")
+                f"was {data_shape}."
+                if len(data_shape) >= 2
+                else f"was {data_shape[1]}-dimensional."
             )
         )
-    return x
+
+    if data_shape[1] < 3:
+        zero_pad = np.zeros_like(data, shape=(data_shape[0], 3))
+        zero_pad[:, : data_shape[1]] = data
+        # we can ignore the copy_data flag; the data was already copied
+        return zero_pad, True
+    return data.copy() if copy_data else data, copy_data
 
 
 class KDTreeAPI:
@@ -55,11 +83,14 @@ class KDTreeAPI:
     sufficiently separated.
 
     Args:
-        data : array_like, shape (n,3)
-        The n 3-dimensional data points to be indexed. This array is
-        not copied and will be sorted in place, so modifying this data will
-        result in bogus results. The data are also copied if the kd-tree is
-        built with copy_data=True.
+        data : array_like, shape (n,m)
+        The n m-dimensional data points to be indexed. This array is
+        preferentially not copied and will be sorted in place, so modifying
+        this data will result in bogus results. The data are also copied if
+        the kd-tree is built with copy_data=True. Note: PackedTrees are
+        intended to support 3-dimensional data, so m>3 is not supported. For
+        m<3, the data is padded with zeros (e.g. [[1, 2], [3, 4]] will become
+        [[1, 2, 0], [3, 4, 0]]). This will lead to the data being copied.
 
         leafsize : positive int, optional
         The number of points at which the algorithm switches over to
@@ -93,6 +124,10 @@ class KDTreeAPI:
     _dataset: Dataset
     """
     Link to the dataset used. Needed for returning strict index lists.
+    """
+    _data_container: DataContainer
+    """
+    Pointer to the dataset's DataContainer object. 
     """
     _copied: bool
     """
@@ -160,18 +195,12 @@ class KDTreeAPI:
                 KDTreeWarning,
                 stacklevel=1,
             )
-        data_shape = data.shape
-        if len(data_shape) != 2 or data_shape[1] != 3:
-            raise KDTreeError(
-                "PackedTrees only support 3-dimensional data. Provided data "
-                + (
-                    f"was {data_shape[1]}-dimensional"
-                    if len(data_shape) >= 2
-                    else "was 1-dimensional."
-                )
-            )
-        self._dataset = InMemory(positions=data.copy() if copy_data else data)
-        self._copied = copy_data
+
+        # Note: this also handles if the data should be copied
+        data, data_copied = _check_data_shape(data=data, copy_data=copy_data)
+
+        self._dataset = InMemory(positions=data)
+        self._copied = data_copied
         self._data_container = self._dataset.data_container
         self.data = self._dataset.positions
         self.n = len(self.data)
@@ -341,7 +370,7 @@ class KDTreeAPI:
             NotImplementedError if p!=2
 
         """
-        x = _check_3d(x)
+        x, _ = _check_data_shape(data=x, copy_data=False)
 
         distance_upper_bound = (
             1e100 if distance_upper_bound is None else distance_upper_bound
@@ -538,7 +567,7 @@ class KDTreeAPI:
         >>> plt.show()
 
         """
-        x = _check_3d(x)
+        x, _ = _check_data_shape(data=x, copy_data=False)
 
         p = 2 if p is None else p
         if p != 2:

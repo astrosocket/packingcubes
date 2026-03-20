@@ -247,7 +247,6 @@ def _process_leaf_for_pilis_tree(
     strict: bool,  #  noqa: FBT001, FBT002
     query: list[NDArray[np.int64]],
 ):
-    print("In leaf")  # noqa
     # unwrap loops to reduce complexity
     box.box[0] = node.box.box[0] - r
     box.box[1] = node.box.box[1] - r
@@ -255,44 +254,14 @@ def _process_leaf_for_pilis_tree(
     box.box[3] = node.box.box[3] + r2
     box.box[4] = node.box.box[4] + r2
     box.box[5] = node.box.box[5] + r2
-    sph_inds = otree._get_particle_indices_in_shape(box, box)
-    print("sph_inds:", sph_inds)  # noqa
     pil = otree._get_particle_index_list_in_shape(odata, box, box)
-    print(  # noqa
-        "node box:",
-        node.box.box,
-        "\nsearch box:",
-        box.box,
-        "\notree box:",
-        otree.box.box,
-    )
-    print(  # noqa
-        "pil:",
-        pil,
-        "node:",
-        node.tag,
-    )
     for index in range(node.node_start, node.node_end + 1):
-        print(  # noqa
-            "index:",
-            index,
-            "shuffle:",
-            data._index[index],
-        )
         if strict:
             reduced_pil = List.empty_list(np.int64)
             x, y, z = data._positions[index, :]
             for oindex in pil:
                 ox, oy, oz = odata._positions[oindex, :]
                 d = d2_function(x, y, z, ox, oy, oz)
-                print(  # noqa
-                    "oindex:",
-                    oindex,
-                    "shuffle:",
-                    odata._index[oindex],
-                    "contained:",
-                    d < rsq,
-                )
                 if d < rsq:
                     reduced_pil.append(oindex)
             query.append(np.asarray(reduced_pil))

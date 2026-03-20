@@ -214,6 +214,8 @@ class MultiParticleDataset(Dataset, ABC):
     @property
     @abstractmethod
     def particle_numbers(self) -> dict[str, int]: ...
+    @abstractmethod
+    def save(self): ...
 
 
 class InMemory(MultiParticleDataset):
@@ -261,6 +263,30 @@ class InMemory(MultiParticleDataset):
     def particle_numbers(self) -> dict[str, int]:
         return {self._particle_type: len(self)}
 
+    def save(
+        self,
+        output_file: str | Path | None = None,
+    ):
+        """
+        Save sorted particle data and shuffle-list to disk in an HDF5 file
+
+        Args:
+            output_file: str | Path, optional
+            The name of the output file. Note this field is optional to match
+            the superclass, however, specifying None is equivalent to a NOOP.
+        """
+        if output_file is None:
+            LOGGER.warning(
+                "InMemory datasets have no default output file. Please specify"
+                " output_file."
+            )
+            return
+
+        with h5py.File(output_file, "a") as output:
+            output["PartType0/positions"] = self._positions
+            output["PartType0/index"] = self._index
+            output["PartType0"].attrs["use_sorted"] = True
+
 
 class HDF5Dataset(MultiParticleDataset):
     """
@@ -285,8 +311,10 @@ class HDF5Dataset(MultiParticleDataset):
     """ 
     The top level groups in the file in lowercase (e.g. header, parttype0, cosmology)
     """
-    _cache_file_name: str
-    """ Name of the cache file for temporary storage """
+    _sorted_file_name: Path
+    """ Name of the sorted positions file """
+    _prefer_sorted: bool
+    """ Whether to load sorted versions of positions if possible """
     _particle_type: str
     """ The currently loaded particle type """
 
@@ -295,23 +323,42 @@ class HDF5Dataset(MultiParticleDataset):
         *,
         name: str | None = None,
         filepath: str | Path,
+        sorted_filepath: str | Path | None = None,
     ):
+        """
+        Args:
+            sorted_filepath: str | Path, optional
+            Optional file to store sorted position and shuffle-list data
+        """
         super().__init__(name=name, filepath=filepath)
 
-        self._preload()
+        self._preload(sorted_filepath)
+        self._check_loading_strategy()
         self._set_bounding_box()
         self._load_positions()
 
-    def _preload(self):
+    def _preload(self, sorted_filepath: str | Path | None):
         """
         Method to load certain attributes at initialization
 
         Must set _positions_field, _particle_types, _particle_numbers,
-        _top_level_groups, _cache_file_name, and _particle_type
+        _top_level_groups, and _particle_type
         """
         raise NotImplementedError(
             "You are trying to instantiate a base HDF5 class.\nUse a subclass instead.",
         )
+
+    def _check_loading_strategy(self):
+        if not Path(self._sorted_file_name).is_file():
+            self._prefer_cache = False
+            return
+        with h5py.File(self._sorted_file_name) as file, contextlib.suppress(KeyError):
+            self._prefer_cache = (
+                file[self._particle_type].attrs["use_sorted"]
+                and self._particle_type + "/positions" in file
+            )
+            return
+        self._prefer_cache = False
 
     @property
     def particle_type(self):
@@ -324,14 +371,11 @@ class HDF5Dataset(MultiParticleDataset):
     def particle_type(self, new_type):
         if new_type not in self._particle_types:
             raise DatasetError(f"{new_type} is not a valid particle_type")
-        # save old index if necessary
-        if hasattr(self, "_particle_type") and self._index_dirty:
-            with h5py.File(self._cache_file_name, "a") as _cache_file:
-                if self._particle_type in _cache_file:
-                    _cache_file[self._particle_type] = self._index
-                else:
-                    _cache_file.create_dataset(self._particle_type, data=self._index)
+        if self._particle_type == new_type:
+            # do nothing
+            return
         self._particle_type = new_type
+        self._check_loading_strategy()
         self._load_positions()
 
     @property
@@ -352,18 +396,40 @@ class HDF5Dataset(MultiParticleDataset):
         """
         Load particle positions from file for the current particle type
         """
-        with h5py.File(self.filepath, "r") as file:
-            positions = file[self._particle_type][self._positions_field]
-            self._positions = np.array(positions, dtype=np.float64)
-        with h5py.File(self._cache_file_name, "r") as _cache_file:
-            if self._particle_type in _cache_file:
-                self._index = np.array(_cache_file[self._particle_type])
-                self._index_dirty = False
-                self._positions = self._positions[self._index, :]
+        filepath = self._sorted_file_name if self._prefer_cache else self.filepath
+        with h5py.File(filepath, "r") as file:
+            if self._prefer_cache:
+                pt = self._particle_type + "/"
+                self._positions = file[pt + "positions"]
+                self._index = file[pt + "index"]
             else:
+                positions = file[self._particle_type][self._positions_field]
+                self._positions = np.array(positions, dtype=np.float64)
                 with contextlib.suppress(AttributeError):
                     del self._index
                 self._setup_index()
+
+        if hasattr(self, "_data"):
+            del self._data
+
+    def save(
+        self,
+        *,
+        output_file: str | Path | None = None,
+    ):
+        """
+        Save sorted particle positions and shuffle list to provided file (cache if None)
+
+        Args:
+            output_file: str | Path |None, optional
+            File to save information to. Default is self._sorted_file_name
+        """
+        output_file = self._sorted_file_name if output_file is None else output_file
+        pt = self.particle_type
+        with h5py.File(output_file, "a") as output:
+            output[f"{pt}/positions"] = self._positions
+            output[f"{pt}/index"] = self._index
+            output[pt].attrs["use_sorted"] = True
 
 
 class GadgetishHDF5Dataset(HDF5Dataset):
@@ -375,7 +441,7 @@ class GadgetishHDF5Dataset(HDF5Dataset):
 
     """
 
-    def _preload(self):
+    def _preload(self, sorted_filepath: str | Path | None):
         # TODO handle case where particles are split across multiple files...
         particle_types = []
         groups = []
@@ -392,24 +458,26 @@ class GadgetishHDF5Dataset(HDF5Dataset):
                 "No particle types found in dataset. Looking for groups named Part*",
             )
         self._particle_types = particle_types
-        self._cache_file_name = self.filepath.parent / (
-            "." + str(self.filepath.name) + ".cache"
+        self._sorted_file_name = Path(
+            self.filepath.parent / ("." + str(self.filepath.name) + "_sorted.hdf5")
+            if sorted_filepath is None
+            else sorted_filepath
         )
-        if self._cache_file_name.exists():
-            if not h5py.is_hdf5(self._cache_file_name):
+        if self._sorted_file_name.exists():
+            if not h5py.is_hdf5(self._sorted_file_name):
                 raise DatasetError(
-                    f"{self._cache_file_name} already exists but is not an hdf5 file!",
+                    f"{self._sorted_file_name} already exists but is not an hdf5 file!",
                 )
         else:
-            with h5py.File(self._cache_file_name, "w") as file:
+            with h5py.File(self._sorted_file_name, "w") as file:
                 file.create_dataset("Header", dtype=float)
 
         # set initial particle type and load data
         self._particle_type = particle_types[0]
-        self._particle_numbers = self._header["NumPart_Total"]
-        self._particle_numbers = self._particle_numbers[self._particle_numbers > 0]
+        _particle_numbers = self._header["NumPart_Total"]
+        _particle_numbers = _particle_numbers[_particle_numbers > 0]
         self._particle_numbers = dict(
-            zip(self._particle_types, self._particle_numbers, strict=True)
+            zip(self._particle_types, _particle_numbers, strict=True)
         )
 
     def _set_bounding_box(self):
