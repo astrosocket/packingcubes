@@ -685,15 +685,19 @@ def save_cube(
 
 
 def load_cubes(
-    dataset: MultiParticleDataset,
+    dataset: str | MultiParticleDataset,
 ) -> dict[str, dict]:
+    """
+    Load cubes data from a dataset. See make_cubes for a description of the output
+    """
     cubes_dict = {}
-    if not isinstance(dataset, HDF5Dataset):
+    if isinstance(dataset, Dataset) and not isinstance(dataset, HDF5Dataset):
         raise NotImplementedError("We can only load Cubes from HDF5 datasets")
     if not has_cubes(dataset):
         raise ValueError("No cubes in provided dataset")
+    filepath = dataset.filepath if isinstance(dataset, HDF5Dataset) else dataset
     with h5py.File(
-        dataset.filepath,
+        filepath,
     ) as file:
         cubes_group = file["cubes"]
         pts = list(cubes_group.keys())
