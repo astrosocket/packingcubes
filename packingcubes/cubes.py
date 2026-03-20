@@ -520,6 +520,9 @@ def _get_particle_indices_in_shape(
     shape: bbox.BoundingVolume,
     shape_box: bbox.BoundingBox,
 ) -> List[tuple[int, int]]:
+    """
+    Get the particle start-stop tuples in the specified shape
+    """
     indices = List.empty_list(_list_index_tuple)
     for _ in range(len(cubes)):
         indices.append(List.empty_list(_index_tuple_type))
