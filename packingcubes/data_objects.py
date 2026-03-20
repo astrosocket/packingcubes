@@ -350,6 +350,9 @@ class HDF5Dataset(MultiParticleDataset):
                 del self._index
             self._setup_index()
 
+        if hasattr(self, "_data"):
+            del self._data
+
 
 class GadgetishHDF5Dataset(HDF5Dataset):
     """
