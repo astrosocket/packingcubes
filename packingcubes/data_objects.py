@@ -371,6 +371,9 @@ class HDF5Dataset(MultiParticleDataset):
     def particle_type(self, new_type):
         if new_type not in self._particle_types:
             raise DatasetError(f"{new_type} is not a valid particle_type")
+        if self._particle_type == new_type:
+            # do nothing
+            return
         self._particle_type = new_type
         self._check_loading_strategy()
         self._load_positions()
