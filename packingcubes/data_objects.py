@@ -285,8 +285,6 @@ class HDF5Dataset(MultiParticleDataset):
     """ 
     The top level groups in the file in lowercase (e.g. header, parttype0, cosmology)
     """
-    _cache_file_name: str
-    """ Name of the cache file for temporary storage """
     _particle_type: str
     """ The currently loaded particle type """
 
@@ -307,7 +305,7 @@ class HDF5Dataset(MultiParticleDataset):
         Method to load certain attributes at initialization
 
         Must set _positions_field, _particle_types, _particle_numbers,
-        _top_level_groups, _cache_file_name, and _particle_type
+        _top_level_groups, and _particle_type
         """
         raise NotImplementedError(
             "You are trying to instantiate a base HDF5 class.\nUse a subclass instead.",
@@ -324,13 +322,6 @@ class HDF5Dataset(MultiParticleDataset):
     def particle_type(self, new_type):
         if new_type not in self._particle_types:
             raise DatasetError(f"{new_type} is not a valid particle_type")
-        # save old index if necessary
-        if hasattr(self, "_particle_type") and self._index_dirty:
-            with h5py.File(self._cache_file_name, "a") as _cache_file:
-                if self._particle_type in _cache_file:
-                    _cache_file[self._particle_type] = self._index
-                else:
-                    _cache_file.create_dataset(self._particle_type, data=self._index)
         self._particle_type = new_type
         self._load_positions()
 
@@ -355,15 +346,9 @@ class HDF5Dataset(MultiParticleDataset):
         with h5py.File(self.filepath, "r") as file:
             positions = file[self._particle_type][self._positions_field]
             self._positions = np.array(positions, dtype=np.float64)
-        with h5py.File(self._cache_file_name, "r") as _cache_file:
-            if self._particle_type in _cache_file:
-                self._index = np.array(_cache_file[self._particle_type])
-                self._index_dirty = False
-                self._positions = self._positions[self._index, :]
-            else:
-                with contextlib.suppress(AttributeError):
-                    del self._index
-                self._setup_index()
+            with contextlib.suppress(AttributeError):
+                del self._index
+            self._setup_index()
 
 
 class GadgetishHDF5Dataset(HDF5Dataset):
@@ -392,17 +377,6 @@ class GadgetishHDF5Dataset(HDF5Dataset):
                 "No particle types found in dataset. Looking for groups named Part*",
             )
         self._particle_types = particle_types
-        self._cache_file_name = self.filepath.parent / (
-            "." + str(self.filepath.name) + ".cache"
-        )
-        if self._cache_file_name.exists():
-            if not h5py.is_hdf5(self._cache_file_name):
-                raise DatasetError(
-                    f"{self._cache_file_name} already exists but is not an hdf5 file!",
-                )
-        else:
-            with h5py.File(self._cache_file_name, "w") as file:
-                file.create_dataset("Header", dtype=float)
 
         # set initial particle type and load data
         self._particle_type = particle_types[0]
