@@ -570,7 +570,7 @@ class ParticleCubes:
         *,
         cube_indices: NDArray,
         cube_boxes: List[BoundingBox],
-        cube_trees: list[NDArray] | list[PackedTree],
+        cube_trees: list[NDArray] | list[PackedTree] | list[NDArray | PackedTree],
         **kwargs,
     ):
         particle_threshold = getattr(
