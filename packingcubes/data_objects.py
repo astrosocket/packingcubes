@@ -474,10 +474,10 @@ class GadgetishHDF5Dataset(HDF5Dataset):
 
         # set initial particle type and load data
         self._particle_type = particle_types[0]
-        self._particle_numbers = self._header["NumPart_Total"]
-        self._particle_numbers = self._particle_numbers[self._particle_numbers > 0]
+        _particle_numbers = self._header["NumPart_Total"]
+        _particle_numbers = _particle_numbers[_particle_numbers > 0]
         self._particle_numbers = dict(
-            zip(self._particle_types, self._particle_numbers, strict=True)
+            zip(self._particle_types, _particle_numbers, strict=True)
         )
 
     def _set_bounding_box(self):
