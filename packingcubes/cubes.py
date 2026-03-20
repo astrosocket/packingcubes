@@ -765,26 +765,32 @@ class Cubes:
                 **kwargs,
             )
 
+    @property
+    def particle_types(self):
+        return self.cubes_dict.keys()
+
     def get_particle_indices_in_box(
         self,
-        particle_types: str | Collection[str],
         box: bbox.BoxLike,
+        *,
+        particle_types: str | Collection[str] | None = None,
     ) -> dict[str, list[tuple[int, int]]]:
         """
         Return all particles contained within the box
 
         Args:
-            particle_types: str | Collection[str]
-            Particle type(s) to include
-
             box: BoxLike
             Box to check
 
+            particle_types: str | Collection[str], optional
+            Particle type(s) to include. Defaults to self.particle_types
         Returns:
             indices: dict[str, list[tuple[int, int]][
             Dictionary of lists of particle start-stop indices contained
             within box, organized by particle type
         """
+        if particle_types is None:
+            particle_types = self.particle_types
         if isinstance(particle_types, str):
             particle_types = [particle_types]
         inds = {}
@@ -794,9 +800,10 @@ class Cubes:
 
     def get_particle_indices_in_sphere(
         self,
-        particle_types: str | Collection[str],
         center: NDArray,
         radius: float,
+        *,
+        particle_types: str | Collection[str] | None = None,
     ) -> dict[str, list[tuple[int, int]]]:
         """
         Return all particles contained within the sphere defined by center and radius
@@ -816,7 +823,8 @@ class Cubes:
             Dictionary of lists of particle start-stop indices contained
             within sphere, organized by particle type
         """
-
+        if particle_types is None:
+            particle_types = self.particle_types
         if isinstance(particle_types, str):
             particle_types = [particle_types]
         inds = {}
