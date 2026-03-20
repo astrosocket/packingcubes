@@ -3049,20 +3049,23 @@ packages:
   timestamp: 1769093650580
 - pypi: ./
   name: packingcubes
-  version: 0.2.1.dev8+dirty
-  sha256: 7b74527964d0528f0106a8266fa1abab870e2913c971fd55cf9078f1cd3b3dce
+  version: 0.2.2.dev22+dirty
+  sha256: bb247a7d03940d6d39a2f9c3a7063081f9e556c9c4b02e05d46a5b758071fb0a
   requires_dist:
   - numpy
   - h5py
-  - unyt
   - numba
   - xxhash>=3.6.0,<4
   - matplotlib ; extra == 'viz'
-  - ipywidgets ; extra == 'jupyter'
-  - ipykernel ; extra == 'jupyter'
-  - ipympl ; extra == 'jupyter'
+  - pygfx ; extra == 'viz'
+  - rendercanvas ; extra == 'viz'
+  - pyside6 ; extra == 'viz'
+  - jupyter-rfb ; extra == 'jupyter'
+  - scipy ; extra == 'benchmark'
+  - unyt ; extra == 'benchmark'
   - packingcubes[viz] ; extra == 'all'
   - packingcubes[jupyter] ; extra == 'all'
+  - packingcubes[benchmark] ; extra == 'all'
   requires_python: '>=3.12'
 - conda: https://conda.anaconda.org/conda-forge/noarch/parso-0.8.5-pyhcf101f3_0.conda
   sha256: 30de7b4d15fbe53ffe052feccde31223a236dae0495bab54ab2479de30b2990f
