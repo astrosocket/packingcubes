@@ -7,10 +7,8 @@ import timeit
 from functools import partial
 
 import numpy as np
-import yt
 from scipy.spatial import KDTree
 from unyt import second, unyt_array, unyt_quantity
-from yt.units import Msun, kiloparsec
 
 import packingcubes
 import packingcubes.bounding_box as bbox
@@ -305,33 +303,6 @@ def scipy_kdtree_query(tree: KDTree, *, centers=centers, k=10):
         dd, ii = tree.query(c, k=k)
 
 
-def yt_setup(decimation_factor=10):
-    ds = load_data(decimation_factor=decimation_factor)
-    yt.set_log_level("warning")
-    ppx, ppy, ppz = ds.positions[:, 0], ds.positions[:, 1], ds.positions[:, 2]
-    data = {
-        ("io", "particle_position_x"): ppx,
-        ("io", "particle_position_y"): ppy,
-        ("io", "particle_position_z"): ppz,
-        ("io", "particle_mass"): np.ones_like(ds.index),
-    }
-    box = ds.bounding_box.box
-    bbox = np.zeros((3, 2))
-    bbox[:, 0] = box[:3]
-    bbox[:, 1] = box[:3] + box[3:]
-    return yt.load_particles(
-        data, length_unit=1 * kiloparsec, mass_unit=1 * Msun, bbox=bbox
-    )
-
-
-def yt_creation(ytdata):
-    return ytdata.sphere((centers[0], "kpc"), (radii[0], "kpc"))
-
-
-def yt_search(sph):
-    sph_inds = sph["io", "particle_mass"]
-
-
 def remove_problem_classes_from_state(self):
     state = self.__dict__.copy()
     data_keys = [
@@ -437,7 +408,6 @@ creation_dict = {
     "kdtree": {"fun": "packed_kdtree_creation", "precomp": True},
     "scipy": {"fun": "scipy_kdtree_creation", "precomp": False},
     "brute": {"fun": "brute_force_creation", "precomp": False},
-    # skipping yt creation for now
 }
 search_dict = {
     "pyoct": {
@@ -487,7 +457,6 @@ search_dict = {
         "tree": "scipy",
         "precomp": False,
     },
-    # skipping yt for now
 }
 
 
