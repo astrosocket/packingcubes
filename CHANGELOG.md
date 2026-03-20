@@ -1,4 +1,69 @@
-## [unreleased]
+## [0.2.2] - 2026-03-20
+
+### 🚀 Features
+
+- Flesh out the readme ([e757b45](https://github.com/astrosocket/packingcubes/commit/e757b4586b2c79fe11e2152f70019a567f367d01))
+- Support passing a regular array to Cubes constructor ([c59097b](https://github.com/astrosocket/packingcubes/commit/c59097b8eb844dda5be5510125b7b4c487e7c54c))
+- Allow loading cubes data from file ([d45b5d7](https://github.com/astrosocket/packingcubes/commit/d45b5d70ee30975a870f75ee6ee348e745fafa37))
+- Allow optional particle type when getting indices ([17084be](https://github.com/astrosocket/packingcubes/commit/17084be15b8d69830f378ce69f4c01e2db05037f))
+- Allow specifying a string or Path when saving cubes ([1674664](https://github.com/astrosocket/packingcubes/commit/1674664e8e41dfe4739b3af796160a8018767ef3))
+- Add CLI option to specify where cubes should be saved ([823d4fe](https://github.com/astrosocket/packingcubes/commit/823d4fe6216e833a5c9b2b4c56aa1bd539302b5f))
+- Support more general BoxLike for cube_box argument ([a4b8545](https://github.com/astrosocket/packingcubes/commit/a4b8545f248dbe67039dda145697fedb6291a9b6))
+- Add flag to save datasets in make_cubes ([5e16e98](https://github.com/astrosocket/packingcubes/commit/5e16e987e47abca74e6a214022920372d14b124b))
+- Add method to save out sorted positions and indices ([cdc9be2](https://github.com/astrosocket/packingcubes/commit/cdc9be26c6fc7d2cb3a6fa8e72cee5968a8939da))
+- Allow 1 & 2D data for KDTrees ([01f2828](https://github.com/astrosocket/packingcubes/commit/01f2828a391baf27f212be04c23ff38fe9200ae3))
+- Expose the InMemory class ([f870ccd](https://github.com/astrosocket/packingcubes/commit/f870ccd970323969efefe3b02c10a9c3ad9b0ab0))
+
+### 🐛 Bug Fixes
+
+- Remove old view of data when loading new positions ([b8be47c](https://github.com/astrosocket/packingcubes/commit/b8be47cbea55dd0bbeba98eb4478623b62b3ce52))
+
+### 💼 Other
+
+- Fix argument typing ([c913ffb](https://github.com/astrosocket/packingcubes/commit/c913ffb844ec98bcdc4ceb58737908a0b68a6377))
+- Fix typing complaints from mypy ([4736c03](https://github.com/astrosocket/packingcubes/commit/4736c03b370bc58d29ddf3b1ffa904d285d417ab))
+
+### 🚜 Refactor
+
+- Remove yt timing ([243d15f](https://github.com/astrosocket/packingcubes/commit/243d15f4d5c3ddb6f3890fbe210d5f393ed6326c))
+- Remove more Dataset-Cubes interdependence ([7778fb7](https://github.com/astrosocket/packingcubes/commit/7778fb770653868a747285f4f479d4aec7e80f05))
+- Remove the cache file for HDF5Datasets ([d33987b](https://github.com/astrosocket/packingcubes/commit/d33987bebc74372def420a116025844aa2e6d3ab))
+- Remove some missed debugging print statements ([24d5ebd](https://github.com/astrosocket/packingcubes/commit/24d5ebd6a51ee39743182f1766beb6eaa25b1b3b))
+
+### 📚 Documentation
+
+- Add docstring to _get_particle_indices_in_shape ([60b9fac](https://github.com/astrosocket/packingcubes/commit/60b9facd1b904817a8420283070dc8debf0b4db8))
+- Add missing docstring to make_cubes ([59b4be6](https://github.com/astrosocket/packingcubes/commit/59b4be626fe514973d5806341575435216f4aed1))
+- Add _data_container to attribute list ([c087267](https://github.com/astrosocket/packingcubes/commit/c0872671595523642590da3a860b891650b4bcf7))
+
+### ⚡ Performance
+
+- Skip loading particle data if not actually changing particle_type ([e4476d3](https://github.com/astrosocket/packingcubes/commit/e4476d376f3dde3eb4d6bec1f28987d8e1bff79b))
+
+### 🧪 Testing
+
+- Allow 1 and 2D arrays for KDTree ([02c53d8](https://github.com/astrosocket/packingcubes/commit/02c53d88d3a3a720de50999430fdaacf2a8f557e))
+## [0.2.1] - 2026-03-19
+
+### 🐛 Bug Fixes
+
+- Fix typo ([547cd0a](https://github.com/astrosocket/packingcubes/commit/547cd0ad8fbe1390787ada6a2844d530bf3a6051))
+
+### ⚙️ Miscellaneous Tasks
+
+- Readd pypi publishing ([1d374ab](https://github.com/astrosocket/packingcubes/commit/1d374ab11ea3aad609c8002e4ec54a02b6f9885c))
+- Move scm variable ([9cd97e5](https://github.com/astrosocket/packingcubes/commit/9cd97e5d0eef020d4dbf67b2f4b496bca23f8b35))
+- Attempt testpypi publishing ([47e169c](https://github.com/astrosocket/packingcubes/commit/47e169c7ecbb85e4b618f6bcfd11963c0a215c34))
+- Set fetch-depth, remove local version component ([b071880](https://github.com/astrosocket/packingcubes/commit/b071880f730e591f6be6cc48ac864ae09e00e3bb))
+- Fix version export, add setuptools_scm ([fb4e24b](https://github.com/astrosocket/packingcubes/commit/fb4e24b156ed5e2b1db291819877c77fc6d9b7e9))
+- Print version and turn of upload temporarily ([2993a11](https://github.com/astrosocket/packingcubes/commit/2993a11ebcd944df6b10b58ba48ae46d612309bc))
+- Forgot to add pixi run ([ccf9e5d](https://github.com/astrosocket/packingcubes/commit/ccf9e5d7043885cf106df18e9c2b47a01edd9d84))
+- Switch to pixi install in pypi pipeline ([8a9e35f](https://github.com/astrosocket/packingcubes/commit/8a9e35f541a41e57ec13eedc67fb864071fe1d51))
+- Switch to runtime version checking ([3130d73](https://github.com/astrosocket/packingcubes/commit/3130d7320e808a91b409eebdb2a86ccb992c96d7))
+- Add install step ([a458f0f](https://github.com/astrosocket/packingcubes/commit/a458f0fa0433d5790f406ca29202d867f030e5a2))
+- Update workflow to remove the frozen status and update lockfile ([9a21b96](https://github.com/astrosocket/packingcubes/commit/9a21b966afa59327b9e7ba5dd14264996f449cda))
+- Add verbosity to publishing to help resolve error ([062eb10](https://github.com/astrosocket/packingcubes/commit/062eb10805a33bca1de9f9c5e9983cdd6903619c))
+## [0.2.0] - 2026-03-18
 
 ### 🚀 Features
 
@@ -44,6 +109,9 @@
 
 ### 🐛 Bug Fixes
 
+- Missing character in repository-url ([2e13f53](https://github.com/astrosocket/packingcubes/commit/2e13f53e9b2808e76dfaa4f194d1924a6007c8df))
+- Invert typo in publishing workflow ([35d2815](https://github.com/astrosocket/packingcubes/commit/35d281532a14799e81ef1c6b6061a66d2c9bac81))
+- Fix typo in publishing workflow ([8a99a56](https://github.com/astrosocket/packingcubes/commit/8a99a56c8639e214e2f9eb1683f51843293d63ad))
 - Jitter=0 not being set correctly ([63fce23](https://github.com/astrosocket/packingcubes/commit/63fce233a11b4f58203c7b20bccf25ddad214f63))
 - Used < instead of <= ([4c44186](https://github.com/astrosocket/packingcubes/commit/4c441863d32ff5d3ac05ca1ddfc7569bb700ab9e))
 - Move per node behavior to subfunction ([1da6e20](https://github.com/astrosocket/packingcubes/commit/1da6e20a3d766a3beedf38862ac9e5b2c30778b6))
@@ -224,6 +292,15 @@
 
 ### ⚙️ Miscellaneous Tasks
 
+- Add pypi publishing workflow and fix testpypi workflow ([4410603](https://github.com/astrosocket/packingcubes/commit/4410603ded84e0937f4673ba6b013001a3481e65))
+- Set pydocstyle and fix license file name ([76da9fb](https://github.com/astrosocket/packingcubes/commit/76da9fbb3dfefa1231ab2b4ed54d7383294d053e))
+- Fix extra space in dependabot timing ([#7](https://github.com/astrosocket/packingcubes/issues/7)) ([b2ac0f4](https://github.com/astrosocket/packingcubes/commit/b2ac0f4dbb7cf1bbc312e577f3786caaf6994942))
+- Fix extra space in dependabot timing ([9102209](https://github.com/astrosocket/packingcubes/commit/9102209cd90bf7d9e8074427c6830fb8ec37d530))
+- Switch to frozen install in CI ([1a974f0](https://github.com/astrosocket/packingcubes/commit/1a974f0e59585f506223875cef3bc2672eea7cb8))
+- Update lockfile and jupyter environment ([933886d](https://github.com/astrosocket/packingcubes/commit/933886d166ab12224d3b495f664169549964a837))
+- Update checkout version in workflows ([e9706ac](https://github.com/astrosocket/packingcubes/commit/e9706acdc86c5cea6ef262acc8703df1a69ff2a4))
+- Update pixi version in CI ([8c5ffcf](https://github.com/astrosocket/packingcubes/commit/8c5ffcf4a4b7880b999d7b83bd58a4015f5d5d1d))
+- Add project metadata and pypi release workflow ([ebb04b6](https://github.com/astrosocket/packingcubes/commit/ebb04b61edade29ef545b986b18be1197270e9fc))
 - Add pykdtree for future benchmarking ([6787bdd](https://github.com/astrosocket/packingcubes/commit/6787bdd622c9e236b949645ab9dbbe0b75d2c9e5))
 - Updating lock file ([ceab923](https://github.com/astrosocket/packingcubes/commit/ceab9234bbeb8485af1190508242b30b3b587b79))
 - Remove old CurrentNode comment ([8c3562b](https://github.com/astrosocket/packingcubes/commit/8c3562b0cabf73245866ad6625b4b263d60e6243))
@@ -316,4 +393,5 @@
 
 - Add basic .gitlint file ([5c3a2e2](https://github.com/astrosocket/packingcubes/commit/5c3a2e261d21f06afea804f4a81eabd72b8cfad4))
 - Ignore profiler output ([7e302b3](https://github.com/astrosocket/packingcubes/commit/7e302b39745f7ca79257b20f2eb7e44b1cd00b99))
+## [0.0.0] - 2025-10-29
 <!-- generated by git-cliff -->
