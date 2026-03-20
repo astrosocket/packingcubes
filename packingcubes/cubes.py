@@ -365,7 +365,7 @@ def make_cubes(
     *,
     dataset: MultiParticleDataset,
     cubes_per_side: int = 3,
-    cube_box: BoundingBox | None = None,
+    cube_box: bbox.BoxLike | None = None,
     particle_threshold: int = _DEFAULT_PARTICLE_THRESHOLD,
     particle_types: Collection[str] | None = None,
     save_dataset: bool = True,
@@ -440,6 +440,7 @@ def make_cubes(
         )
 
     cube_box = dataset.bounding_box if cube_box is None else cube_box
+    cube_box = bbox.make_bounding_box(cube_box)
 
     num_cubes = cubes_per_side**3 + 1
     if np.any(particle_numbers / num_cubes > 2**31):
