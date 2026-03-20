@@ -371,6 +371,54 @@ def make_cubes(
     save_dataset: bool = True,
     **kwargs,
 ) -> dict[str, dict[str, NDArray | list[bbox.BoundingBox] | list[PackedTree]]]:
+    """
+    Create a cubes_dict from the provided dataset
+
+    Args:
+        dataset: MultiParticleDataset
+        The dataset containing particle data. Will be sorted in-place, but will
+        not save updated positional information unless save_dataset is True
+
+        cubes_per_side: int, optional
+        Number of cubes on a side. Dataset will be divided into cubes_per_side**3
+        cubes, plus an additional cube to catch any remaining particles (if the
+        cube_box is smaller than the actual data extants). Note: due to the
+        PackedTree's packed format, cubes must contain fewer than ~4 billion
+        particles. If cubes_per_side is too small to support this, a ValueError
+        will be raised. The limit is per-particle-type.
+
+        cube_box: BoxLike, optional
+        A box-like object (i.e. something that can convert to a (6,) ndarray)
+        that delineates the region of data to be cubed. Any particles outside
+        this region will fall into an overflow cube. Useful for zoom-in
+        simulations or other datasets with sparse outer regions. Default is the
+        data bounding box
+
+        particle_threshold: int, optional
+        Maximum number of particles in a tree leaf node. Default is 400
+
+        particle_types: Collection[str], optional
+        Collection of particle types to include. Default is dataset.particle_types
+
+        save_dataset: bool, optional
+        Whether to save the sorted dataset positions out to a file. The data
+        will be sorted in memory either way. Default True.
+
+    Returns:
+        cubes_dict: dict
+        A dictionary with 3 components:
+            cube_indices - contains the data offsets for each cube's
+            particles (i.e. cube 0 is from cubes_indices[0]:cubes_indices[1]
+
+            cube_boxes - containes the bounding box for each cube
+
+            cube_trees - contains the PackedTree for each cube
+
+    Raises:
+        ValueError if requested particle types aren't in the dataset
+        ValueError if too few cubes were requested for the number of particles
+
+    """
     cubes = {}
 
     if particle_types is None:
