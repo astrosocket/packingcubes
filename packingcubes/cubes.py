@@ -368,6 +368,8 @@ def make_cubes(
     cube_box: BoundingBox | None = None,
     particle_threshold: int = _DEFAULT_PARTICLE_THRESHOLD,
     particle_types: Collection[str] | None = None,
+    save_dataset: bool = True,
+    **kwargs,
 ) -> dict[str, dict[str, NDArray | list[bbox.BoundingBox] | list[PackedTree]]]:
     cubes = {}
 
@@ -441,6 +443,9 @@ def make_cubes(
             "cube_trees": ptrees,
         }
         LOGGER.info(f"Done with {pt}")
+
+        if save_dataset:
+            dataset.save()
 
     return cubes
 
