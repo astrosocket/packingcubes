@@ -98,7 +98,7 @@ def _process_args(argv=None):
     """
     epilog = """
     If particle types are specified (using -t or --particle-types), the 
-    snapshot file should be specified with -- SNAPSHOT_NAME at the end.
+    snapshot file should be specified with -- SNAPSHOT OUTPUT at the end.
     
     Additional arguments can be read from a file by specifying the file with
     `@filename` anywhere among the argument string. Any arguments found in the
@@ -160,7 +160,17 @@ def _process_args(argv=None):
         ),
         nargs="+",
     )
-    parser.add_argument("snapshot", help="path to the snapshot file", type=str)
+    parser.add_argument("snapshot", help="Path to the snapshot file", type=str)
+    parser.add_argument(
+        "output",
+        help="Name of hdf5 file to save cubes information to",
+        type=str,
+    )
+    parser.add_argument(
+        "--force-overwrite",
+        help="Flag to overwrite cubes data contained in OUTPUT",
+        action="store_true",
+    )
 
     args = parser.parse_args(argv)
     if args.n < 3 or 32 < args.n:
@@ -637,13 +647,16 @@ class ParticleCubes:
         )
 
 
-def has_cubes(dataset: MultiParticleDataset):
+def has_cubes(dataset: str | MultiParticleDataset):
     """Return true if the dataset contains a packingcubes structure"""
     # TODO: This whole function probably needs to be refactored somewhere else
     if dataset is None:
         raise ValueError("Need a dataset to check!")
     if isinstance(dataset, HDF5Dataset):
         return "cubes" in dataset._top_level_groups
+    if isinstance(dataset, str):
+        with h5py.File(dataset) as file:
+            return "cubes" in file
     return False
 
 
@@ -844,7 +857,12 @@ class Cubes:
 if __name__ == "__main__":
     logging.basicConfig()
     args = _process_args()
-    dataset = GadgetishHDF5Dataset(filepath=args.snapshot)
+    if has_cubes(args.output) and not args.force_overwrite:
+        sys.exit(
+            "Provided output file already contains cubes data and"
+            " you did not specify --force-overwrite"
+        )
+    dataset = GadgetishHDF5Dataset(filepath=args.snapshot, sorted_filepath=args.output)
     box = _process_box(dataset=dataset, args=args)
     cubes_dict = make_cubes(
         dataset=dataset,
@@ -855,3 +873,4 @@ if __name__ == "__main__":
     )
     LOGGER.info(cubes_dict.keys())
     cubes = Cubes(dataset=dataset, cubes_dict=cubes_dict)
+    cubes.save(args.output)
