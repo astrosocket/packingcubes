@@ -218,7 +218,7 @@ def packed_octree_query_ball_point_indices(
 
 
 def packed_kdtree_creation(ds):
-    return optree.KDTree(data=ds.positions, leafsize=octree._DEFAULT_PARTICLE_THRESHOLD)
+    return optree.KDTree(data=ds, leafsize=octree._DEFAULT_PARTICLE_THRESHOLD)
 
 
 def packed_kdtree_query_ball_point(
