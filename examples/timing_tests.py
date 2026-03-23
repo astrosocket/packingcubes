@@ -698,6 +698,7 @@ def parse_arguments(argv=None):
         default=1,
         help="The decimation interval (e.g. -d 10 specifies use every 10th particle)",
         type=int,
+        nargs="+",
     )
     parser.add_argument(
         "-n",
@@ -714,6 +715,8 @@ def parse_arguments(argv=None):
         slower startup!
         """,
         type=int,
+        default=100,
+        nargs="+",
     )
     parser.add_argument(
         "--dry",
@@ -794,6 +797,7 @@ def parse_arguments(argv=None):
     parser.add_argument(
         "snapshot", nargs="?", default=None, help="path to the snapshot file", type=str
     )
+    parser.add_argument("--save", type=str, help="Text file to output results")
 
     args = parser.parse_args(argv)
 
@@ -805,6 +809,41 @@ def parse_arguments(argv=None):
         loglvl = LOGGER.level
     LOGGER.setLevel(loglvl)
     return args
+
+
+def collate_results(
+    *,
+    creation_list: list[str],
+    search_list: list[str],
+    decimation_factors: list[int],
+    search_ball_sizes: list[int],
+    results: dict[str, dict[str, tuple[unyt_quantity, unyt_array]]],
+    outfilepath: str,
+):
+    with open(outfilepath, "w") as outfile:
+        print(f"n = {decimation_factors}", file=outfile)
+        print(f"m = {search_ball_sizes}", file=outfile)
+        print("Creation times [s]:", file=outfile)
+        for test in creation_list:
+            result_array = np.full(
+                (len(decimation_factors), len(search_ball_sizes)), np.nan
+            )
+            for i, df in enumerate(decimation_factors):
+                for j, sb in enumerate(search_ball_sizes):
+                    res_name = f"df={df}_ns={sb}"
+                    result_array[i, j] = results[res_name][test][0].to("s")
+            print(f"{test} = {result_array}", file=outfile)
+        print("Search times [ms]:", file=outfile)
+        for test in search_list:
+            result_array = np.full(
+                (len(decimation_factors), len(search_ball_sizes)), np.nan
+            )
+            test_name = test + "-search"
+            for i, df in enumerate(decimation_factors):
+                for j, sb in enumerate(search_ball_sizes):
+                    res_name = f"df={df}_ns={sb}"
+                    result_array[i, j] = results[res_name][test_name][0].to("ms")
+            print(f"{test} = {result_array}", file=outfile)
 
 
 if __name__ == "__main__":
@@ -819,13 +858,26 @@ if __name__ == "__main__":
     for t in combined_list:
         creation_list.append(t)
         search_list.append(t)
-    results = manual_timing(
-        snapshot=args.snapshot,
-        decimation_factor=args.decimation_factor,
-        creation_list=creation_list,
-        search_list=search_list,
-        dry_run=args.dry,
-        use_constant_number=args.number_search,
-        number_balls=args.number_balls,
-    )
+    results = {}
+    for df in args.decimation_factor:
+        for ns in args.number_search:
+            res_name = f"df={df}_ns={ns}"
+            results[res_name] = manual_timing(
+                snapshot=args.snapshot,
+                decimation_factor=df,
+                creation_list=creation_list,
+                search_list=search_list,
+                dry_run=args.dry,
+                use_constant_number=ns,
+                number_balls=args.number_balls,
+            )
+    if args.save:
+        collate_results(
+            creation_list=creation_list,
+            search_list=search_list,
+            decimation_factors=args.decimation_factor,
+            search_ball_sizes=args.number_search,
+            results=results,
+            outfilepath=args.save,
+        )
     print(results)  # noqa: T201
