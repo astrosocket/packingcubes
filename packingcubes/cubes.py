@@ -236,10 +236,9 @@ def _get_cube_boxes(
     return cube_boxes
 
 
-@njit(cache=True)
+@njit(cache=True, inline="always")
 def _cube_position(x: float, y: float, z: float, cubes_per_side: int, box: BoundingBox):
     # TODO: add zoom bins
-    num_cubes = cubes_per_side**3 + 1
     # note: can't use normalize_to_box because it clips the coordinates
     cube_x = np.floor((x - box.box[0]) / box.box[3] * cubes_per_side)
     cube_x = cubes_per_side - 1 if x == box.box[0] + box.box[3] else cube_x
@@ -258,7 +257,7 @@ def _cube_position(x: float, y: float, z: float, cubes_per_side: int, box: Bound
         #     zstr = f"z: cz={cube_z} z={z} bz={box.z} dz={box.dz}"
         #     string = xstr+"\n"+ystr+"\n"+zstr
         # print("Special cube point:\n"+string)
-        return num_cubes - 1
+        return cubes_per_side**3
     return np.int64((cube_x * cubes_per_side + cube_y) * cubes_per_side + cube_z)
 
 
