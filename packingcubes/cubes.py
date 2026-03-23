@@ -118,8 +118,11 @@ def _process_args(argv=None):
     parser.add_argument(
         "-n",
         "--side-length",
-        default=3,
-        help="number of cells per side [3-32], default 3",
+        default=-1,
+        help="""
+        number of cells per side [3-32], default -1 means use the lowest number
+        of cells such that n**3 > # of available threads
+        """,
         type=int,
         dest="n",
     )
@@ -187,7 +190,7 @@ def _process_args(argv=None):
     )
 
     args = parser.parse_args(argv)
-    if args.n < 3 or 32 < args.n:
+    if args.n != -1 and (args.n < 3 or 32 < args.n):
         raise ValueError(
             f"Cubes per side needs to be within [3, 32]. You provided {args.n}"
         )
@@ -384,10 +387,21 @@ def _make_trees(
     return trees
 
 
+def _process_cubes_per_side(cubes_per_side: int):
+    if cubes_per_side > 0:
+        return cubes_per_side
+    cubes_per_side = 3
+    flag = cubes_per_side**3 + 1 < nthreads
+    while cubes_per_side < 32 and flag:
+        cubes_per_side += 1
+        flag = cubes_per_side**3 + 1 < nthreads
+    return cubes_per_side
+
+
 def make_cubes(
     *,
     dataset: MultiParticleDataset,
-    cubes_per_side: int = 3,
+    cubes_per_side: int = -1,
     cube_box: bbox.BoxLike | None = None,
     particle_threshold: int = _DEFAULT_PARTICLE_THRESHOLD,
     particle_types: Collection[str] | None = None,
@@ -464,6 +478,8 @@ def make_cubes(
 
     cube_box = dataset.bounding_box if cube_box is None else cube_box
     cube_box = bbox.make_bounding_box(cube_box)
+
+    cubes_per_side = _process_cubes_per_side(cubes_per_side)
 
     num_cubes = cubes_per_side**3 + 1
     if np.any(particle_numbers / num_cubes > 2**31):
