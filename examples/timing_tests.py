@@ -494,6 +494,8 @@ def get_search_obj(
         statement = f"reset_data(dataset);{cd['fun']}(setup_data)"
         if not dry_run:
             timer = timeit.Timer(statement, globals=globals())
+            # do additional run for any missing precompile
+            timer.timeit(1)
             number, _ = timer.autorange()
             time_vec = timer.repeat(number=number) * second
             time_vec /= number
@@ -502,8 +504,13 @@ def get_search_obj(
             time_vec = [-1, -1] * second
         time_vec = _format_time(time_vec)
         results[function] = (min(time_vec), time_vec)
+        test_name = (
+            (function + f" ({cubes.nthreads} threads)")
+            if "cubes" in function
+            else function
+        )
         LOGGER.info(
-            f"{function} creation, {number} loops, best of "
+            f"{test_name} creation, {number} loops, best of "
             f"{len(time_vec)} runs: {results[function][0]:.3g}"
         )
     return globals()[cd["fun"]](setup_data)
@@ -621,10 +628,11 @@ def manual_timing(
             number = -1
             time_vec = [-1, -1] * second
         time_vec = _format_time(time_vec)
-        results[test] = (min(time_vec), time_vec)
+        results[test + "-search"] = (min(time_vec), time_vec)
+        test_name = (test + f" ({cubes.nthreads} threads)") if "cubes" in test else test
         LOGGER.info(
-            f"{test} search, {number} loops, best of "
-            f"{len(time_vec)} runs: {results[test][0]:.3g}"
+            f"{test_name} search, {number} loops, best of "
+            f"{len(time_vec)} runs: {results[test + '-search'][0]:.3g}"
         )
 
     LOGGER.debug("Running remaining creation tests")
