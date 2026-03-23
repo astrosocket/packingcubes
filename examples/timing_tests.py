@@ -367,6 +367,7 @@ def tree_sizes(decimation_factor=10):
 def cubing_setup(decimation_factor: int = 1, *, dataset: data_objects.Dataset = None):
     if dataset is None:
         dataset = load_data(decimation_factor)
+    # We'll use _process_args to get as close to the default behavior as we can
     # InMemory datasets only are PartType0 by default
     args = cubes._process_args(["-t0", "--", str(dataset.filepath)])
     box = cubes._process_box(dataset=dataset, args=args)
@@ -382,6 +383,7 @@ def cubing(setup):
         cube_box=box,
         particle_threshold=args.particle_threshold,
         particle_types=args.particle_types,
+        save_dataset=False,
     )
 
 
@@ -484,7 +486,7 @@ def get_search_obj(
     cd = creation_dict[function]
     setup = cd.get("setup", lambda dataset: dataset)
     setup_data = setup(dataset=dataset)
-    globals()["data"] = dataset.data_container
+    globals()["dataset"] = dataset
     globals()["setup_data"] = setup_data
 
     if results is not None:

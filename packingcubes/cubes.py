@@ -164,12 +164,25 @@ def _process_args(argv=None):
     parser.add_argument("snapshot", help="Path to the snapshot file", type=str)
     parser.add_argument(
         "output",
-        help="Name of hdf5 file to save cubes information to",
+        help="""
+        Name of hdf5 file to save cubes information to. If not specified, cubes
+        information will be discarded!
+        """,
         type=str,
+        nargs="?",
     )
     parser.add_argument(
         "--force-overwrite",
         help="Flag to overwrite cubes data contained in OUTPUT",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--no-saving-dataset",
+        help="""
+        Don't save sorted particle positions and shuffle lists
+        Normally sorted particle positions/shuffle lists are saved within a
+        sidecar file to the snapshot. This flag disables that behavior.
+        """,
         action="store_true",
     )
 
@@ -934,7 +947,7 @@ class Cubes:
 if __name__ == "__main__":
     logging.basicConfig()
     args = _process_args()
-    if has_cubes(args.output) and not args.force_overwrite:
+    if args.output and has_cubes(args.output) and not args.force_overwrite:
         sys.exit(
             "Provided output file already contains cubes data and"
             " you did not specify --force-overwrite"
@@ -947,7 +960,9 @@ if __name__ == "__main__":
         cube_box=box,
         particle_threshold=args.particle_threshold,
         particle_types=args.particle_types,
+        save_dataset=not args.no_save_dataset,
     )
     LOGGER.info(cubes_dict.keys())
     cubes = Cubes(dataset=dataset, cubes_dict=cubes_dict)
-    cubes.save(args.output)
+    if args.output:
+        cubes.save(args.output)
