@@ -909,7 +909,10 @@ except TypingError:
 
 
 def make_bounding_sphere(
-    radius: float, *, center: ArrayLike | None = None
+    radius: float,
+    *,
+    center: ArrayLike | None = None,
+    unsafe: bool = False,
 ) -> BoundingSphere:
     """
     Convert a spherelike object into an BoundingBox
@@ -937,18 +940,19 @@ def make_bounding_sphere(
     if len(center) != 3:
         raise ValueError("Center should be a 3 element array")
 
-    # sphere bounding box
-    bounding_box = make_bounding_box(
-        np.array(
-            [
-                center[0] - radius,
-                center[1] - radius,
-                center[2] - radius,
-                2 * radius,
-                2 * radius,
-                2 * radius,
-            ],
-        ),
-    )
+    if not unsafe:
+        # sphere bounding box
+        bounding_box = make_bounding_box(
+            np.array(
+                [
+                    center[0] - radius,
+                    center[1] - radius,
+                    center[2] - radius,
+                    2 * radius,
+                    2 * radius,
+                    2 * radius,
+                ],
+            ),
+        )
 
     return BoundingSphere(center, float(radius))

@@ -667,7 +667,7 @@ class ParticleCubes:
             List of particle start-stop indices contained within sphere
         """
         with objmode(sph=bbox.bs_type):
-            sph = bbox.make_bounding_sphere(center=center, radius=radius)
+            sph = bbox.make_bounding_sphere(center=center, radius=radius, unsafe=True)
 
         return _get_particle_indices_in_shape(
             cubes=self.cube_boxes,
@@ -935,7 +935,7 @@ class Cubes:
         if isinstance(particle_types, str):
             particle_types = [particle_types]
         inds = {}
-        sph = bbox.make_bounding_sphere(radius, center=center)
+        sph = bbox.make_bounding_sphere(radius, center=center, unsafe=True)
         for pt in particle_types:
             inds[pt] = self.cubes_dict[pt]._get_particle_indices_in_shape(
                 sph, sph.bounding_box
