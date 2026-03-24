@@ -49,6 +49,7 @@ def load_data(
     # type available by setting the particle type, which reloads the data,
     # undoing the decimation here. This means we don't need to manually set the
     # index or bounding box either, which is a nice benefit
+    LOGGER.debug("Converting to InMemory")
     dataset = data_objects.InMemory(
         positions=ds._positions[:: int(decimation_factor), :]
     )
@@ -126,6 +127,15 @@ def random_search_balls_constant_number(
         # assume r = 0 => n_enclosed = 0
         # bisect radii until |n_enclosed - num_particles|/num_particles < 5%
         center = rng.random(box.size.size) * box.size + box.position
+
+        if num_particles > len(ds):
+            # need to return a radii bigger than box -> just use twice max dx
+            centers.append(center)
+            r = max(ds.bounding_box.size)
+            radii.append(r)
+            particle_numbers.append(len(ds))
+            continue
+
         r = 10 ** (rng.random() * np.log10(rng.choice(box.size)))
         LOGGER.debug(f"Starting search for ball {i} with center {center} and r0={r}")
         n_enclosed = len(
@@ -136,6 +146,7 @@ def random_search_balls_constant_number(
             )
         )
         rlower = 0
+
         # ensure we're starting from a big enough radii
         # can update lower limit at same time
         while n_enclosed < num_particles:
@@ -379,7 +390,9 @@ def cubing_setup(decimation_factor: int = 1, *, dataset: data_objects.Dataset = 
         dataset = load_data(decimation_factor)
     # We'll use _process_args to get as close to the default behavior as we can
     # InMemory datasets only are PartType0 by default
-    args = cubes._process_args(["-t0", "--", str(dataset.filepath)])
+    args = cubes._process_args(
+        ["-t0", "--no-saving-dataset", "--", str(dataset.filepath)]
+    )
     box = cubes._process_box(dataset=dataset, args=args)
     return (dataset, args, box)
 
@@ -635,7 +648,13 @@ def manual_timing(
     for test in creation_list:
         if test in results:
             continue
-        get_search_obj(test, dataset=ds, results=results, dry_run=dry_run)
+        get_search_obj(
+            function=test,
+            dataset=ds,
+            creation_dict=creation_dict,
+            results=results,
+            dry_run=dry_run,
+        )
 
     return results
 
@@ -689,7 +708,7 @@ def parse_arguments(argv=None):
     parser.add_argument(
         "-d",
         "--decimation-factor",
-        default=1,
+        default=[1],
         help="The decimation interval (e.g. -d 10 specifies use every 10th particle)",
         type=int,
         nargs="+",
@@ -709,7 +728,6 @@ def parse_arguments(argv=None):
         slower startup!
         """,
         type=int,
-        default=100,
         nargs="+",
     )
     parser.add_argument(
@@ -843,7 +861,7 @@ def collate_results(
                     res = results[res_name][test_name][0]
                     if res >= 0:
                         result_array[i, j] = res.to("ms")
-            result_str = np.array2string(result_array, separator=", ", precision=3)
+            result_str = np.array2string(result_array, separator=", ", precision=4)
             print(f"{test} = {result_str}", file=outfile)
 
 
@@ -891,7 +909,7 @@ if __name__ == "__main__":
                 creation_list=creation_list,
                 search_list=search_list,
                 dry_run=args.dry,
-                use_constant_number=ns,
+                use_constant_number=None,
                 number_balls=args.number_balls,
                 dcrp=(ds, centers, radii, particle_numbers),
             )
