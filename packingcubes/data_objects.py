@@ -463,14 +463,10 @@ class GadgetishHDF5Dataset(HDF5Dataset):
             if sorted_filepath is None
             else sorted_filepath
         )
-        if self._sorted_file_name.exists():
-            if not h5py.is_hdf5(self._sorted_file_name):
-                raise DatasetError(
-                    f"{self._sorted_file_name} already exists but is not an hdf5 file!",
-                )
-        else:
-            with h5py.File(self._sorted_file_name, "w") as file:
-                file.create_dataset("Header", dtype=float)
+        if self._sorted_file_name.exists() and not h5py.is_hdf5(self._sorted_file_name):
+            raise DatasetError(
+                f"{self._sorted_file_name} already exists but is not an hdf5 file!",
+            )
 
         # set initial particle type and load data
         self._particle_type = particle_types[0]
