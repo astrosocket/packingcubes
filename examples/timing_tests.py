@@ -478,6 +478,21 @@ def _format_time(times: unyt_array | unyt_quantity) -> unyt_array:
     return times.to(units[-1])
 
 
+def _run_timer(timer: timeit.Timer) -> tuple[int, unyt_array]:
+    try:
+        # do additional run for any missing precompile
+        timer.timeit(1)
+        number, _ = timer.autorange()
+        time_vec = timer.repeat(number=number)
+        time_vec *= second
+        time_vec /= number  # change to per-loop
+        time_vec /= len(radii)  # change to per-sphere (average)
+    except ValueError:
+        number = -1
+        time_vec = [-1, -1] * second
+    return number, time_vec
+
+
 def get_search_obj(
     *,
     function: str,
@@ -496,11 +511,7 @@ def get_search_obj(
         statement = f"reset_data(dataset);{cd['fun']}(setup_data)"
         if not dry_run:
             timer = timeit.Timer(statement, globals=globals())
-            # do additional run for any missing precompile
-            timer.timeit(1)
-            number, _ = timer.autorange()
-            time_vec = timer.repeat(number=number) * second
-            time_vec /= number
+            number, time_vec = _run_timer(timer)
         else:
             number = -1
             time_vec = [-1, -1] * second
@@ -619,13 +630,7 @@ def manual_timing(
             timer = timeit.Timer(
                 sd["fun"], setup="import gc;gc.enable()", globals=globals()
             )
-            # do additional run for any missing precompile
-            timer.timeit(1)
-            number, _ = timer.autorange()
-            time_vec = timer.repeat(number=number)
-            time_vec *= second
-            time_vec /= number  # change to per-loop
-            time_vec /= len(radii)  # change to per-sphere (average)
+            number, time_vec = _run_timer(timer)
         else:
             number = -1
             time_vec = [-1, -1] * second
@@ -831,7 +836,9 @@ def collate_results(
             for i, df in enumerate(decimation_factors):
                 for j, sb in enumerate(search_ball_sizes):
                     res_name = f"df={df}_ns={sb}"
-                    result_array[i, j] = results[res_name][test][0].to("s")
+                    res = results[res_name][test][0]
+                    if res >= 0:
+                        result_array[i, j] = res.to("s")
             print(f"{test} = {result_array}", file=outfile)
         print("Search times [ms]:", file=outfile)
         for test in search_list:
@@ -842,7 +849,9 @@ def collate_results(
             for i, df in enumerate(decimation_factors):
                 for j, sb in enumerate(search_ball_sizes):
                     res_name = f"df={df}_ns={sb}"
-                    result_array[i, j] = results[res_name][test_name][0].to("ms")
+                    res = results[res_name][test_name][0]
+                    if res >= 0:
+                        result_array[i, j] = res.to("ms")
             print(f"{test} = {result_array}", file=outfile)
 
 
