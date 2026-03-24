@@ -677,6 +677,35 @@ class ParticleCubes:
             shape=sph,
         )
 
+    def _get_particle_indices_in_shape(
+        self,
+        shape: bbox.BoundingVolume,
+        shape_box: bbox.BoundingBox,
+    ) -> list[tuple[int, int]]:
+        """
+        Return all particles contained within the box
+
+        This is a private version that uses a premade bounding_box
+
+        Args:
+            shape: BoundingVolume
+            The shape to search in
+
+            box: BoundingBox
+            The bounding box of the shape
+
+        Returns:
+            indices: list[tuple[int, int]]
+            List of particle start-stop indices contained within box
+        """
+        return _get_particle_indices_in_shape(
+            cubes=self.cube_boxes,
+            trees=self._numba_trees,
+            cube_offsets=self.cube_indices,
+            shape_box=shape_box,
+            shape=shape,
+        )
+
 
 def has_cubes(dataset: str | Path | MultiParticleDataset):
     """Return true if the dataset contains a packingcubes structure"""
@@ -868,9 +897,12 @@ class Cubes:
             particle_types = self.particle_types
         if isinstance(particle_types, str):
             particle_types = [particle_types]
+        numba_box = bbox.make_bounding_box(box)
         inds = {}
         for pt in particle_types:
-            inds[pt] = self.cubes_dict[pt].get_particle_indices_in_box(box)
+            inds[pt] = self.cubes_dict[pt]._get_particle_indices_in_shape(
+                numba_box, numba_box
+            )
         return inds
 
     def get_particle_indices_in_sphere(
@@ -903,9 +935,10 @@ class Cubes:
         if isinstance(particle_types, str):
             particle_types = [particle_types]
         inds = {}
+        sph = bbox.make_bounding_sphere(radius, center=center)
         for pt in particle_types:
-            inds[pt] = self.cubes_dict[pt].get_particle_indices_in_sphere(
-                center, radius
+            inds[pt] = self.cubes_dict[pt]._get_particle_indices_in_shape(
+                sph, sph.bounding_box
             )
         return inds
 
