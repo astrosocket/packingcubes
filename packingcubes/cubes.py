@@ -313,13 +313,17 @@ def _cube(data: DataContainer, cubes_per_side: int, box: BoundingBox):
     # print("Statistics:")
     # print(pretty(chopped))
 
-    shuffle_list = np.zeros(
+    shuffle_list = np.empty(
         (
             len(
                 positions,
             )
         ),
         dtype=np.uint64,
+    )
+    new_positions = np.empty(
+        (len(positions), 3),
+        dtype=np.float64,
     )
 
     thread_offsets = np.zeros_like(chopped)
@@ -342,10 +346,16 @@ def _cube(data: DataContainer, cubes_per_side: int, box: BoundingBox):
         #     print(pretty(thread_offsets))
 
         shuffle_list[offset] = i
+        new_positions[offset, 0] = x
+        new_positions[offset, 1] = y
+        new_positions[offset, 2] = z
+
+    data._positions = new_positions
+    data._index = shuffle_list
 
     # print("Dicing complete\nCubing complete")
 
-    return shuffle_list, chopped[:, 0]
+    return chopped[:, 0]
 
 
 @njit(parallel=True)
@@ -495,7 +505,7 @@ def make_cubes(
         data = dataset.data_container
 
         LOGGER.info("Cubing")
-        shuffle_list, cube_indices = _cube(data, cubes_per_side, cube_box)
+        cube_indices = _cube(data, cubes_per_side, cube_box)
 
         # check cube sizes
         if np.any(np.diff(cube_indices[:-1]) >= 2**32):
@@ -504,8 +514,6 @@ def make_cubes(
                 " one cube has more than 2**32 particles, the max allowed for"
                 " a packed tree."
             )
-
-        dataset.reorder(shuffle_list)
 
         LOGGER.info("Getting boxes")
         cube_boxes = _get_cube_boxes(
