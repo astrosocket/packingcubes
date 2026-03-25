@@ -8,6 +8,8 @@ from functools import partial
 from typing import TextIO
 
 import numpy as np
+from numba import njit
+from numba.typed import List
 from numpy.typing import NDArray
 from scipy.spatial import KDTree
 from unyt import second, unyt_array, unyt_quantity
@@ -259,6 +261,31 @@ def packed_octree_query_ball_point_indices(
         )
 
 
+@njit
+def _packed_octree_qbp_jitted(
+    tree: optree.packed_tree_numba.PackedTreeNumba,
+    spheres: List[bbox.BoundingSphere],
+    sphere_boxes: List[bbox.BoundingBox],
+    num_reps: int,
+):
+    for i in range(len(spheres)):
+        sph = spheres[i]
+        sph_box = sphere_boxes[i]
+        for _ in range(num_reps):
+            sph_inds = tree._get_particle_indices_in_shape(sph_box, sph)
+
+
+def packed_octree_qbp_jitted(tree: optree.PackedTree, *, centers, radii, **kwargs):
+    spheres = List.empty_list(bbox.bs_type)
+    sphere_boxes = List.empty_list(bbox.bbn_type)
+    for c, r in zip(centers, radii, strict=True):
+        sph = bbox.make_bounding_sphere(r, center=c, unsafe=True)
+        spheres.append(sph)
+        sphere_boxes.append(sph.bounding_box)
+    num_reps = 100000
+    _packed_octree_qbp_jitted(tree._tree, spheres, sphere_boxes, num_reps)
+
+
 def packed_kdtree_creation(ds):
     return optree.KDTree(data=ds, leafsize=octree._DEFAULT_PARTICLE_THRESHOLD)
 
@@ -456,6 +483,11 @@ def get_creation_search_dicts():
                 "packed_octree_query_ball_point_indices(data, search_obj)"
             ),  # needs dataset + tree
             "tree": "packed",
+        },
+        "packnumb": {
+            "fun": "packed_octree_qbp_jitted(search_obj)",
+            "tree": "packed",
+            "scaling": 100000,
         },
         "cubes": {
             "fun": "cubes_query_ball_points(search_obj)",
