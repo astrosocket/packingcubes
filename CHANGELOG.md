@@ -46,6 +46,7 @@
 
 ### 🚀 Features
 
+- Enhancements derived from updating the README ([#12](https://github.com/astrosocket/packingcubes/issues/12)) ([256877c](https://github.com/astrosocket/packingcubes/commit/256877c79eb08fcc1dc6ee54d138c1ad67687a45))
 - Flesh out the readme ([e757b45](https://github.com/astrosocket/packingcubes/commit/e757b4586b2c79fe11e2152f70019a567f367d01))
 - Support passing a regular array to Cubes constructor ([c59097b](https://github.com/astrosocket/packingcubes/commit/c59097b8eb844dda5be5510125b7b4c487e7c54c))
 - Allow loading cubes data from file ([d45b5d7](https://github.com/astrosocket/packingcubes/commit/d45b5d70ee30975a870f75ee6ee348e745fafa37))
