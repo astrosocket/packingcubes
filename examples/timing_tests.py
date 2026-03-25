@@ -528,6 +528,7 @@ def get_search_obj(
 ):
     cd = creation_dict[function]
     setup = cd.get("setup", lambda dataset: dataset)
+    scaling = cd.get("scaling", 1)
     setup_data = setup(dataset=dataset)
     globals()["dataset"] = dataset
     globals()["setup_data"] = setup_data
@@ -539,6 +540,7 @@ def get_search_obj(
             timer = timeit.Timer(statement, globals=globals())
             number, time_vec = _run_timer(
                 timer,
+                add_scaling=scaling,
             )
         else:
             number = -1
@@ -631,6 +633,7 @@ def manual_timing(
         globals()["centers"] = centers
         globals()["radii"] = radii
         globals()["particle_numbers"] = particle_numbers
+        scaling = sd.get("scaling", 1)
         if not dry_run:
             fun_str = sd["fun"].replace(
                 "search_obj",
@@ -640,7 +643,7 @@ def manual_timing(
             timer = timeit.Timer(
                 fun_str, setup="import gc;gc.enable()", globals=globals()
             )
-            number, time_vec = _run_timer(timer, add_scaling=len(radii))
+            number, time_vec = _run_timer(timer, add_scaling=scaling * len(radii))
         else:
             number = -1
             time_vec = [-1, -1] * second
