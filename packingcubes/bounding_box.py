@@ -238,7 +238,7 @@ class BoundingBox(BoundingVolume):
         """
         Return the coordinates of the center of the box
         """
-        return self.box[:3] + self.box[3:] / 2
+        return self.box[0:3] + self.box[3:6] / 2
 
     def get_box_vertex(self, index: int, jitter: float = 0) -> NDArray:
         """
@@ -295,14 +295,18 @@ class BoundingBox(BoundingVolume):
 
         vertices = np.zeros((8, 3))
 
-        jitter_amount = np.sign(jitter) * self.box[3:] / 100
+        bx, by, bz, dx, dy, dz = self.box
+        jf = 0 if jitter == 0 else (-1 if jitter < 0 else 1)
+        jx = jf * dx / 100
+        jy = jf * dy / 100
+        jz = jf * dz / 100
 
-        x0 = self.box[0] + jitter_amount[0]
-        x1 = self.box[0] + self.box[3] - jitter_amount[0]
-        y0 = self.box[1] + jitter_amount[1]
-        y1 = self.box[1] + self.box[4] - jitter_amount[1]
-        z0 = self.box[2] + jitter_amount[2]
-        z1 = self.box[2] + self.box[5] - jitter_amount[2]
+        x0 = bx + jx
+        x1 = bx + dx - jx
+        y0 = by + jy
+        y1 = by + dy - jy
+        z0 = bz + jz
+        z1 = bz + dz - jz
 
         vertices[0, 0] = x0
         vertices[0, 1] = y0
@@ -431,8 +435,7 @@ class BoundingBox(BoundingVolume):
         See Also:
             contains_pointlist, count_inside
         """
-        bx, by, bz = self.box[:3]
-        dx, dy, dz = self.box[3:]
+        bx, by, bz, dx, dy, dz = self.box
         return (
             ((bx <= x) & (x <= bx + dx))
             & ((by <= y) & (y <= by + dy))
@@ -457,10 +460,9 @@ class BoundingBox(BoundingVolume):
         assert len(xyz.shape) == 2
         assert xyz.shape[1] == 3
         in_box = np.empty((xyz.shape[0],), dtype=np.bool_)
-        bx, by, bz = self.box[:3]
-        dx, dy, dz = self.box[3:]
+        bx, by, bz, dx, dy, dz = self.box
         for i in range(xyz.shape[0]):
-            x, y, z = xyz[i, :]
+            x, y, z = xyz[i, 0:2]
             in_box[i] = (
                 ((bx <= x) & (x <= bx + dx))
                 & ((by <= y) & (y <= by + dy))
@@ -489,10 +491,9 @@ class BoundingBox(BoundingVolume):
         assert len(xyz.shape) == 2
         assert xyz.shape[1] == 3
         in_box = 0
-        bx, by, bz = self.box[:3]
-        dx, dy, dz = self.box[3:]
+        bx, by, bz, dx, dy, dz = self.box
         for i in range(xyz.shape[0]):
-            x, y, z = xyz[i, :]
+            x, y, z = xyz[i, 0:2]
             in_box += (
                 ((bx <= x) & (x <= bx + dx))
                 & ((by <= y) & (y <= by + dy))
@@ -508,10 +509,10 @@ class BoundingBox(BoundingVolume):
         in half before x[i] + dx[i] == x[i].
         """
         min_box_sizes = (
-            np.maximum(1.0, np.abs(self.box[:3]) + self.box[3:])
+            np.maximum(1.0, np.abs(self.box[0:3]) + self.box[3:6])
             * np.finfo(np.float64).eps
         )
-        return np.ceil(np.log2(self.box[3:] / min_box_sizes)).astype(np.int_).min()
+        return np.ceil(np.log2(self.box[3:6] / min_box_sizes)).astype(np.int_).min()
 
     def midplane(self) -> tuple[float, float, float]:
         """
@@ -535,11 +536,11 @@ class BoundingBox(BoundingVolume):
 
         fixed_subnormal = np.sign(coordinates) * np.clip(
             np.abs(coordinates),
-            a_min=np.nextafter(self.box[3:], self.box[3:] + 1) - self.box[3:],
+            a_min=np.nextafter(self.box[3:6], self.box[3:6] + 1) - self.box[3:6],
             a_max=None,
         )
         return np.clip(
-            (fixed_subnormal - self.box[:3]) / self.box[3:],
+            (fixed_subnormal - self.box[:3]) / self.box[3:6],
             a_min=0.0,
             a_max=1.0,
         )
@@ -788,7 +789,7 @@ class BoundingSphere(BoundingVolume):
         cx, cy, cz = self.center
         in_sph = np.empty((xyz.shape[0],), dtype=np.bool_)
         for i in range(xyz.shape[0]):
-            x, y, z = xyz[i, :]
+            x, y, z = xyz[i, 0:2]
             in_sph[i] = (cx - x) ** 2 + (cy - y) ** 2 + (cz - z) ** 2 <= r2
         return in_sph
 
@@ -816,7 +817,7 @@ class BoundingSphere(BoundingVolume):
         r2 = self.radius * self.radius
         cx, cy, cz = self.center
         for i in range(xyz.shape[0]):
-            x, y, z = xyz[i, :]
+            x, y, z = xyz[i, 0:2]
             in_sph += (cx - x) ** 2 + (cy - y) ** 2 + (cz - z) ** 2 <= r2
         return in_sph
 
@@ -908,7 +909,10 @@ except TypingError:
 
 
 def make_bounding_sphere(
-    radius: float, *, center: ArrayLike | None = None
+    radius: float,
+    *,
+    center: ArrayLike | None = None,
+    unsafe: bool = False,
 ) -> BoundingSphere:
     """
     Convert a spherelike object into an BoundingBox
@@ -936,18 +940,19 @@ def make_bounding_sphere(
     if len(center) != 3:
         raise ValueError("Center should be a 3 element array")
 
-    # sphere bounding box
-    bounding_box = make_bounding_box(
-        np.array(
-            [
-                center[0] - radius,
-                center[1] - radius,
-                center[2] - radius,
-                2 * radius,
-                2 * radius,
-                2 * radius,
-            ],
-        ),
-    )
+    if not unsafe:
+        # sphere bounding box
+        bounding_box = make_bounding_box(
+            np.array(
+                [
+                    center[0] - radius,
+                    center[1] - radius,
+                    center[2] - radius,
+                    2 * radius,
+                    2 * radius,
+                    2 * radius,
+                ],
+            ),
+        )
 
     return BoundingSphere(center, float(radius))

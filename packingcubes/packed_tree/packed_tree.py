@@ -238,7 +238,7 @@ class PackedTree(octree.Octree):
             Third element of each tuple is a flag for whether only some
             particles (1) among the start-stop indices are contained or all (0)
         """
-        sph = bbox.make_bounding_sphere(center=center, radius=radius)
+        sph = bbox.make_bounding_sphere(center=center, radius=radius, unsafe=True)
         return self._tree._get_particle_indices_in_shape(sph.bounding_box, sph)
 
     def get_particle_index_list_in_box(
@@ -310,7 +310,7 @@ class PackedTree(octree.Octree):
             List of original particle indices contained within sphere
         """
         data = data.data_container if isinstance(data, Dataset) else data
-        sph = bbox.make_bounding_sphere(radius, center=center)
+        sph = bbox.make_bounding_sphere(radius, center=center, unsafe=True)
         bounding_box = sph.bounding_box
         if strict:
             return self._tree._get_particle_index_list_in_shape(data, bounding_box, sph)

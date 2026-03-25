@@ -83,7 +83,7 @@ class KDTreeAPI:
     sufficiently separated.
 
     Args:
-        data : array_like, shape (n,m)
+        data : array_like, shape (n,m) | Dataset
         The n m-dimensional data points to be indexed. This array is
         preferentially not copied and will be sorted in place, so modifying
         this data will result in bogus results. The data are also copied if
@@ -91,6 +91,7 @@ class KDTreeAPI:
         intended to support 3-dimensional data, so m>3 is not supported. For
         m<3, the data is padded with zeros (e.g. [[1, 2], [3, 4]] will become
         [[1, 2, 0], [3, 4, 0]]). This will lead to the data being copied.
+        Can also pass in a Dataset directly for improved creation time.
 
         leafsize : positive int, optional
         The number of points at which the algorithm switches over to
@@ -161,7 +162,7 @@ class KDTreeAPI:
 
     def __init__(
         self,
-        data: NDArray,
+        data: NDArray | Dataset,
         leafsize: int | None = None,
         compact_nodes: bool | None = None,  # noqa: FBT001
         copy_data: bool = False,  # noqa: FBT001, FBT002
@@ -196,11 +197,15 @@ class KDTreeAPI:
                 stacklevel=1,
             )
 
-        # Note: this also handles if the data should be copied
-        data, data_copied = _check_data_shape(data=data, copy_data=copy_data)
+        if not isinstance(data, Dataset):
+            # Note: this also handles if the data should be copied
+            data, data_copied = _check_data_shape(data=data, copy_data=copy_data)
 
-        self._dataset = InMemory(positions=data)
-        self._copied = data_copied
+            self._dataset = InMemory(positions=data)
+            self._copied = data_copied
+        else:
+            self._dataset = data
+            self._copied = False
         self._data_container = self._dataset.data_container
         self.data = self._dataset.positions
         self.n = len(self.data)

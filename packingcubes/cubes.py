@@ -118,8 +118,11 @@ def _process_args(argv=None):
     parser.add_argument(
         "-n",
         "--side-length",
-        default=3,
-        help="number of cells per side [3-32], default 3",
+        default=-1,
+        help="""
+        number of cells per side [3-32], default -1 means use the lowest number
+        of cells such that n**3 > # of available threads
+        """,
         type=int,
         dest="n",
     )
@@ -164,17 +167,30 @@ def _process_args(argv=None):
     parser.add_argument("snapshot", help="Path to the snapshot file", type=str)
     parser.add_argument(
         "output",
-        help="Name of hdf5 file to save cubes information to",
+        help="""
+        Name of hdf5 file to save cubes information to. If not specified, cubes
+        information will be discarded!
+        """,
         type=str,
+        nargs="?",
     )
     parser.add_argument(
         "--force-overwrite",
         help="Flag to overwrite cubes data contained in OUTPUT",
         action="store_true",
     )
+    parser.add_argument(
+        "--no-saving-dataset",
+        help="""
+        Don't save sorted particle positions and shuffle lists
+        Normally sorted particle positions/shuffle lists are saved within a
+        sidecar file to the snapshot. This flag disables that behavior.
+        """,
+        action="store_true",
+    )
 
     args = parser.parse_args(argv)
-    if args.n < 3 or 32 < args.n:
+    if args.n != -1 and (args.n < 3 or 32 < args.n):
         raise ValueError(
             f"Cubes per side needs to be within [3, 32]. You provided {args.n}"
         )
@@ -223,10 +239,9 @@ def _get_cube_boxes(
     return cube_boxes
 
 
-@njit(cache=True)
+@njit(cache=True, inline="always")
 def _cube_position(x: float, y: float, z: float, cubes_per_side: int, box: BoundingBox):
     # TODO: add zoom bins
-    num_cubes = cubes_per_side**3 + 1
     # note: can't use normalize_to_box because it clips the coordinates
     cube_x = np.floor((x - box.box[0]) / box.box[3] * cubes_per_side)
     cube_x = cubes_per_side - 1 if x == box.box[0] + box.box[3] else cube_x
@@ -245,7 +260,7 @@ def _cube_position(x: float, y: float, z: float, cubes_per_side: int, box: Bound
         #     zstr = f"z: cz={cube_z} z={z} bz={box.z} dz={box.dz}"
         #     string = xstr+"\n"+ystr+"\n"+zstr
         # print("Special cube point:\n"+string)
-        return num_cubes - 1
+        return cubes_per_side**3
     return np.int64((cube_x * cubes_per_side + cube_y) * cubes_per_side + cube_z)
 
 
@@ -298,13 +313,17 @@ def _cube(data: DataContainer, cubes_per_side: int, box: BoundingBox):
     # print("Statistics:")
     # print(pretty(chopped))
 
-    shuffle_list = np.zeros(
+    shuffle_list = np.empty(
         (
             len(
                 positions,
             )
         ),
         dtype=np.uint64,
+    )
+    new_positions = np.empty(
+        (len(positions), 3),
+        dtype=np.float64,
     )
 
     thread_offsets = np.zeros_like(chopped)
@@ -327,10 +346,16 @@ def _cube(data: DataContainer, cubes_per_side: int, box: BoundingBox):
         #     print(pretty(thread_offsets))
 
         shuffle_list[offset] = i
+        new_positions[offset, 0] = x
+        new_positions[offset, 1] = y
+        new_positions[offset, 2] = z
+
+    data._positions = new_positions
+    data._index = shuffle_list
 
     # print("Dicing complete\nCubing complete")
 
-    return shuffle_list, chopped[:, 0]
+    return chopped[:, 0]
 
 
 @njit(parallel=True)
@@ -372,10 +397,21 @@ def _make_trees(
     return trees
 
 
+def _process_cubes_per_side(cubes_per_side: int):
+    if cubes_per_side > 0:
+        return cubes_per_side
+    cubes_per_side = 3
+    flag = cubes_per_side**3 + 1 < nthreads
+    while cubes_per_side < 32 and flag:
+        cubes_per_side += 1
+        flag = cubes_per_side**3 + 1 < nthreads
+    return cubes_per_side
+
+
 def make_cubes(
     *,
     dataset: MultiParticleDataset,
-    cubes_per_side: int = 3,
+    cubes_per_side: int = -1,
     cube_box: bbox.BoxLike | None = None,
     particle_threshold: int = _DEFAULT_PARTICLE_THRESHOLD,
     particle_types: Collection[str] | None = None,
@@ -453,6 +489,8 @@ def make_cubes(
     cube_box = dataset.bounding_box if cube_box is None else cube_box
     cube_box = bbox.make_bounding_box(cube_box)
 
+    cubes_per_side = _process_cubes_per_side(cubes_per_side)
+
     num_cubes = cubes_per_side**3 + 1
     if np.any(particle_numbers / num_cubes > 2**31):
         raise ValueError(
@@ -467,7 +505,7 @@ def make_cubes(
         data = dataset.data_container
 
         LOGGER.info("Cubing")
-        shuffle_list, cube_indices = _cube(data, cubes_per_side, cube_box)
+        cube_indices = _cube(data, cubes_per_side, cube_box)
 
         # check cube sizes
         if np.any(np.diff(cube_indices[:-1]) >= 2**32):
@@ -476,8 +514,6 @@ def make_cubes(
                 " one cube has more than 2**32 particles, the max allowed for"
                 " a packed tree."
             )
-
-        dataset.reorder(shuffle_list)
 
         LOGGER.info("Getting boxes")
         cube_boxes = _get_cube_boxes(
@@ -536,8 +572,7 @@ def _get_particle_indices_in_shape(
         # be int64. We'll explicitly cast to avoid the warning and because
         # len(cubes) **better** be < 2**63 !
         li = np.int_(i)
-        px, py, pz = cubes[li].project_point_on_box(shape_midpoint)
-        overlap = shape.contains_point(px, py, pz)
+        overlap = shape.check_box_overlap(cubes[li])
         if overlap:
             indices[li] = trees[li]._get_particle_indices_in_shape(
                 bounding_box=shape_box, containment_obj=shape
@@ -640,7 +675,7 @@ class ParticleCubes:
             List of particle start-stop indices contained within sphere
         """
         with objmode(sph=bbox.bs_type):
-            sph = bbox.make_bounding_sphere(center=center, radius=radius)
+            sph = bbox.make_bounding_sphere(center=center, radius=radius, unsafe=True)
 
         return _get_particle_indices_in_shape(
             cubes=self.cube_boxes,
@@ -648,6 +683,35 @@ class ParticleCubes:
             cube_offsets=self.cube_indices,
             shape_box=sph.bounding_box,
             shape=sph,
+        )
+
+    def _get_particle_indices_in_shape(
+        self,
+        shape: bbox.BoundingVolume,
+        shape_box: bbox.BoundingBox,
+    ) -> list[tuple[int, int]]:
+        """
+        Return all particles contained within the box
+
+        This is a private version that uses a premade bounding_box
+
+        Args:
+            shape: BoundingVolume
+            The shape to search in
+
+            box: BoundingBox
+            The bounding box of the shape
+
+        Returns:
+            indices: list[tuple[int, int]]
+            List of particle start-stop indices contained within box
+        """
+        return _get_particle_indices_in_shape(
+            cubes=self.cube_boxes,
+            trees=self._numba_trees,
+            cube_offsets=self.cube_indices,
+            shape_box=shape_box,
+            shape=shape,
         )
 
 
@@ -841,9 +905,12 @@ class Cubes:
             particle_types = self.particle_types
         if isinstance(particle_types, str):
             particle_types = [particle_types]
+        numba_box = bbox.make_bounding_box(box)
         inds = {}
         for pt in particle_types:
-            inds[pt] = self.cubes_dict[pt].get_particle_indices_in_box(box)
+            inds[pt] = self.cubes_dict[pt]._get_particle_indices_in_shape(
+                numba_box, numba_box
+            )
         return inds
 
     def get_particle_indices_in_sphere(
@@ -876,9 +943,10 @@ class Cubes:
         if isinstance(particle_types, str):
             particle_types = [particle_types]
         inds = {}
+        sph = bbox.make_bounding_sphere(radius, center=center, unsafe=True)
         for pt in particle_types:
-            inds[pt] = self.cubes_dict[pt].get_particle_indices_in_sphere(
-                center, radius
+            inds[pt] = self.cubes_dict[pt]._get_particle_indices_in_shape(
+                sph, sph.bounding_box
             )
         return inds
 
@@ -934,7 +1002,7 @@ class Cubes:
 if __name__ == "__main__":
     logging.basicConfig()
     args = _process_args()
-    if has_cubes(args.output) and not args.force_overwrite:
+    if args.output and has_cubes(args.output) and not args.force_overwrite:
         sys.exit(
             "Provided output file already contains cubes data and"
             " you did not specify --force-overwrite"
@@ -947,7 +1015,9 @@ if __name__ == "__main__":
         cube_box=box,
         particle_threshold=args.particle_threshold,
         particle_types=args.particle_types,
+        save_dataset=not args.no_save_dataset,
     )
     LOGGER.info(cubes_dict.keys())
     cubes = Cubes(dataset=dataset, cubes_dict=cubes_dict)
-    cubes.save(args.output)
+    if args.output:
+        cubes.save(args.output)

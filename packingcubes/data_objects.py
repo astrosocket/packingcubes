@@ -317,6 +317,7 @@ class HDF5Dataset(MultiParticleDataset):
     """ Whether to load sorted versions of positions if possible """
     _particle_type: str
     """ The currently loaded particle type """
+    _data_slices: dict
 
     def __init__(
         self,
@@ -324,15 +325,23 @@ class HDF5Dataset(MultiParticleDataset):
         name: str | None = None,
         filepath: str | Path,
         sorted_filepath: str | Path | None = None,
+        data_slices=None,
     ):
         """
         Args:
             sorted_filepath: str | Path, optional
             Optional file to store sorted position and shuffle-list data
+
+            data_slices: np.s_ | dict[str, np.s_], optional
+            A numpy slice object or dictionary of slice objects per particle
+            type. This can be used to load only a portion of the dataset.
         """
         super().__init__(name=name, filepath=filepath)
 
         self._preload(sorted_filepath)
+
+        self._process_slices(data_slices)
+
         self._check_loading_strategy()
         self._set_bounding_box()
         self._load_positions()
@@ -347,6 +356,18 @@ class HDF5Dataset(MultiParticleDataset):
         raise NotImplementedError(
             "You are trying to instantiate a base HDF5 class.\nUse a subclass instead.",
         )
+
+    def _process_slices(self, data_slice):
+        data_slices = {}
+        for pt in self._particle_types:
+            if isinstance(data_slice, dict):
+                data_slices[pt] = data_slice.get(pt, np.s_[::])
+            elif not data_slice:
+                data_slices[pt] = np.s_[::]
+            else:
+                data_slices[pt] = data_slice
+
+        self._data_slices = data_slices
 
     def _check_loading_strategy(self):
         if not Path(self._sorted_file_name).is_file():
@@ -400,10 +421,14 @@ class HDF5Dataset(MultiParticleDataset):
         with h5py.File(filepath, "r") as file:
             if self._prefer_cache:
                 pt = self._particle_type + "/"
-                self._positions = file[pt + "positions"]
+                self._positions = file[pt + "positions"][
+                    self._data_slices[self._particle_type]
+                ]
                 self._index = file[pt + "index"]
             else:
-                positions = file[self._particle_type][self._positions_field]
+                positions = file[self._particle_type][self._positions_field][
+                    self._data_slices[self._particle_type]
+                ]
                 self._positions = np.array(positions, dtype=np.float64)
                 with contextlib.suppress(AttributeError):
                     del self._index
@@ -463,14 +488,10 @@ class GadgetishHDF5Dataset(HDF5Dataset):
             if sorted_filepath is None
             else sorted_filepath
         )
-        if self._sorted_file_name.exists():
-            if not h5py.is_hdf5(self._sorted_file_name):
-                raise DatasetError(
-                    f"{self._sorted_file_name} already exists but is not an hdf5 file!",
-                )
-        else:
-            with h5py.File(self._sorted_file_name, "w") as file:
-                file.create_dataset("Header", dtype=float)
+        if self._sorted_file_name.exists() and not h5py.is_hdf5(self._sorted_file_name):
+            raise DatasetError(
+                f"{self._sorted_file_name} already exists but is not an hdf5 file!",
+            )
 
         # set initial particle type and load data
         self._particle_type = particle_types[0]

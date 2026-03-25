@@ -1,3 +1,47 @@
+## [0.2.3] - 2026-03-25
+
+### 🚀 Features
+
+- Adding loading factor ([29f05af](https://github.com/astrosocket/packingcubes/commit/29f05afd3b16cd9591a0f16d9b147e5b214be124))
+- Allow multiple dfs/sbs and save to file ([c5f0e54](https://github.com/astrosocket/packingcubes/commit/c5f0e5406bccdd18adf4af4be68594ad94369dbd))
+- Allow dataset as argument to KDTree ([944540d](https://github.com/astrosocket/packingcubes/commit/944540d2c61ad0242dd17325aed32a98423db9fa))
+- Add auto thread based default cubes_per_side ([c24f39b](https://github.com/astrosocket/packingcubes/commit/c24f39b016fed12a73b270ff8049ef1793263d11))
+- Expose save_dataset flag, make output optional ([bbbd234](https://github.com/astrosocket/packingcubes/commit/bbbd2346fcd0cc4584842fe3c81dd04df0d94f7b))
+
+### 🐛 Bug Fixes
+
+- Assuming search_ball_sizes even when none ([1e6a018](https://github.com/astrosocket/packingcubes/commit/1e6a01808acda955b7b7a0fe8769ed562ac22b60))
+
+### 🚜 Refactor
+
+- Remove empty sidecar file header creation ([668a914](https://github.com/astrosocket/packingcubes/commit/668a914980a6fb1b0a7f0ccef5af5c903c3f379f))
+
+### ⚡ Performance
+
+- Move cubes reordering into parallel loop ([857295b](https://github.com/astrosocket/packingcubes/commit/857295b25257727f9a199ce42eae9c06dc9a8447))
+- Add unsafe BoundingSphere creation ([af01b30](https://github.com/astrosocket/packingcubes/commit/af01b303608eb3c2d5d5afa55a8dc114103139df))
+- Combine search methods and use single shape creation ([75985e9](https://github.com/astrosocket/packingcubes/commit/75985e99e4d270f69e4dae052360e4d1812f7bb6))
+- Switch to check_overlap ([68edfd6](https://github.com/astrosocket/packingcubes/commit/68edfd6845249aa80fc79965ad4f81c4a20f6dfb))
+- Inline _cubes_position, remove extra calculation ([83b51e7](https://github.com/astrosocket/packingcubes/commit/83b51e7a50ca027d4360d4995938965bd33b668a))
+- Use explicit bounds in box references ([cac5169](https://github.com/astrosocket/packingcubes/commit/cac51691fdf7f61e360e665c59eb15e11d13f8e5))
+
+### 🧪 Testing
+
+- Number of bugfixes ([fcd5af2](https://github.com/astrosocket/packingcubes/commit/fcd5af21b718367f6e5dbc6cc1fa53f1eebe7e6b))
+- Refactor timing_test to use fewer globals, general improvements ([b1e66b8](https://github.com/astrosocket/packingcubes/commit/b1e66b888644bad32c8de10390876eecca20a12e))
+- Handle error in timing gracefully ([c4df754](https://github.com/astrosocket/packingcubes/commit/c4df7544d08649f49e6e7d5499ab9f2341e4124c))
+- Switch to faster query_ball_point options ([340d8a3](https://github.com/astrosocket/packingcubes/commit/340d8a3d63c907924638662ef8104a4f8c779cbb))
+- Display number of threads if cubes testing ([d55daa8](https://github.com/astrosocket/packingcubes/commit/d55daa8d61462674ea6876ac27828cc013662dc8))
+## [0.2.2.2] - 2026-03-20
+
+### ⚙️ Miscellaneous Tasks
+
+- Add twine to build group, specify markdown ([#13](https://github.com/astrosocket/packingcubes/issues/13)) ([ed349a5](https://github.com/astrosocket/packingcubes/commit/ed349a51c4fc36099aa09c33d856ed7a63d1ce9f))
+## [0.2.2.1] - 2026-03-20
+
+### ⚙️ Miscellaneous Tasks
+
+- Add twine to build group, specify markdown ([a33903e](https://github.com/astrosocket/packingcubes/commit/a33903e9f4d228a35046cc7bcef8012aa8f52d2f))
 ## [0.2.2] - 2026-03-20
 
 ### 🚀 Features
