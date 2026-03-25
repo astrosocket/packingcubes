@@ -37,9 +37,14 @@ def load_data(
     filepath: str = snapfile,
     use_constant_number: int | None = None,
     number_balls: int = 100,
+    loading_factor: int | None = None,
 ):
     LOGGER.debug("Beginning data loading")
-    ds = data_objects.GadgetishHDF5Dataset(name=name, filepath=filepath)
+    ds = data_objects.GadgetishHDF5Dataset(
+        name=name,
+        filepath=filepath,
+        data_slices=np.s_[::loading_factor] if loading_factor else None,
+    )
     # ds._positions = ds._positions[: int(len(ds) / decimation_factor), :]
     if ds.particle_type != particle_type:
         with contextlib.suppress(data_objects.DatasetError):
@@ -53,9 +58,10 @@ def load_data(
     dataset = data_objects.InMemory(
         positions=ds._positions[:: int(decimation_factor), :]
     )
+    loading_factor = loading_factor if loading_factor else 1
     LOGGER.info(
-        f"Loaded {filepath} with decimation factor {decimation_factor}"
-        f"={len(dataset):.3e} particles"
+        f"Loaded {filepath} with loading factor x decimation factor = "
+        f"{loading_factor * decimation_factor} => {len(dataset):.3e} particles"
     )
     if use_constant_number:
         if use_constant_number < 10:
@@ -77,6 +83,7 @@ def load_data(
 def set_decimation(
     *, ds: data_objects.Dataset, decimation_factor: int
 ) -> data_objects.Dataset:
+    LOGGER.info(f"Decimating to {len(ds) / decimation_factor:.3e} particles")
     return data_objects.InMemory(
         positions=ds.positions.copy()[::decimation_factor, :],
     )
@@ -714,6 +721,17 @@ def parse_arguments(argv=None):
         nargs="+",
     )
     parser.add_argument(
+        "--loading-factor",
+        help="""
+        If the dataset is too large to load into RAM, you can provide an initial loading
+        decimation factor. The --decimation-factor option will then be on top of this.
+        So --loading-factor 10 --decimation-factor 10 100 is equivalent to
+        --loading-factor 1 --decimation-factor 100 1000, but loads only 10 percent of
+        the original data
+        """,
+        type=int,
+    )
+    parser.add_argument(
         "-n",
         "--number-balls",
         help="Number of search balls to create. More balls = better statistics",
@@ -883,6 +901,7 @@ if __name__ == "__main__":
         filepath=args.snapshot if args.snapshot else snapfile,
         use_constant_number=None,
         number_balls=args.number_balls,
+        loading_factor=args.loading_factor,
     )
     for df in args.decimation_factor:
         ds = set_decimation(ds=ds_full, decimation_factor=df)
