@@ -5,6 +5,7 @@ import pickle
 import sys
 import timeit
 from functools import partial
+from typing import TextIO
 
 import numpy as np
 from numpy.typing import NDArray
@@ -842,6 +843,73 @@ def parse_arguments(argv=None):
     return args
 
 
+def _print_with_search_balls(
+    *,
+    outfile: TextIO,
+    creation_list: list[str],
+    search_list: list[str],
+    decimation_factors: list[int],
+    search_ball_sizes: list[int],
+    results: dict[str, dict[str, tuple[unyt_quantity, unyt_array]]],
+):
+    print(f"m = {search_ball_sizes}", file=outfile)
+    print("Creation times [s]:", file=outfile)
+    for test in creation_list:
+        result_array = np.full((len(decimation_factors),), np.nan)
+        for i, df in enumerate(decimation_factors):
+            res_name = f"df={df}_ns={search_ball_sizes[0]}"
+            res = results[res_name][test][0]
+            if res >= 0:
+                result_array[i] = res.to("s")
+        result_str = np.array2string(result_array, separator=", ", precision=3)
+        print(f"{test} = {result_str}", file=outfile)
+    print("Search times [ms]:", file=outfile)
+    for test in search_list:
+        result_array = np.full(
+            (len(decimation_factors), len(search_ball_sizes)), np.nan
+        )
+        test_name = test + "-search"
+        for i, df in enumerate(decimation_factors):
+            for j, sb in enumerate(search_ball_sizes):
+                res_name = f"df={df}_ns={sb}"
+                res = results[res_name][test_name][0]
+                if res >= 0:
+                    result_array[i, j] = res.to("ms")
+        result_str = np.array2string(result_array, separator=", ", precision=4)
+        print(f"{test} = {result_str}", file=outfile)
+
+
+def _print_no_search_balls(
+    *,
+    outfile: TextIO,
+    creation_list: list[str],
+    search_list: list[str],
+    decimation_factors: list[int],
+    results: dict[str, dict[str, tuple[unyt_quantity, unyt_array]]],
+):
+    res_array_size = (len(decimation_factors),)
+    print(f"n = {decimation_factors}", file=outfile)
+    print("Creation times [s]:", file=outfile)
+    for test in creation_list:
+        result_array = np.full(res_array_size, np.nan)
+        for i, df in enumerate(decimation_factors):
+            res = results[f"df={df}"][test][0]
+            if res >= 0:
+                result_array[i] = res.to("s")
+        result_str = np.array2string(result_array, separator=", ", precision=3)
+        print(f"{test} = {result_str}", file=outfile)
+    print("Search times [ms]:", file=outfile)
+    for test in search_list:
+        result_array = np.full(res_array_size, np.nan)
+        test_name = test + "-search"
+        for i, df in enumerate(decimation_factors):
+            res = results[f"df={df}"][test_name][0]
+            if res >= 0:
+                result_array[i] = res.to("ms")
+        result_str = np.array2string(result_array, separator=", ", precision=4)
+        print(f"{test} = {result_str}", file=outfile)
+
+
 def collate_results(
     *,
     creation_list: list[str],
@@ -852,35 +920,23 @@ def collate_results(
     outfilepath: str,
 ):
     with open(outfilepath, "w") as outfile:
-        print(f"n = {decimation_factors}", file=outfile)
-        print(f"m = {search_ball_sizes}", file=outfile)
-        print("Creation times [s]:", file=outfile)
-        for test in creation_list:
-            result_array = np.full(
-                (len(decimation_factors), len(search_ball_sizes)), np.nan
+        if search_ball_sizes:
+            _print_with_search_balls(
+                outfile=outfile,
+                creation_list=creation_list,
+                search_list=search_list,
+                decimation_factors=decimation_factors,
+                search_ball_sizes=search_ball_sizes,
+                results=results,
             )
-            for i, df in enumerate(decimation_factors):
-                for j, sb in enumerate(search_ball_sizes):
-                    res_name = f"df={df}_ns={sb}"
-                    res = results[res_name][test][0]
-                    if res >= 0:
-                        result_array[i, j] = res.to("s")
-            result_str = np.array2string(result_array, separator=", ", precision=3)
-            print(f"{test} = {result_str}", file=outfile)
-        print("Search times [ms]:", file=outfile)
-        for test in search_list:
-            result_array = np.full(
-                (len(decimation_factors), len(search_ball_sizes)), np.nan
+        else:
+            _print_no_search_balls(
+                outfile=outfile,
+                creation_list=creation_list,
+                search_list=search_list,
+                decimation_factors=decimation_factors,
+                results=results,
             )
-            test_name = test + "-search"
-            for i, df in enumerate(decimation_factors):
-                for j, sb in enumerate(search_ball_sizes):
-                    res_name = f"df={df}_ns={sb}"
-                    res = results[res_name][test_name][0]
-                    if res >= 0:
-                        result_array[i, j] = res.to("ms")
-            result_str = np.array2string(result_array, separator=", ", precision=4)
-            print(f"{test} = {result_str}", file=outfile)
 
 
 if __name__ == "__main__":
