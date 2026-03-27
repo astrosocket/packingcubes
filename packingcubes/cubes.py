@@ -233,7 +233,7 @@ def _get_cube_boxes(
         for j in range(cubes_per_side):
             for k in range(cubes_per_side):
                 cube_pos = box.position + [i, j, k] * cube_size
-                cube = make_bounding_box(np.hstack((cube_pos, cube_size)))
+                cube = bbox.BoundingBox(np.hstack((cube_pos, cube_size)))
                 cube_boxes.append(cube)
     cube_boxes.append(data.bounding_box)  # don't forget leftovers cube!
     return cube_boxes
