@@ -406,7 +406,7 @@ def _make_trees(
     for i in prange(num_cubes):
         cube_inds = (
             cube_indices[i],
-            cube_indices[i + 1] - 1 if i + 1 < num_cubes else len(data) - 1,
+            cube_indices[i + 1] if i + 1 < num_cubes else len(data),
         )
         box = cube_boxes[i]
 
