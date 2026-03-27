@@ -741,6 +741,22 @@ class ParticleCubes:
 
         return self._get_particle_indices_in_shape(sph)
 
+    def save(
+        self,
+        dataset: str | Path | HDF5Dataset,
+        *,
+        force_overwrite: bool = False,
+    ) -> Path:
+        dataset = _check_overwrite(dataset, force_overwrite=force_overwrite)
+        save_cube(
+            dataset,
+            pt="PartType0",
+            cube_indices=self.cube_indices,
+            cube_boxes=self.cube_boxes,
+            cube_trees=self.cube_trees,
+        )
+        return dataset.filepath if isinstance(dataset, Dataset) else Path(dataset)
+
 
 def has_cubes(dataset: str | Path | MultiParticleDataset):
     """Return true if the dataset contains a packingcubes structure"""
@@ -753,6 +769,30 @@ def has_cubes(dataset: str | Path | MultiParticleDataset):
         with h5py.File(dataset) as file:
             return "cubes" in file
     return False
+
+
+def _check_overwrite(
+    dataset: str | Path | HDF5Dataset, *, force_overwrite: bool = False
+) -> str | Path | HDF5Dataset:
+    if not has_cubes(dataset):
+        return dataset
+    if force_overwrite:
+        LOGGER.warning(
+            f"Dataset {dataset} already contains cubes structure. Overwriting!"
+        )
+    else:
+        old_filepath = (
+            dataset.filepath if isinstance(dataset, HDF5Dataset) else Path(dataset)
+        )
+        new_filepath = (
+            old_filepath.parent / f"{old_filepath.stem}_cubes{old_filepath.suffix}"
+        )
+        LOGGER.info(
+            f"Dataset {old_filepath} already contains cubes structure."
+            f"Saving to {new_filepath} instead."
+        )
+        dataset = new_filepath
+    return dataset
 
 
 def save_cube(
@@ -1020,26 +1060,7 @@ class Cubes:
             If dataset already contains cubes data, overwrite if True.
             Default False
         """
-        if has_cubes(dataset):
-            if force_overwrite:
-                LOGGER.warning(
-                    f"Dataset {dataset} already contains cubes structure. Overwriting!"
-                )
-            else:
-                old_filepath = (
-                    dataset.filepath
-                    if isinstance(dataset, HDF5Dataset)
-                    else Path(dataset)
-                )
-                new_filepath = (
-                    old_filepath.parent
-                    / f"{old_filepath.stem}_cubes{old_filepath.suffix}"
-                )
-                LOGGER.info(
-                    f"Dataset {old_filepath} already contains cubes structure."
-                    f"Saving to {new_filepath} instead."
-                )
-                dataset = new_filepath
+        dataset = _check_overwrite(dataset, force_overwrite=force_overwrite)
 
         for pt, cubes in self.cubes_dict.items():
             save_cube(
