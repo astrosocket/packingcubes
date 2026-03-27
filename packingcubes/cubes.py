@@ -445,7 +445,7 @@ def make_cubes(
     cubes_per_side: int = -1,
     cube_box: bbox.BoxLike | None = None,
     particle_threshold: int = _DEFAULT_PARTICLE_THRESHOLD,
-    particle_types: Collection[str] | None = None,
+    particle_types: str | Collection[str] | None = None,
     save_dataset: bool = True,
     **kwargs,
 ) -> dict[str, dict[str, NDArray | list[bbox.BoundingBox] | list[PackedTree]]]:
@@ -499,6 +499,9 @@ def make_cubes(
     """
     cubes = {}
 
+    particle_types = (
+        [particle_types] if isinstance(particle_types, str) else particle_types
+    )
     if particle_types is None:
         requested_types = set(dataset.particle_types)
         particle_numbers = np.array(list(dataset.particle_numbers.values()))
