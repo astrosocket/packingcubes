@@ -680,19 +680,16 @@ class ParticleCubes:
         shape: bbox.BoundingVolume,
     ) -> NDArray[np.int_]:
         """
-        Return all particles contained within the box
+        Return all particles contained within the shape
 
-        This is a private version that uses a premade bounding_box
+        This is a private version that uses a premade bounding volume
 
         Args:
             shape: BoundingVolume
             The shape to search in
 
-            box: BoundingBox
-            The bounding box of the shape
-
         Returns:
-            indices: Array[int]
+            indices: NDArray[int]
             Array of particle start-stop indices contained within shape
         """
         return _get_particle_indices_in_shape(
