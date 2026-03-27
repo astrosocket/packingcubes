@@ -583,9 +583,6 @@ def make_cubes(
     return cubes
 
 
-_big_index_tuple = types.UniTuple(types.uint64, 2)
-
-
 @njit(parallel=True)
 def _get_particle_indices_in_shape(
     cubes: List[BoundingBox],
@@ -617,7 +614,6 @@ def _get_particle_indices_in_shape(
     num_indices = 0
     for i in prange(len(indices)):
         num_indices += len(indices[i])
-    # flattened_indices = List.empty_list(_big_index_tuple)
     flattened_indices = np.empty((num_indices, 3), dtype=np.int_)
     current_index = 0
     # doing this in parallel is probably more effort than worth it
