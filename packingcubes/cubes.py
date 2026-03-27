@@ -350,8 +350,12 @@ def _cube(data: DataContainer, cubes_per_side: int, box: BoundingBox):
         new_positions[offset, 1] = y
         new_positions[offset, 2] = z
 
-    data._positions = new_positions
-    data._index = shuffle_list
+    index = data._index
+    for i in prange(len(positions)):
+        positions[i, 0] = new_positions[i, 0]
+        positions[i, 1] = new_positions[i, 1]
+        positions[i, 2] = new_positions[i, 2]
+        index[i] = shuffle_list[i]
 
     # print("Dicing complete\nCubing complete")
 
