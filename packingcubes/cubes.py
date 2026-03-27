@@ -239,6 +239,33 @@ def _get_cube_boxes(
     return cube_boxes
 
 
+@njit
+def _prune_empty(
+    num_particles: int,
+    cube_indices: NDArray,
+    cube_boxes: List[BoundingBox],
+) -> tuple[NDArray, List[BoundingBox]]:
+    num_retained = 0
+    num_cubes = len(cube_indices)
+    for i in range(num_cubes):
+        cube_start = cube_indices[i]
+        cube_stop = cube_indices[i + 1] if i + 1 < num_cubes else num_particles
+        num_retained += cube_stop > cube_start
+
+    new_indices = np.empty((num_retained,), dtype=np.int_)
+    new_boxes = List.empty_list(bbox.bbn_type)
+    ind = 0
+    for i in range(num_cubes):
+        cube_start = cube_indices[i]
+        cube_stop = cube_indices[i + 1] if i + 1 < num_cubes else num_particles
+        if cube_stop > cube_start:
+            new_indices[ind] = cube_start
+            new_boxes.append(cube_boxes[i])
+            ind += 1
+
+    return new_indices, new_boxes
+
+
 @njit(cache=True, inline="always")
 def _cube_position(x: float, y: float, z: float, cubes_per_side: int, box: BoundingBox):
     # TODO: add zoom bins
@@ -523,6 +550,9 @@ def make_cubes(
         cube_boxes = _get_cube_boxes(
             data=data, box=cube_box, cubes_per_side=cubes_per_side
         )
+
+        LOGGER.info("Removing empties")
+        cube_indices, cube_boxes = _prune_empty(len(data), cube_indices, cube_boxes)
 
         LOGGER.info("Making trees")
         trees = _make_trees(data, cube_indices, cube_boxes, particle_threshold)
