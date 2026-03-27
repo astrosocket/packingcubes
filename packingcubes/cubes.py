@@ -908,6 +908,40 @@ class Cubes:
     def particle_types(self):
         return self.cubes_dict.keys()
 
+    def _get_particle_indices_in_shape(
+        self,
+        shape: bbox.BoundingVolume,
+        *,
+        particle_types: str | Collection[str] | None = None,
+    ) -> dict[str, NDArray[np.int_]]:
+        """
+        Return all particles contained within the shape
+
+        Args:
+            particle_types: str | Collection[str]
+            Particle type(s) to include
+
+            shape: BoundingVolume
+            The shape to check
+
+            particle_types: str | Collection[str], optional
+            Particle type(s) to include. Defaults to self.particle_types
+        Returns:
+            indices: dict[str, NDArray[int]]
+            Dictionary of arrays of particle start-stop indices plus partiality
+            flag contained within shape, organized by particle type
+        """
+        if particle_types is None:
+            particle_types = self.particle_types
+        if isinstance(particle_types, str):
+            particle_types = [particle_types]
+        inds = {}
+        for pt in particle_types:
+            inds[pt] = self.cubes_dict[pt]._get_particle_indices_in_shape(
+                shape,
+            )
+        return inds
+
     def get_particle_indices_in_box(
         self,
         box: bbox.BoxLike,
@@ -928,17 +962,10 @@ class Cubes:
             Dictionary of arrays of particle start-stop indices plus partiality
             flag contained within box, organized by particle type
         """
-        if particle_types is None:
-            particle_types = self.particle_types
-        if isinstance(particle_types, str):
-            particle_types = [particle_types]
         numba_box = bbox.make_bounding_box(box)
-        inds = {}
-        for pt in particle_types:
-            inds[pt] = self.cubes_dict[pt]._get_particle_indices_in_shape(
-                numba_box, numba_box
-            )
-        return inds
+        return self._get_particle_indices_in_shape(
+            numba_box, particle_types=particle_types
+        )
 
     def get_particle_indices_in_sphere(
         self,
@@ -967,15 +994,8 @@ class Cubes:
             Dictionary of arrays of particle start-stop indices plus partiality
             flag contained within sphere, organized by particle type
         """
-        if particle_types is None:
-            particle_types = self.particle_types
-        if isinstance(particle_types, str):
-            particle_types = [particle_types]
-        inds = {}
         sph = bbox.make_bounding_sphere(radius, center=center, unsafe=True)
-        for pt in particle_types:
-            inds[pt] = self.cubes_dict[pt]._get_particle_indices_in_shape(sph)
-        return inds
+        return self._get_particle_indices_in_shape(sph, particle_types=particle_types)
 
     def save(
         self,
