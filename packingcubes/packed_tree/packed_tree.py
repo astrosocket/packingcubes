@@ -214,7 +214,7 @@ class PackedTree(octree.Octree):
             particles (1) among the start-stop indices are contained or all (0)
         """
         bounding_box = bbox.make_bounding_box(box)
-        return self._tree._get_particle_indices_in_shape(bounding_box, bounding_box)
+        return self._tree._get_particle_indices_in_shape(bounding_box)
 
     def get_particle_indices_in_sphere(
         self,
@@ -239,7 +239,7 @@ class PackedTree(octree.Octree):
             particles (1) among the start-stop indices are contained or all (0)
         """
         sph = bbox.make_bounding_sphere(center=center, radius=radius, unsafe=True)
-        return self._tree._get_particle_indices_in_shape(sph.bounding_box, sph)
+        return self._tree._get_particle_indices_in_shape(sph)
 
     def get_particle_index_list_in_box(
         self,
@@ -271,12 +271,8 @@ class PackedTree(octree.Octree):
         data = data.data_container if isinstance(data, Dataset) else data
         bounding_box = bbox.make_bounding_box(box)
         if strict:
-            return self._tree._get_particle_index_list_in_shape(
-                data, bounding_box, bounding_box
-            )
-        return self._tree._get_particle_index_list_in_shape(
-            None, bounding_box, bounding_box
-        )
+            return self._tree._get_particle_index_list_in_shape(data, bounding_box)
+        return self._tree._get_particle_index_list_in_shape(None, bounding_box)
 
     def get_particle_index_list_in_sphere(
         self,
@@ -311,10 +307,9 @@ class PackedTree(octree.Octree):
         """
         data = data.data_container if isinstance(data, Dataset) else data
         sph = bbox.make_bounding_sphere(radius, center=center, unsafe=True)
-        bounding_box = sph.bounding_box
         if strict:
-            return self._tree._get_particle_index_list_in_shape(data, bounding_box, sph)
-        return self._tree._get_particle_index_list_in_shape(None, bounding_box, sph)
+            return self._tree._get_particle_index_list_in_shape(data, sph)
+        return self._tree._get_particle_index_list_in_shape(None, sph)
 
     def _get_pilis_tree(
         self,

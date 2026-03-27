@@ -555,7 +555,6 @@ def _get_particle_indices_in_shape(
     trees: List[PackedTreeNumba],
     cube_offsets: NDArray,
     shape: bbox.BoundingVolume,
-    shape_box: bbox.BoundingBox,
 ) -> List[tuple[int, int]]:
     """
     Get the particle start-stop tuples in the specified shape
@@ -565,7 +564,6 @@ def _get_particle_indices_in_shape(
         indices.append(List.empty_list(_index_tuple_type))
 
     # get particle indices from each tree
-    shape_midpoint = np.array(shape_box.midplane())
     for i in prange(len(cubes)):
         # Note: prange indices are uint64 in parallel mode but current
         # TypedList _get_item implementation casts to intp type, which can
@@ -575,7 +573,7 @@ def _get_particle_indices_in_shape(
         overlap = shape.check_box_overlap(cubes[li])
         if overlap:
             indices[li] = trees[li]._get_particle_indices_in_shape(
-                bounding_box=shape_box, containment_obj=shape
+                containment_obj=shape
             )
 
     # add cube offset and flatten list of indices
@@ -651,7 +649,6 @@ class ParticleCubes:
             cubes=self.cube_boxes,
             trees=self._numba_trees,
             cube_offsets=self.cube_indices,
-            shape_box=numba_box.copy(),
             shape=numba_box,
         )
 
@@ -681,14 +678,12 @@ class ParticleCubes:
             cubes=self.cube_boxes,
             trees=self._numba_trees,
             cube_offsets=self.cube_indices,
-            shape_box=sph.bounding_box,
             shape=sph,
         )
 
     def _get_particle_indices_in_shape(
         self,
         shape: bbox.BoundingVolume,
-        shape_box: bbox.BoundingBox,
     ) -> list[tuple[int, int]]:
         """
         Return all particles contained within the box
@@ -710,7 +705,6 @@ class ParticleCubes:
             cubes=self.cube_boxes,
             trees=self._numba_trees,
             cube_offsets=self.cube_indices,
-            shape_box=shape_box,
             shape=shape,
         )
 
@@ -945,9 +939,7 @@ class Cubes:
         inds = {}
         sph = bbox.make_bounding_sphere(radius, center=center, unsafe=True)
         for pt in particle_types:
-            inds[pt] = self.cubes_dict[pt]._get_particle_indices_in_shape(
-                sph, sph.bounding_box
-            )
+            inds[pt] = self.cubes_dict[pt]._get_particle_indices_in_shape(sph)
         return inds
 
     def save(

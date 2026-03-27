@@ -254,7 +254,7 @@ def _process_leaf_for_pilis_tree(
     box.box[3] = node.box.box[3] + r2
     box.box[4] = node.box.box[4] + r2
     box.box[5] = node.box.box[5] + r2
-    pil = otree._get_particle_index_list_in_shape(odata, box, box)
+    pil = otree._get_particle_index_list_in_shape(odata, box)
     for index in range(node.node_start, node.node_end + 1):
         if strict:
             reduced_pil = List.empty_list(np.int64)
@@ -838,16 +838,12 @@ class PackedTreeNumba:
 
     def _get_particle_indices_in_shape(
         self,
-        bounding_box: bbox.BoundingBox,
         containment_obj: bbox.BoundingVolume,
     ) -> list[tuple[int, int, int]]:
         """
-        Return all particles contained within a shape that fits inside bounding box
+        Return all particles contained within a shape
 
         Args:
-            bounding_box: BoundingBox
-            Shape bounding box
-
             containment_obj: BoundingVolume
             Object with bounding box specified by bounding_box. Provides
             a more exact containment test (e.g. contained within a sphere).
@@ -859,7 +855,6 @@ class PackedTreeNumba:
             particles (1) among the start-stop indices are contained or all (0)
         """
 
-        bbox_center = bounding_box.get_box_center()
         node = self._make_root_node()
 
         indices = List.empty_list(_index_tuple_type)
@@ -926,7 +921,7 @@ class PackedTreeNumba:
         """
         with objmode(numba_box=bbox.bbn_type):
             numba_box = bbox.make_bounding_box(box)
-        return self._get_particle_indices_in_shape(numba_box.copy(), numba_box)
+        return self._get_particle_indices_in_shape(numba_box)
 
     def get_particle_indices_in_sphere(
         self,
@@ -953,7 +948,6 @@ class PackedTreeNumba:
             sph = bbox.make_bounding_sphere(center=center, radius=radius)
 
         return self._get_particle_indices_in_shape(
-            sph.bounding_box,
             sph,
         )
 
@@ -972,7 +966,7 @@ class PackedTreeNumba:
             query: List[List[tuple[int, int]]],
         ):
             sph.center[0], sph.center[1], sph.center[2] = node.box.midplane()
-            query.append(other._get_particle_indices_in_shape(sph.bounding_box, sph))
+            query.append(other._get_particle_indices_in_shape(sph))
 
         # check root node
         if is_leaf(node):
@@ -1011,7 +1005,7 @@ class PackedTreeNumba:
         ) -> int:
             num_pairs = 0
             sph.center[0], sph.center[1], sph.center[2] = node.box.midplane()
-            pair_nodes = other._get_particle_indices_in_shape(sph.bounding_box, sph)
+            pair_nodes = other._get_particle_indices_in_shape(sph)
             for other_start, other_end, _ in pair_nodes:
                 num_pairs += (node.node_end - node.node_start + 1) * (
                     other_end - other_start + 1
@@ -1045,11 +1039,10 @@ class PackedTreeNumba:
     def _get_particle_index_list_in_shape(
         self,
         data: DataContainer | None,
-        bounding_box: bbox.BoundingBox,
         containment_obj: bbox.BoundingVolume,
     ) -> NDArray[np.int64]:
         """
-        Return all particles contained within a shape that fits inside bounding box
+        Return all particles contained within a shape
 
         If the data argument is specified, will do additional containment-checks at
         the particle level
@@ -1060,12 +1053,8 @@ class PackedTreeNumba:
             within shape, which is equivalent to expanding the node start/stops
             from _get_particle_indices_in_shape
 
-            bounding_box: BoundingBox
-            Shape bounding box
-
             containment_obj: BoundingVolume
-            Object with bounding box specified by bounding_box. Provides
-            a more exact containment test (e.g. contained within a sphere).
+            Provides an exact containment test (e.g. contained within a sphere).
 
         Returns:
             indices: NDArray[int]]
@@ -1073,7 +1062,7 @@ class PackedTreeNumba:
             any additional particles that can be found in the same nodes if
             data is not provided
         """
-        slices = self._get_particle_indices_in_shape(bounding_box, containment_obj)
+        slices = self._get_particle_indices_in_shape(containment_obj)
 
         # the following is an attempt to mimic what I _think_ the expand_ranges
         # function from swiftsimio (which is GPL 3) does.
