@@ -592,7 +592,7 @@ def _get_particle_indices_in_shape(
     trees: List[PackedTreeNumba],
     cube_offsets: NDArray,
     shape: bbox.BoundingVolume,
-) -> List[tuple[int, int]]:
+) -> NDArray[np.int_]:
     """
     Get the particle start-stop tuples in the specified shape
     """
@@ -614,10 +614,24 @@ def _get_particle_indices_in_shape(
             )
 
     # add cube offset and flatten list of indices
-    flattened_indices = List.empty_list(_big_index_tuple)
-    for cube_indices, cube_offset in zip(indices, cube_offsets):  # noqa: B905
-        for cube_start, cube_end, _ in cube_indices:
-            flattened_indices.append((cube_start + cube_offset, cube_end + cube_offset))
+    num_indices = 0
+    for i in prange(len(indices)):
+        num_indices += len(indices[i])
+    # flattened_indices = List.empty_list(_big_index_tuple)
+    flattened_indices = np.empty((num_indices, 3), dtype=np.int_)
+    current_index = 0
+    # doing this in parallel is probably more effort than worth it
+    for i in range(len(indices)):
+        cube_indices = indices[i]
+        cube_offset = cube_offsets[i]
+        for cube_start, cube_end, partial in cube_indices:
+            # flattened_indices.append(
+            #     (cube_start + cube_offset, cube_end + cube_offset, partial)
+            # )
+            flattened_indices[current_index, 0] = cube_start + cube_offset
+            flattened_indices[current_index, 1] = cube_end + cube_offset
+            flattened_indices[current_index, 2] = partial
+            current_index += 1
 
     return flattened_indices
 
@@ -668,7 +682,7 @@ class ParticleCubes:
     def get_particle_indices_in_box(
         self,
         box: bbox.BoxLike,
-    ) -> list[tuple[int, int]]:
+    ) -> NDArray[np.int_]:
         """
         Return all particles contained within the box
 
@@ -677,8 +691,8 @@ class ParticleCubes:
             Box to check
 
         Returns:
-            indices: list[tuple[int, int]]
-            List of particle start-stop indices contained within box
+            indices: NDArray[int]
+            Array of particle start-stop indices contained within box
         """
         with objmode(numba_box=bbox.bbn_type):
             numba_box = bbox.make_bounding_box(box)
@@ -693,7 +707,7 @@ class ParticleCubes:
         self,
         center: NDArray,
         radius: float,
-    ) -> list[tuple[int, int]]:
+    ) -> NDArray[np.int_]:
         """
         Return all particles contained within the sphere defined by center and radius
 
@@ -705,8 +719,8 @@ class ParticleCubes:
             Radius of the sphere
 
         Returns:
-            indices: list[tuple[int, int]]
-            List of particle start-stop indices contained within sphere
+            indices: Array[int]
+            Array of particle start-stop indices contained within sphere
         """
         with objmode(sph=bbox.bs_type):
             sph = bbox.make_bounding_sphere(center=center, radius=radius, unsafe=True)
@@ -721,7 +735,7 @@ class ParticleCubes:
     def _get_particle_indices_in_shape(
         self,
         shape: bbox.BoundingVolume,
-    ) -> list[tuple[int, int]]:
+    ) -> NDArray[np.int_]:
         """
         Return all particles contained within the box
 
@@ -735,8 +749,8 @@ class ParticleCubes:
             The bounding box of the shape
 
         Returns:
-            indices: list[tuple[int, int]]
-            List of particle start-stop indices contained within box
+            indices: Array[int]
+            Array of particle start-stop indices contained within shape
         """
         return _get_particle_indices_in_shape(
             cubes=self.cube_boxes,
@@ -917,7 +931,7 @@ class Cubes:
         box: bbox.BoxLike,
         *,
         particle_types: str | Collection[str] | None = None,
-    ) -> dict[str, list[tuple[int, int]]]:
+    ) -> dict[str, NDArray[np.int_]]:
         """
         Return all particles contained within the box
 
@@ -928,9 +942,9 @@ class Cubes:
             particle_types: str | Collection[str], optional
             Particle type(s) to include. Defaults to self.particle_types
         Returns:
-            indices: dict[str, list[tuple[int, int]][
-            Dictionary of lists of particle start-stop indices contained
-            within box, organized by particle type
+            indices: dict[str, NDArray[int]]
+            Dictionary of arrays of particle start-stop indices plus partiality
+            flag contained within box, organized by particle type
         """
         if particle_types is None:
             particle_types = self.particle_types
@@ -950,7 +964,7 @@ class Cubes:
         radius: float,
         *,
         particle_types: str | Collection[str] | None = None,
-    ) -> dict[str, list[tuple[int, int]]]:
+    ) -> dict[str, NDArray[np.int_]]:
         """
         Return all particles contained within the sphere defined by center and radius
 
@@ -964,10 +978,12 @@ class Cubes:
             radius: float
             Radius of the sphere
 
+            particle_types: str | Collection[str], optional
+            Particle type(s) to include. Defaults to self.particle_types
         Returns:
-            indices: dict[str, list[tuple[int, int]][
-            Dictionary of lists of particle start-stop indices contained
-            within sphere, organized by particle type
+            indices: dict[str, NDArray[int]]
+            Dictionary of arrays of particle start-stop indices plus partiality
+            flag contained within sphere, organized by particle type
         """
         if particle_types is None:
             particle_types = self.particle_types
