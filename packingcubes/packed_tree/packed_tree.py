@@ -143,6 +143,10 @@ class PackedTree(octree.Octree):
             self.metadata.bounding_box, packed, self.metadata.particle_threshold
         )
 
+    def __len__(self) -> int:
+        """The number of particles in the tree"""
+        return len(self._tree)
+
     @property
     def packed_tree(self) -> memoryview:
         """

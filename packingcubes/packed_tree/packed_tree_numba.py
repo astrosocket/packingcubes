@@ -486,6 +486,10 @@ class PackedTreeNumba:
         self.tree = tree
         self.particle_threshold = particle_threshold
 
+    def __len__(self):
+        """The number particles in the tree"""
+        return self.tree[2] - self.tree[1] + 1
+
     def _make_root_node(self) -> CurrentNode:
         """
         Return a CurrentNode pointer at the tree root
