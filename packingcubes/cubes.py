@@ -679,6 +679,33 @@ class ParticleCubes:
 
         self._numba_trees = List([t._tree for t in self.cube_trees])
 
+    def _get_particle_indices_in_shape(
+        self,
+        shape: bbox.BoundingVolume,
+    ) -> NDArray[np.int_]:
+        """
+        Return all particles contained within the box
+
+        This is a private version that uses a premade bounding_box
+
+        Args:
+            shape: BoundingVolume
+            The shape to search in
+
+            box: BoundingBox
+            The bounding box of the shape
+
+        Returns:
+            indices: Array[int]
+            Array of particle start-stop indices contained within shape
+        """
+        return _get_particle_indices_in_shape(
+            cubes=self.cube_boxes,
+            trees=self._numba_trees,
+            cube_offsets=self.cube_indices,
+            shape=shape,
+        )
+
     def get_particle_indices_in_box(
         self,
         box: bbox.BoxLike,
@@ -730,33 +757,6 @@ class ParticleCubes:
             trees=self._numba_trees,
             cube_offsets=self.cube_indices,
             shape=sph,
-        )
-
-    def _get_particle_indices_in_shape(
-        self,
-        shape: bbox.BoundingVolume,
-    ) -> NDArray[np.int_]:
-        """
-        Return all particles contained within the box
-
-        This is a private version that uses a premade bounding_box
-
-        Args:
-            shape: BoundingVolume
-            The shape to search in
-
-            box: BoundingBox
-            The bounding box of the shape
-
-        Returns:
-            indices: Array[int]
-            Array of particle start-stop indices contained within shape
-        """
-        return _get_particle_indices_in_shape(
-            cubes=self.cube_boxes,
-            trees=self._numba_trees,
-            cube_offsets=self.cube_indices,
-            shape=shape,
         )
 
 
