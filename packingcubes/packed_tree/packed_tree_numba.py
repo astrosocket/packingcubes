@@ -1265,7 +1265,8 @@ class PackedTreeNumba:
 
         # Need to check all nodes in neighborhood, which is all nodes
         # overlapping with the sphere with same radius as the closest distance
-        sph_inds = self.get_particle_indices_in_sphere(center=xyz, radius=closest_dist)
+        sph = bbox.BoundingSphere(xyz, closest_dist)
+        sph_inds = self._get_particle_indices_in_shape(sph)
         for s, e, _ in sph_inds:
             # skip subnodes of node. Only need to check node_start since nodes
             # are pure super/sub-sets
