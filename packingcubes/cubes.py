@@ -881,49 +881,11 @@ def _add_trees_to_cubes_dict(
         )
 
 
-class Cubes:
+class MultiCubes:
     cubes_dict: dict[str, ParticleCubes]
     """ Mapping from particle type to ParticleCubes for this dataset """
 
     def __init__(
-        self,
-        *,
-        dataset: str | NDArray | MultiParticleDataset | None = None,
-        cubes_dict: dict[str, dict] | None = None,
-        **kwargs,
-    ):
-        if cubes_dict is None and dataset is None:
-            raise CubesError("Must provide either a cubes_dict or dataset!")
-        dataset = (
-            InMemory(positions=dataset) if isinstance(dataset, np.ndarray) else dataset
-        )
-        # we only want to load the dataset if we need to
-        if cubes_dict is None:
-            assert dataset is not None
-            try:
-                cubes_dict = load_cubes(dataset)
-            except (NotImplementedError, ValueError):
-                dataset = (
-                    GadgetishHDF5Dataset(filepath=dataset)
-                    if isinstance(dataset, str)
-                    else dataset
-                )
-                cubes_dict = make_cubes(dataset=dataset, **kwargs)
-        else:
-            if not _has_trees(cubes_dict):
-                if dataset is None:
-                    raise CubesError("cubes_dict has no trees and dataset not provided")
-                dataset = (
-                    GadgetishHDF5Dataset(filepath=dataset)
-                    if isinstance(dataset, str)
-                    else dataset
-                )
-                _add_trees_to_cubes_dict(
-                    cubes_dict=cubes_dict, dataset=dataset, **kwargs
-                )
-        self._make_cubes(cubes_dict=cubes_dict, **kwargs)
-
-    def _make_cubes(
         self,
         *,
         cubes_dict: dict[str, dict],
@@ -1071,6 +1033,60 @@ class Cubes:
                 cube_trees=cubes.cube_trees,
             )
         return dataset.filepath if isinstance(dataset, Dataset) else Path(dataset)
+
+
+def Cubes(
+    *,
+    dataset: str | NDArray | MultiParticleDataset | None = None,
+    cubes_dict: dict[str, dict] | None = None,
+    **kwargs,
+) -> ParticleCubes | MultiCubes:
+    if cubes_dict is None and dataset is None:
+        raise CubesError("Must provide either a cubes_dict or dataset!")
+    dataset = (
+        InMemory(positions=dataset) if isinstance(dataset, np.ndarray) else dataset
+    )
+    # we only want to load the dataset if we need to
+    if cubes_dict is None:
+        assert dataset is not None
+        try:
+            cubes_dict = load_cubes(dataset)
+        except (NotImplementedError, ValueError):
+            dataset = (
+                GadgetishHDF5Dataset(filepath=dataset)
+                if isinstance(dataset, str)
+                else dataset
+            )
+            cubes_dict = make_cubes(dataset=dataset, **kwargs)
+    else:
+        if not _has_trees(cubes_dict):
+            if dataset is None:
+                raise CubesError("cubes_dict has no trees and dataset not provided")
+            dataset = (
+                GadgetishHDF5Dataset(filepath=dataset)
+                if isinstance(dataset, str)
+                else dataset
+            )
+            _add_trees_to_cubes_dict(cubes_dict=cubes_dict, dataset=dataset, **kwargs)
+    if len(cubes_dict) == 1:
+        cubes = next(iter(cubes_dict.values()))
+        return ParticleCubes(**cubes, **kwargs)
+    return MultiCubes(cubes_dict=cubes_dict, **kwargs)
+
+
+def make_ParticleCubes(**kwargs) -> ParticleCubes:
+    """
+    Wrapper for Cubes that explicitly returns ParticleCubes or raises an error
+    """
+    cubes = Cubes(**kwargs)
+    if not isinstance(cubes, ParticleCubes):
+        raise CubesError(
+            f"""
+            Multiple particle types present. Please specify one of 
+            {cubes.particle_types} as particle_types=PARTICLE_TYPE.
+            """
+        )
+    return cubes
 
 
 if __name__ == "__main__":

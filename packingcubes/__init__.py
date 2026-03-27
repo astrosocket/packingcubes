@@ -1,8 +1,19 @@
 import logging
 from importlib.metadata import PackageNotFoundError, version
 
-from packingcubes.cubes import Cubes as Cubes
+from packingcubes.cubes import (
+    Cubes as Cubes,
+)
+from packingcubes.cubes import (
+    MultiCubes as MultiCubes,
+)
+from packingcubes.cubes import (
+    ParticleCubes as ParticleCubes,
+)
 from packingcubes.cubes import make_cubes as make_cubes
+from packingcubes.cubes import (
+    make_ParticleCubes as make_ParticleCubes,
+)
 from packingcubes.data_objects import (
     GadgetishHDF5Dataset as HDF5Dataset,
 )
@@ -24,6 +35,9 @@ __all__ = [
     "KDTree",
     "make_cubes",
     "Cubes",
+    "ParticleCubes",
+    "MultiCubes",
+    "make_ParticleCubes",
     "__version__",
 ]
 
