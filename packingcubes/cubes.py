@@ -1048,6 +1048,38 @@ class ParticleCubes:
             strict=strict,
         )
 
+    def get_closest_particles(
+        self,
+        *,
+        data: DataContainer | Dataset,
+        xyz: NDArray,
+        distance_upper_bound: float | None = None,
+        p: float = 2.0,
+        k: int = 1,
+    ):
+        raise NotImplementedError(
+            """
+            Still in progress. Try a PackedTree for this functionatlity
+            """
+        )
+
+    def _get_pilis_cubes(
+        self,
+        *,
+        data: DataContainer | Dataset,
+        odata: DataContainer | Dataset,
+        ocubes: ParticleCubes,
+        r: float,
+        p: float = 2.0,
+        k: int = 1,
+        strict: bool = True,
+    ):
+        raise NotImplementedError(
+            """
+            Still in progress. Try a PackedTree for this functionatlity
+            """
+        )
+
     def save(
         self,
         dataset: str | Path | HDF5Dataset,
