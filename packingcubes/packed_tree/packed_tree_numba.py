@@ -869,7 +869,7 @@ class PackedTreeNumba:
         # 8 box vertices
         if overlap == 8 or (overlap and is_leaf(node)):
             indices.append(
-                (node.node_start, np.uint32(node.node_end + 1), np.uint32(0))
+                (node.node_start, np.uint32(node.node_end + 1), np.uint32(overlap < 8))
             )
             return indices
 
