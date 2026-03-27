@@ -502,7 +502,7 @@ class KDTreeAPI:
         r: float,
         p: float | None = 2.0,
         eps: float | None = None,
-        workers: int = 1,
+        workers: int = -1,
         *,
         return_sorted: bool | None = None,
         return_length: bool = False,
@@ -528,7 +528,7 @@ class KDTreeAPI:
                 ``r * (1 + eps)``.
             workers : int, optional
                 Number of jobs to schedule for parallel processing. If -1 is given
-                all processors are used. Default: 1.
+                all processors are used. Default: -1.
 
             return_sorted : bool, optional
                 Sorts returned indices if True and does not sort them if False. If
@@ -625,11 +625,12 @@ class KDTreeAPI:
                 "For performance, strict is only valid when return_length=False"
             )
 
-        if workers != 1:
+        if workers != -1:
             warnings.warn(
                 """
-                PackedTrees are single-threaded. For multi-threading consider
-                switching to the Cubes API. Proceeding with workers=1.
+                Cubes use all available threads by default. 
+                To reduce the number of threads used, run with the NUMBA_NUM_THREADS=N
+                environmental variable set. Proceeding with workers=-1.
                 """,
                 KDTreeWarning,
                 stacklevel=1,
