@@ -714,14 +714,9 @@ class ParticleCubes:
             indices: NDArray[int]
             Array of particle start-stop indices contained within box
         """
-        with objmode(numba_box=bbox.bbn_type):
-            numba_box = bbox.make_bounding_box(box)
-        return _get_particle_indices_in_shape(
-            cubes=self.cube_boxes,
-            trees=self._numba_trees,
-            cube_offsets=self.cube_indices,
-            shape=numba_box,
-        )
+        numba_box = bbox.make_bounding_box(box)
+
+        return self._get_particle_indices_in_shape(numba_box)
 
     def get_particle_indices_in_sphere(
         self,
@@ -739,18 +734,12 @@ class ParticleCubes:
             Radius of the sphere
 
         Returns:
-            indices: Array[int]
+            indices: NDArray[int]
             Array of particle start-stop indices contained within sphere
         """
-        with objmode(sph=bbox.bs_type):
-            sph = bbox.make_bounding_sphere(center=center, radius=radius, unsafe=True)
+        sph = bbox.make_bounding_sphere(center=center, radius=radius, unsafe=True)
 
-        return _get_particle_indices_in_shape(
-            cubes=self.cube_boxes,
-            trees=self._numba_trees,
-            cube_offsets=self.cube_indices,
-            shape=sph,
-        )
+        return self._get_particle_indices_in_shape(sph)
 
 
 def has_cubes(dataset: str | Path | MultiParticleDataset):
