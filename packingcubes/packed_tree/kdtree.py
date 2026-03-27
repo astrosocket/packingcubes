@@ -8,9 +8,15 @@ import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
 import packingcubes.bounding_box as bbox
+import packingcubes.cubes as cubes
 import packingcubes.octree as octree
-from packingcubes.data_objects import DataContainer, Dataset, InMemory
-from packingcubes.packed_tree.packed_tree import PackedTree
+from packingcubes.data_objects import (
+    DataContainer,
+    InMemory,
+)
+from packingcubes.data_objects import (
+    MultiParticleDataset as Dataset,
+)
 
 LOGGER = logging.getLogger(__name__)
 logging.captureWarnings(capture=True)
@@ -63,7 +69,7 @@ def _check_data_shape(*, data: ArrayLike, copy_data: bool) -> tuple[NDArray, boo
         zero_pad[:, : data_shape[1]] = data
         # we can ignore the copy_data flag; the data was already copied
         return zero_pad, True
-    return data.copy() if copy_data else data, copy_data
+    return (data.copy() if copy_data else data), copy_data
 
 
 class KDTreeAPI:
@@ -116,11 +122,16 @@ class KDTreeAPI:
         z_min = 0. If boxsize is a scalar, dx = dy = dz = boxsize. Other
         boxsize lengths are unsupported. Scipy's KDTree will impose a toroidal
         topology in addition; this functionality is currently unsupported.
+
+        cubes_per_side: int, optional
+        Size of the top-level grid. Must be between 3 and 32 or -1 (default).
+        The default uses the number of available threads to ensure there are
+        more grid cells than threads.
     """
 
-    _tree: PackedTree
+    _cubes: cubes.ParticleCubes
     """
-    The actual tree
+    The actual cubes grid structure containing the different trees, offsets, etc
     """
     _dataset: Dataset
     """
@@ -168,6 +179,8 @@ class KDTreeAPI:
         copy_data: bool = False,  # noqa: FBT001, FBT002
         balanced_tree: bool | None = None,  # noqa: FBT001
         boxsize=None,
+        *,
+        cubes_per_side: int = -1,
     ):
         if compact_nodes is not None:
             if boxsize is None:
@@ -245,13 +258,19 @@ class KDTreeAPI:
         self.leafsize = (
             octree._DEFAULT_PARTICLE_THRESHOLD if leafsize is None else leafsize
         )
-        self._tree = PackedTree(
+
+        self._cubes = cubes.make_ParticleCubes(
             dataset=self._dataset,
             particle_threshold=leafsize,
-            bounding_box=bounding_box,
+            cube_box=bounding_box,
+            save_dataset=isinstance(data, Dataset),
+            # Want only one particle type (current)
+            particle_types=self._dataset.particle_type,
         )
-        # Each node is 5 fields, so number of nodes = length/5
-        self.size = int(len(self._tree._tree.tree) / 5)
+
+        # Each node is 5 fields, so number of nodes in a single tree = length/5
+        # But we have 1 tree per cube...
+        self.size = sum(int(len(ct._tree.tree) / 5) for ct in self._cubes.cube_trees)
 
     @property
     def sort_index(self):
@@ -291,7 +310,7 @@ class KDTreeAPI:
         d = np.full((len(x), k_max), np.inf)
         i = np.full((len(x), k_max), self.n)
         for ind, xyz in enumerate(x):
-            dists, inds = self._tree.get_closest_particles(
+            dists, inds = self._cubes.get_closest_particles(
                 data=self._data_container,
                 xyz=xyz,
                 distance_upper_bound=distance_upper_bound,
@@ -434,7 +453,6 @@ class KDTreeAPI:
         """
         Private method to actually compute the query after inputs validated
         """
-
         if return_length:
             # psuedocode:
             # for center in centers:
@@ -447,27 +465,25 @@ class KDTreeAPI:
             lengths = [
                 sum(
                     e - s
-                    for (s, e, _) in self._tree.get_particle_indices_in_sphere(
-                        center=center, radius=radius
+                    for (s, e, _) in self._cubes.get_particle_indices_in_sphere(
+                        center=center,
+                        radius=radius,
                     )
                 )
                 for center in centers
             ]
             return lengths[0] if len(lengths) == 1 else lengths
+
         results = [
-            self._tree.get_particle_index_list_in_sphere(
+            self._cubes.get_particle_index_list_in_sphere(
                 data=self._data_container,
                 center=center,
                 radius=radius,
                 strict=strict,
+                use_data_indices=return_data_indices,
             )
             for center in centers
         ]
-        # get_particle_index_list_in_sphere returns the indices in the
-        # reordered dataset. If we need the original indices, we need to use
-        # the shuffle list
-        if not return_data_indices:
-            results = [self._dataset._index[r] for r in results]
         #  results is now list of list of (unsorted) indices
         if return_sorted:
             for r in results:
@@ -649,10 +665,10 @@ class KDTreeAPI:
         """
         Private wrapper method for PackedTree's _get_pilis_tree
         """
-        pil = self._tree._get_pilis_tree(
+        pil = self._cubes._get_pilis_cubes(
             data=self._data_container,
             odata=other._data_container,
-            otree=other._tree,
+            ocubes=other._cubes,
             r=r,
             p=p,
             strict=strict,
@@ -779,10 +795,10 @@ class KDTreeAPI:
         """
         Private wrapper method for PackedTree's _get_pilis_tree
         """
-        pil = self._tree._get_pilis_tree(
+        pil = self._cubes._get_pilis_cubes(
             data=self._data_container,
             odata=self._data_container,
-            otree=self._tree,
+            ocubes=self._cubes,
             r=r,
             p=2.0,
             strict=strict,
