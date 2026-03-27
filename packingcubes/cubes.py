@@ -632,6 +632,186 @@ def _get_particle_indices_in_shape(
     return flattened_indices
 
 
+@njit(parallel=True)
+def _parallel_expand_all_data_indices(
+    slices: NDArray[np.int_],
+    shape: bbox.BoundingVolume,
+):
+    num_particles = 0
+    offsets = np.empty((slices.shape[0],), dtype=np.int_)
+    for i in range(slices.shape[0]):
+        # can't parallelize this because offsets should be the cumsum
+        offsets[i] = num_particles
+        num_particles += slices[i, 1] - slices[i, 0]
+
+    indices = np.empty((num_particles,), dtype=np.int64)
+    #  ignore information about partial/full, just return indices as
+    # fast as possible
+    for i in prange(slices.shape[0]):
+        start = slices[i, 0]
+        end = slices[i, 1]
+        offset = offsets[i]
+        for j, index in enumerate(range(start, end)):
+            indices[offset + j] = index
+    return indices
+
+
+@njit(parallel=True)
+def _parallel_expand_all_shuffle_indices(
+    slices: NDArray[np.int_], shape: bbox.BoundingVolume, data: DataContainer
+):
+    num_particles = 0
+    offsets = np.empty((slices.shape[0],), dtype=np.int_)
+    for i in range(slices.shape[0]):
+        # can't parallelize this because offsets should be the cumsum
+        offsets[i] = num_particles
+        num_particles += slices[i, 1] - slices[i, 0]
+
+    indices = np.empty((num_particles,), dtype=np.int64)
+    #  ignore information about partial/full, just return indices as
+    # fast as possible
+    for i in prange(slices.shape[0]):
+        start = slices[i, 0]
+        end = slices[i, 1]
+        offset = offsets[i]
+        size = start - end
+        shuffle = data._index[start:end]
+        for j in range(size):
+            indices[offset + j] = shuffle[j]
+    return indices
+
+
+@njit(parallel=True)
+def _parallel_expand_data_indices(
+    slices: NDArray[np.int_],
+    shape: bbox.BoundingVolume,
+    data: DataContainer,
+) -> NDArray[np.int_]:
+    num_particles = 0
+    offsets = np.empty((slices.shape[0],), dtype=np.int_)
+    for i in range(slices.shape[0]):
+        # can't parallelize this because offsets should be the cumsum
+        offsets[i] = num_particles
+        num_particles += slices[i, 1] - slices[i, 0]
+
+    indices = np.empty((num_particles,), dtype=np.int64)
+
+    num_contained = 0
+    for i in prange(slices.shape[0]):
+        start = slices[i, 0]
+        end = slices[i, 1]
+        partial = slices[i, 2]
+        offset = offsets[i]
+        size = end - start
+        if not partial:
+            # fully enclosed
+            for j, index in enumerate(range(start, end)):
+                indices[offset + j] = index
+            num_contained += size
+            continue
+        positions = data._positions[start:end, 0:3]
+        j = 0
+        ind = offset
+        for x, y, z in positions:
+            if shape.contains_point(x, y, z):
+                indices[ind] = j + start
+                ind += 1
+            j += 1
+        num_contained += ind - offset
+        end_bound = offset + size
+        while ind < end_bound:
+            indices[ind] = -1
+            ind += 1
+
+    # not parallelizable since we're shrinking the array
+    out_indices = np.empty((num_contained,), dtype=np.int_)
+    ind = 0
+    for i in range(len(indices)):
+        index = indices[i]
+        if index >= 0:
+            out_indices[ind] = index
+            ind += 1
+
+    return out_indices
+
+
+@njit(parallel=True)
+def _parallel_expand_shuffle_indices(
+    slices: NDArray[np.int_],
+    shape: bbox.BoundingVolume,
+    data: DataContainer,
+) -> NDArray[np.int_]:
+    num_particles = 0
+    offsets = np.empty((slices.shape[0],), dtype=np.int_)
+    for i in range(slices.shape[0]):
+        # can't parallelize this because offsets should be the cumsum
+        offsets[i] = num_particles
+        num_particles += slices[i, 1] - slices[i, 0]
+
+    indices = np.empty((num_particles,), dtype=np.int64)
+
+    num_contained = 0
+    for i in prange(slices.shape[0]):
+        start = slices[i, 0]
+        end = slices[i, 1]
+        partial = slices[i, 2]
+        offset = offsets[i]
+        size = end - start
+        shuffle = data._index[start:end]
+        if not partial:
+            # fully enclosed
+            for j in range(size):
+                indices[offset + j] = shuffle[j]
+            num_contained += size
+            continue
+        positions = data._positions[start:end, 0:3]
+        j = 0
+        ind = offset
+        for x, y, z in positions:
+            if shape.contains_point(x, y, z):
+                indices[ind] = shuffle[j]
+                ind += 1
+            j += 1
+        num_contained += ind - offset
+        while ind < offset + size:
+            indices[ind] = -1
+            ind += 1
+
+    # not parallelizable since we're shrinking the array
+    out_indices = np.empty((num_contained,), dtype=np.int_)
+    ind = 0
+    for i in range(len(indices)):
+        index = indices[i]
+        if index >= 0:
+            out_indices[ind] = index
+            ind += 1
+
+    return out_indices
+
+
+@njit
+def _get_particle_index_list_in_shape(
+    cubes: List[BoundingBox],
+    trees: List[PackedTreeNumba],
+    cube_offsets: NDArray,
+    shape: bbox.BoundingVolume,
+    data: DataContainer | None,
+    use_data_indices: bool,  # noqa: FBT001, FBT002
+) -> NDArray[np.int_]:
+    """
+    Get the array of particle indices in the specified shape
+    """
+    slices = _get_particle_indices_in_shape(cubes, trees, cube_offsets, shape)
+
+    if use_data_indices:
+        if data is None:
+            return _parallel_expand_all_data_indices(slices, shape)
+        return _parallel_expand_data_indices(slices, shape, data)
+    if data is None:
+        return _parallel_expand_all_shuffle_indices(slices, shape, data)
+    return _parallel_expand_shuffle_indices(slices, shape, data)
+
+
 class ParticleCubes:
     """
     The cubes for a single particle type
@@ -740,6 +920,133 @@ class ParticleCubes:
         sph = bbox.make_bounding_sphere(center=center, radius=radius, unsafe=True)
 
         return self._get_particle_indices_in_shape(sph)
+
+    def _get_particle_index_list_in_shape(
+        self,
+        data: DataContainer | Dataset,
+        shape: bbox.BoundingVolume,
+        *,
+        use_data_indices: bool = True,
+        strict: bool = False,
+    ) -> NDArray[np.int_]:
+        """
+        Return all particle indices contained within the shape
+
+        This is a private version that uses a premade bounding volume
+
+        Args:
+            data: DataContainer | Dataset
+            Dataset containing the particle positions. Pass a DataContainer
+            object for a slight performance increase
+
+            box: BoundingBox
+            The bounding box of the shape
+
+            use_data_indices: bool, optional
+            Flag to return indices into the sorted dataset (True, default) or
+            into the shuffle list (False)
+
+            strict: bool, optional
+            Flag to specify whether only particles inside the shape will
+            be returned. If False (default), additional nearby particles may be
+            included for signficantly increased performance
+
+        Returns:
+            indices: Array[int]
+            Array of particle indices contained within shape
+        """
+        return _get_particle_index_list_in_shape(
+            cubes=self.cube_boxes,
+            trees=self._numba_trees,
+            cube_offsets=self.cube_indices,
+            shape=shape,
+            data=data.data_container if isinstance(data, Dataset) else data,
+            use_data_indices=use_data_indices,
+        )
+
+    def get_particle_index_list_in_box(
+        self,
+        data: DataContainer | Dataset,
+        box: bbox.BoxLike,
+        *,
+        use_data_indices: bool = True,
+        strict: bool = False,
+    ) -> NDArray[np.int_]:
+        """
+        Return all particle indices contained within the box
+
+        Args:
+            data: DataContainer | Dataset
+            Dataset containing the particle positions. Pass a DataContainer
+            object for a slight performance increase
+
+            box: BoxLike
+            The box to search in
+
+            use_data_indices: bool, optional
+            Flag to return indices into the sorted dataset (True, default) or
+            into the shuffle list (False)
+
+            strict: bool, optional
+            Flag to specify whether only particles inside the shape will
+            be returned. If False (default), additional nearby particles may be
+            included for signficantly increased performance
+
+        Returns:
+            indices: Array[int]
+            Array of particle indices contained within shape
+        """
+        numba_box = bbox.make_bounding_box(box)
+        return self._get_particle_index_list_in_shape(
+            data=data,
+            shape=numba_box,
+            use_data_indices=use_data_indices,
+            strict=strict,
+        )
+
+    def get_particle_index_list_in_sphere(
+        self,
+        data: DataContainer | Dataset,
+        center: NDArray,
+        radius: float,
+        *,
+        use_data_indices: bool = True,
+        strict: bool = False,
+    ) -> NDArray[np.int_]:
+        """
+        Return all particle indices contained within the sphere
+
+        Args:
+            data: DataContainer | Dataset
+            Dataset containing the particle positions. Pass a DataContainer
+            object for a slight performance increase
+
+            center: NDArray
+            Center point of the sphere
+
+            radius: float
+            Radius of the sphere
+
+            use_data_indices: bool, optional
+            Flag to return indices into the sorted dataset (True, default) or
+            into the shuffle list (False)
+
+            strict: bool, optional
+            Flag to specify whether only particles inside the shape will
+            be returned. If False (default), additional nearby particles may be
+            included for signficantly increased performance
+
+        Returns:
+            indices: NDArray[int]
+            Array of particle indices contained within the sphere
+        """
+        sph = bbox.make_bounding_sphere(radius, center=center, unsafe=True)
+        return self._get_particle_index_list_in_shape(
+            data=data,
+            shape=sph,
+            use_data_indices=use_data_indices,
+            strict=strict,
+        )
 
     def save(
         self,
@@ -1004,6 +1311,153 @@ class MultiCubes:
         """
         sph = bbox.make_bounding_sphere(radius, center=center, unsafe=True)
         return self._get_particle_indices_in_shape(sph, particle_types=particle_types)
+
+    def _get_particle_index_list_in_shape(
+        self,
+        *,
+        data: DataContainer | Dataset,
+        shape: bbox.BoundingVolume,
+        particle_types: str | Collection[str] | None = None,
+        strict: bool = True,
+        use_data_indices: bool = True,
+    ) -> dict[str, NDArray[np.int_]]:
+        """
+        Return all particles contained within the sphere defined by center and radius
+
+        Args:
+            data: DataContainer | Dataset
+            Dataset containing the particle positions. Pass a DataContainer
+            object for a slight performance increase
+
+            center: NDArray
+            Center point of the sphere
+
+            radius: float
+            Radius of the sphere
+
+            particle_types: str | Collection[str], optional
+            Particle type(s) to include. Defaults to self.particle_types
+
+            strict: bool, optional
+            Flag to specify whether only particles inside the sphere will
+            be returned. If False (default), additional nearby particles may be
+            included for signficantly increased performance
+
+            use_data_indices: bool, optional
+            Flag to return indices into the sorted dataset (True, default) or
+            into the shuffle list (False)
+
+        Returns:
+            indices: NDArray[int]
+            List of original particle indices contained within sphere
+        """
+        if particle_types is None:
+            particle_types = self.particle_types
+        if isinstance(particle_types, str):
+            particle_types = [particle_types]
+        data = data.data_container if isinstance(data, Dataset) else data
+        inds = {}
+        for pt in particle_types:
+            inds[pt] = self.cubes_dict[pt]._get_particle_index_list_in_shape(
+                data,
+                shape,
+                use_data_indices=use_data_indices,
+            )
+        return inds
+
+    def get_particle_index_list_in_box(
+        self,
+        *,
+        data: DataContainer | Dataset,
+        box: bbox.BoxLike,
+        particle_types: str | Collection[str] | None = None,
+        strict: bool = True,
+        use_data_indices: bool = True,
+    ) -> dict[str, NDArray[np.int_]]:
+        """
+        Return all particles contained within the sphere defined by center and radius
+
+        Args:
+            data: DataContainer | Dataset
+            Dataset containing the particle positions. Pass a DataContainer
+            object for a slight performance increase
+
+            box: BoxLike
+            Box to check
+
+            particle_types: str | Collection[str], optional
+            Particle type(s) to include. Defaults to self.particle_types
+
+            strict: bool, optional
+            Flag to specify whether only particles inside the sphere will
+            be returned. If False (default), additional nearby particles may be
+            included for signficantly increased performance
+
+            use_data_indices: bool, optional
+            Flag to return indices into the sorted dataset (True, default) or
+            into the shuffle list (False)
+
+        Returns:
+            indices: NDArray[int]
+            List of original particle indices contained within sphere
+        """
+        bbn = bbox.make_bounding_box(box)
+        return self._get_particle_index_list_in_shape(
+            data=data,
+            shape=bbn,
+            particle_types=particle_types,
+            strict=strict,
+            use_data_indices=use_data_indices,
+        )
+
+    def get_particle_index_list_in_sphere(
+        self,
+        *,
+        data: DataContainer | Dataset,
+        center: NDArray,
+        radius: float,
+        particle_types: str | Collection[str] | None = None,
+        strict: bool = True,
+        use_data_indices: bool = True,
+    ) -> dict[str, NDArray[np.int_]]:
+        """
+        Return all particles contained within the sphere defined by center and radius
+
+        Args:
+            data: DataContainer | Dataset
+            Dataset containing the particle positions. Pass a DataContainer
+            object for a slight performance increase
+
+            center: NDArray
+            Center point of the sphere
+
+            radius: float
+            Radius of the sphere
+
+            particle_types: str | Collection[str], optional
+            Particle type(s) to include. Defaults to self.particle_types
+
+            strict: bool, optional
+            Flag to specify whether only particles inside the sphere will
+            be returned. If False (default), additional nearby particles may be
+            included for signficantly increased performance
+
+            use_data_indices: bool, optional
+            Flag to return indices into the sorted dataset (True, default) or
+            into the shuffle list (False)
+
+        Returns:
+            indices: NDArray[int]
+            List of original particle indices contained within sphere
+        """
+        sph = bbox.make_bounding_sphere(radius, center=center, unsafe=True)
+        return self._get_particle_index_list_in_shape(
+            data=data,
+            shape=sph,
+            particle_types=particle_types,
+            strict=strict,
+            use_data_indices=use_data_indices,
+        )
 
     def save(
         self,
