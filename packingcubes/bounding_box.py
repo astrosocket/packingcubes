@@ -462,7 +462,7 @@ class BoundingBox(BoundingVolume):
         in_box = np.empty((xyz.shape[0],), dtype=np.bool_)
         bx, by, bz, dx, dy, dz = self.box
         for i in range(xyz.shape[0]):
-            x, y, z = xyz[i, 0:2]
+            x, y, z = xyz[i, 0:3]
             in_box[i] = (
                 ((bx <= x) & (x <= bx + dx))
                 & ((by <= y) & (y <= by + dy))
@@ -493,7 +493,7 @@ class BoundingBox(BoundingVolume):
         in_box = 0
         bx, by, bz, dx, dy, dz = self.box
         for i in range(xyz.shape[0]):
-            x, y, z = xyz[i, 0:2]
+            x, y, z = xyz[i, 0:3]
             in_box += (
                 ((bx <= x) & (x <= bx + dx))
                 & ((by <= y) & (y <= by + dy))
@@ -789,7 +789,7 @@ class BoundingSphere(BoundingVolume):
         cx, cy, cz = self.center
         in_sph = np.empty((xyz.shape[0],), dtype=np.bool_)
         for i in range(xyz.shape[0]):
-            x, y, z = xyz[i, 0:2]
+            x, y, z = xyz[i, 0:3]
             in_sph[i] = (cx - x) ** 2 + (cy - y) ** 2 + (cz - z) ** 2 <= r2
         return in_sph
 
@@ -817,7 +817,7 @@ class BoundingSphere(BoundingVolume):
         r2 = self.radius * self.radius
         cx, cy, cz = self.center
         for i in range(xyz.shape[0]):
-            x, y, z = xyz[i, 0:2]
+            x, y, z = xyz[i, 0:3]
             in_sph += (cx - x) ** 2 + (cy - y) ** 2 + (cz - z) ** 2 <= r2
         return in_sph
 
