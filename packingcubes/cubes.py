@@ -908,6 +908,12 @@ class Cubes:
     def particle_types(self):
         return self.cubes_dict.keys()
 
+    def get_single_cubes(self, particle_type: str) -> ParticleCubes:
+        """
+        Return the ParticleCubes instance corresponding to the specified type.
+        """
+        return self.cubes_dict[particle_type]
+
     def _get_particle_indices_in_shape(
         self,
         shape: bbox.BoundingVolume,
