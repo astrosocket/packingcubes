@@ -33,6 +33,50 @@ particle_type = "PartType0"
 rng = np.random.default_rng(0xBA55ADE89)
 
 
+def _create_loading_pattern(filepath: str, loading_factor: int | None = None):
+    """
+    Create chunky slice loading if loading factor requested
+
+    A "chunky" slice is similar to striding the data (e.g. ::10) except each
+    slice is some number of particles thick. So effectively, normal striding
+    would be chunky slicing with a chunk size of 1.
+
+    Args:
+        filepath: str
+        Location of datafile
+
+        loading_factor: int, optional
+        The loading factor. Default is none
+
+    Results:
+        slices: list of slices or None
+        List of chunky slices or None if loading_factor is None or 1
+    """
+
+    if loading_factor is None or loading_factor == 1:
+        return None
+
+    LOGGER.debug("Temporary data loading to determine length")
+    ds = data_objects.GadgetishHDF5Dataset(
+        name="", filepath=filepath, data_slices=np.s_[0:1]
+    )
+    num_particles = ds._particle_numbers[ds._particle_type]
+    # want "chunky" slices - i.e. instead of every 10th particle out of 1000
+    # grab 10 10-particle slices evenly distributed. So 0:10, 100:110, etc
+    # use closest ints to sqrt(N/loading_factor) and evenly distribute
+    # remainder
+    num_loaded = num_particles / loading_factor
+    num_chunks = np.floor(np.sqrt(num_loaded)).astype(int)
+    num_skip = np.floor((num_particles - num_loaded) / num_chunks).astype(int)
+    num_extra = num_loaded - num_chunks**2
+    loading_pattern = []
+    offset = 0
+    for i in range(num_chunks):
+        loading_pattern.append(np.s_[offset : offset + num_chunks + (i <= num_extra)])
+        offset += num_chunks + (i <= num_extra) + num_skip
+    return loading_pattern
+
+
 def load_data(
     decimation_factor=10,
     *,
@@ -43,10 +87,11 @@ def load_data(
     loading_factor: int | None = None,
 ):
     LOGGER.debug("Beginning data loading")
+    loading_pattern = _create_loading_pattern(filepath, loading_factor)
     ds = data_objects.GadgetishHDF5Dataset(
         name=name,
         filepath=filepath,
-        data_slices=np.s_[::loading_factor] if loading_factor else None,
+        data_slices=loading_pattern,
     )
     # ds._positions = ds._positions[: int(len(ds) / decimation_factor), :]
     if ds.particle_type != particle_type:
