@@ -288,6 +288,36 @@ class InMemory(MultiParticleDataset):
             output["PartType0"].attrs["use_sorted"] = True
 
 
+def _load_data_from_slices(dataset: h5py.Dataset, slices: list | None) -> NDArray:
+    """
+    Load dataset possibly by slices
+
+    Args:
+        dataset: h5py Dataset
+        The dataset to load
+
+        slices: list of slices | None
+        The list of slices into the dataset
+
+    Returns:
+        data: NDArray
+        The (possibly) sliced dataset
+    """
+    if slices is None:
+        return dataset[:, :]
+
+    width = dataset.shape[1]
+    number = sum(s.stop - s.start for s in slices)
+    data = np.empty((number, width), dtype=dataset.dtype)
+    offset = 0
+    for s in slices:
+        size = s.stop - s.start
+        data[offset : offset + size] = dataset[s]
+        offset += size
+
+    return data
+
+
 class HDF5Dataset(MultiParticleDataset):
     """
     HDF5 Dataset
@@ -361,11 +391,15 @@ class HDF5Dataset(MultiParticleDataset):
         data_slices = {}
         for pt in self._particle_types:
             if isinstance(data_slice, dict):
-                data_slices[pt] = data_slice.get(pt, np.s_[::])
+                data_slices[pt] = data_slice.get(pt, None)
             elif not data_slice:
-                data_slices[pt] = np.s_[::]
+                data_slices[pt] = None
             else:
-                data_slices[pt] = data_slice
+                try:
+                    len(data_slice)
+                    data_slices[pt] = data_slice
+                except TypeError:
+                    data_slices[pt] = [data_slice]
 
         self._data_slices = data_slices
 
@@ -421,14 +455,15 @@ class HDF5Dataset(MultiParticleDataset):
         with h5py.File(filepath, "r") as file:
             if self._prefer_cache:
                 pt = self._particle_type + "/"
-                self._positions = file[pt + "positions"][
-                    self._data_slices[self._particle_type]
-                ]
+                self._positions = _load_data_from_slices(
+                    file[pt + "positions"], self._data_slices[self._particle_type]
+                )
                 self._index = file[pt + "index"]
             else:
-                positions = file[self._particle_type][self._positions_field][
-                    self._data_slices[self._particle_type]
-                ]
+                positions = _load_data_from_slices(
+                    file[self._particle_type][self._positions_field],
+                    self._data_slices[self._particle_type],
+                )
                 self._positions = np.array(positions, dtype=np.float64)
                 with contextlib.suppress(AttributeError):
                     del self._index
