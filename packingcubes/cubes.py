@@ -422,6 +422,7 @@ def _make_trees(
         # print(f"Making tree for cube {i}. inds=({cube_inds[0]}, {cube_inds[1]})")
         tree = _construct_tree(
             data=sub_data,
+            box=box,
             particle_threshold=particle_threshold,
         )
         trees[i] = tree
