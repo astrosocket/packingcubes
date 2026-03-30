@@ -72,6 +72,38 @@ def _check_data_shape(*, data: ArrayLike, copy_data: bool) -> tuple[NDArray, boo
     return (data.copy() if copy_data else data), copy_data
 
 
+def _process_boxsize(boxsize, data_box: bbox.BoundingBox) -> bbox.BoundingBox:
+    if boxsize is not None:
+        boxsize = np.atleast_1d(boxsize)
+        box_warning = """
+        PackedTrees do not need or expect data points to be normalized to the
+        [0, 1) interval. We will assume that the data is within [0, L_i] with
+        no wrapping. If you have negative or overly-large data values, simply
+        use the full 6 terms and provide the full bounding box or pass None to
+        generate it from the data extents. If you truly need the toroidal
+        geometry, please impose that before calling the constructor. \n\n
+        You can suppress this message by passing the full 6 terms (or None).
+        """
+        match len(boxsize):
+            case 1:
+                warnings.warn(box_warning, KDTreeWarning, stacklevel=1)
+                box = np.array([0, 0, 0, boxsize, boxsize, boxsize])
+            case 3:
+                warnings.warn(box_warning, KDTreeWarning, stacklevel=1)
+                box = np.hstack(([0, 0, 0], boxsize.flatten()))
+            case 6:
+                box = boxsize
+            case _:
+                raise KDTreeError(
+                    f"Cannot handle boxsize argument with length {len(boxsize)}. "
+                    "Supported options are 1, 3, and 6."
+                )
+        bounding_box = bbox.make_bounding_box(box)
+    else:
+        bounding_box = data_box
+    return bounding_box
+
+
 class KDTreeAPI:
     """
     Class to mimic the SciPy KDTree API using PackedTrees
@@ -226,34 +258,7 @@ class KDTreeAPI:
         self.mins = data_box.box[:3]
         self.maxs = data_box.box[:3] + data_box.box[3:]
 
-        if boxsize is not None:
-            boxsize = np.atleast_1d(boxsize)
-            box_warning = """
-            PackedTrees do not need or expect data points to be normalized to the
-            [0, 1) interval. We will assume that the data is within [0, L_i] with
-            no wrapping. If you have negative or overly-large data values, simply
-            use the full 6 terms and provide the full bounding box or pass None to
-            generate it from the data extents. If you truly need the toroidal
-            geometry, please impose that before calling the constructor. \n\n
-            You can suppress this message by passing the full 6 terms (or None).
-            """
-            match len(boxsize):
-                case 1:
-                    warnings.warn(box_warning, KDTreeWarning, stacklevel=1)
-                    box = np.array([0, 0, 0, boxsize, boxsize, boxsize])
-                case 3:
-                    warnings.warn(box_warning, KDTreeWarning, stacklevel=1)
-                    box = np.hstack(([0, 0, 0], boxsize.flatten()))
-                case 6:
-                    box = boxsize
-                case _:
-                    raise KDTreeError(
-                        f"Cannot handle boxsize argument with length {len(boxsize)}. "
-                        "Supported options are 1, 3, and 6."
-                    )
-            bounding_box = bbox.make_bounding_box(box)
-        else:
-            bounding_box = data_box
+        bounding_box = _process_boxsize(boxsize=boxsize, data_box=data_box)
 
         self.leafsize = (
             octree._DEFAULT_PARTICLE_THRESHOLD if leafsize is None else leafsize
