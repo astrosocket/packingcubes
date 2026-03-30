@@ -614,13 +614,13 @@ class BoundingBox(BoundingVolume):
         # check if any overlap at all
         # pxyz = obox.project_point_on_box( our center)
         # overlap = self.contains(pxyz)
-        x, y, z, odx, ody, odz = obox.box
+        ox, oy, oz, odx, ody, odz = obox.box
         mx, my, mz = self.midplane()
         bx, by, bz, dx, dy, dz = self.box
 
-        cx = min(max(mx, x), x + odx)
-        cy = min(max(my, y), y + ody)
-        cz = min(max(mz, z), z + odz)
+        cx = min(max(mx, ox), ox + odx)
+        cy = min(max(my, oy), oy + ody)
+        cz = min(max(mz, oz), oz + odz)
 
         overlap = (
             ((bx <= cx) & (cx <= bx + dx))
@@ -632,12 +632,12 @@ class BoundingBox(BoundingVolume):
             return 0
 
         # check how many vertices are contained
-        x0 = x
-        x1 = x + odx
-        y0 = y
-        y1 = y + ody
-        z0 = z
-        z1 = z + odz
+        x0 = ox
+        x1 = ox + odx
+        y0 = oy
+        y1 = oy + ody
+        z0 = oz
+        z1 = oz + odz
 
         overlap = (
             ((bx <= x0) & (x0 <= bx + dx))
@@ -843,13 +843,13 @@ class BoundingSphere(BoundingVolume):
         # check if any overlap at all
         # pxyz = obox.project_point_on_box( our center)
         # overlap = self.contains(pxyz)
-        x, y, z, odx, ody, odz = obox.box
+        ox, oy, oz, odx, ody, odz = obox.box
         cx, cy, cz = self.center
         r2 = self.radius * self.radius
 
-        px = min(max(cx, x), x + odx)
-        py = min(max(cy, y), y + ody)
-        pz = min(max(cz, z), z + odz)
+        px = min(max(cx, ox), ox + odx)
+        py = min(max(cy, oy), oy + ody)
+        pz = min(max(cz, oz), oz + odz)
 
         overlap = (cx - px) ** 2 + (cy - py) ** 2 + (cz - pz) ** 2 <= r2
 
@@ -857,12 +857,12 @@ class BoundingSphere(BoundingVolume):
             return 0
 
         # check how many vertices are contained
-        x0 = x
-        x1 = x + odx
-        y0 = y
-        y1 = y + ody
-        z0 = z
-        z1 = z + odz
+        x0 = ox
+        x1 = ox + odx
+        y0 = oy
+        y1 = oy + ody
+        z0 = oz
+        z1 = oz + odz
 
         overlap = (cx - x0) ** 2 + (cy - y0) ** 2 + (cz - z0) ** 2 <= r2
 
