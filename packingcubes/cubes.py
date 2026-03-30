@@ -403,21 +403,23 @@ def _make_trees(
         # empty arrays were giving a numba typing error
         trees.append(np.array([0], dtype=np.uint32))
 
+    particle_overflow = False
     for i in prange(num_cubes):
         cube_inds = (
             cube_indices[i],
             cube_indices[i + 1] if i + 1 < num_cubes else len(data),
         )
-        box = cube_boxes[i]
+        # Note: prange indices are uint64 in parallel mode but current
+        # TypedList _get_item implementation casts to intp type, which can
+        # be int64. We'll explicitly cast to avoid the warning and because
+        # len(cubes) **better** be < 2**63 !
+        li = np.int_(i)
+        box = cube_boxes[li]
 
         sub_data = subview(data, cube_inds[0], cube_inds[1])
 
         if i == num_cubes - 1 and len(sub_data) >= 2**32:
-            with objmode():
-                LOGGER.warn(
-                    "Requested cubes bounding box is too small. Leftovers box has "
-                    "more than 2**32 particles and likely will be invalid."
-                )
+            particle_overflow = True
 
         # print(f"Making tree for cube {i}. inds=({cube_inds[0]}, {cube_inds[1]})")
         tree = _construct_tree(
@@ -425,7 +427,14 @@ def _make_trees(
             box=box,
             particle_threshold=particle_threshold,
         )
-        trees[i] = tree
+        trees[li] = tree
+
+    if particle_overflow:
+        with objmode():
+            LOGGER.warn(
+                "Requested cubes bounding box is too small. Leftovers box has "
+                "more than 2**32 particles and likely will be invalid."
+            )
     return trees
 
 
