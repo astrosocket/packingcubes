@@ -623,7 +623,8 @@ def _get_particle_indices_in_shape(
     # add cube offset and flatten list of indices
     num_indices = 0
     for i in prange(len(indices)):
-        num_indices += len(indices[i])
+        li = np.int_(i)
+        num_indices += len(indices[li])
     flattened_indices = np.empty((num_indices, 3), dtype=np.int_)
     current_index = 0
     # doing this in parallel is probably more effort than worth it
