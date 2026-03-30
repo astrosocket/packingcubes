@@ -343,15 +343,15 @@ class HDF5Dataset(MultiParticleDataset):
         self._process_slices(data_slices)
 
         self._check_loading_strategy()
-        self._set_bounding_box()
         self._load_positions()
+        self._set_bounding_box()
 
     def _preload(self, sorted_filepath: str | Path | None):
         """
         Method to load certain attributes at initialization
 
         Must set _positions_field, _particle_types, _particle_numbers,
-        _top_level_groups, and _particle_type
+        _top_level_groups, _sorted_file_name and _particle_type
         """
         raise NotImplementedError(
             "You are trying to instantiate a base HDF5 class.\nUse a subclass instead.",
