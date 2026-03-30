@@ -159,6 +159,9 @@ class KDTreeAPI:
         Size of the top-level grid. Must be between 3 and 32 or -1 (default).
         The default uses the number of available threads to ensure there are
         more grid cells than threads.
+
+        save_dataset: bool, optional
+        If data is a dataset, save sorted positions/indices to file. Default False
     """
 
     _cubes: cubes.ParticleCubes
@@ -213,6 +216,7 @@ class KDTreeAPI:
         boxsize=None,
         *,
         cubes_per_side: int = -1,
+        save_dataset: bool = False,
     ):
         if compact_nodes is not None:
             if boxsize is None:
@@ -248,6 +252,13 @@ class KDTreeAPI:
 
             self._dataset = InMemory(positions=data)
             self._copied = data_copied
+            if save_dataset:
+                warnings.warn(
+                    "Can only save sorted positions when data is a Dataset",
+                    KDTreeWarning,
+                    stacklevel=1,
+                )
+                save_dataset = False
         else:
             self._dataset = data
             self._copied = False
@@ -268,7 +279,7 @@ class KDTreeAPI:
             dataset=self._dataset,
             particle_threshold=leafsize,
             cube_box=bounding_box,
-            save_dataset=isinstance(data, Dataset),
+            save_dataset=save_dataset,
             # Want only one particle type (current)
             particle_types=self._dataset.particle_type,
         )
