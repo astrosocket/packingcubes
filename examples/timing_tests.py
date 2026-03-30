@@ -302,7 +302,7 @@ def packed_kdtree_query_ball_point(
             raise ValueError(
                 f"""
                 Particle number mismatch: expected {particle_numbers[i]} particles
-                for ball {i} and only got {len(sph_inds)}.
+                for ball {i} and got {len(sph_inds)}.
                 """
             )
 
@@ -326,7 +326,7 @@ def brute_force_search(
             raise ValueError(
                 f"""
                 Particle number mismatch: expected {particle_numbers[i]} particles
-                for ball {i} and only got {number}.
+                for ball {i} and got {number}.
                 """
             )
 
@@ -349,7 +349,7 @@ def scipy_kdtree_query_ball_point(
             raise ValueError(
                 f"""
                 Particle number mismatch: expected {particle_numbers[i]} particles
-                for ball {i} and only got {len(sph_inds)}.
+                for ball {i} and got {len(sph_inds)}.
                 """
             )
 
@@ -447,7 +447,6 @@ def cubing(setup):
 def cubes_query_ball_points(cubes, *, centers, radii, **kwargs):
     for c, r in zip(centers, radii, strict=True):
         sph_inds = cubes.get_particle_indices_in_sphere(
-            particle_types=particle_type,
             center=c,
             radius=r,
         )
