@@ -944,6 +944,8 @@ def _print_with_search_balls(
         result_array = np.full((len(decimation_factors),), np.nan)
         for i, df in enumerate(decimation_factors):
             res_name = f"df={df}_ns={search_ball_sizes[0]}"
+            if res_name not in results:
+                continue
             res = results[res_name][test][0]
             if res >= 0:
                 result_array[i] = res.to("s")
@@ -958,6 +960,8 @@ def _print_with_search_balls(
         for i, df in enumerate(decimation_factors):
             for j, sb in enumerate(search_ball_sizes):
                 res_name = f"df={df}_ns={sb}"
+                if res_name not in results:
+                    continue
                 res = results[res_name][test_name][0]
                 if res >= 0:
                     result_array[i, j] = res.to("ms")
@@ -979,7 +983,10 @@ def _print_no_search_balls(
     for test in creation_list:
         result_array = np.full(res_array_size, np.nan)
         for i, df in enumerate(decimation_factors):
-            res = results[f"df={df}"][test][0]
+            key = f"df={df}"
+            if key not in results:
+                continue
+            res = results[key][test][0]
             if res >= 0:
                 result_array[i] = res.to("s")
         result_str = np.array2string(result_array, separator=", ", precision=3)
@@ -989,7 +996,10 @@ def _print_no_search_balls(
         result_array = np.full(res_array_size, np.nan)
         test_name = test + "-search"
         for i, df in enumerate(decimation_factors):
-            res = results[f"df={df}"][test_name][0]
+            key = f"df={df}"
+            if key not in results:
+                continue
+            res = results[key][test_name][0]
             if res >= 0:
                 result_array[i] = res.to("ms")
         result_str = np.array2string(result_array, separator=", ", precision=4)
