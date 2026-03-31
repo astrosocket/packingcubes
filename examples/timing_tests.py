@@ -72,7 +72,7 @@ def _create_loading_pattern(filepath: str, loading_factor: int | None = None):
     LOGGER.debug(
         f"""
         Loading data as {num_chunks} chunks of {num_chunks} particles, skipping
-        {num_skip} particles between
+        {num_skip} particles between.
         """
     )
     loading_pattern = []
@@ -1062,6 +1062,15 @@ if __name__ == "__main__":
                     number_balls=args.number_balls,
                     dcrp=(ds, centers, radii, particle_numbers),
                 )
+                if args.save:
+                    collate_results(
+                        creation_list=creation_list,
+                        search_list=search_list,
+                        decimation_factors=args.decimation_factor,
+                        search_ball_sizes=args.number_search,
+                        results=results,
+                        outfilepath=args.save,
+                    )
         else:
             results[f"df={df}"] = manual_timing(
                 snapshot=args.snapshot,
@@ -1073,13 +1082,13 @@ if __name__ == "__main__":
                 number_balls=args.number_balls,
                 dcrp=(ds, centers, radii, particle_numbers),
             )
-    if args.save:
-        collate_results(
-            creation_list=creation_list,
-            search_list=search_list,
-            decimation_factors=args.decimation_factor,
-            search_ball_sizes=args.number_search,
-            results=results,
-            outfilepath=args.save,
-        )
+            if args.save:
+                collate_results(
+                    creation_list=creation_list,
+                    search_list=search_list,
+                    decimation_factors=args.decimation_factor,
+                    search_ball_sizes=args.number_search,
+                    results=results,
+                    outfilepath=args.save,
+                )
     print(results)  # noqa: T201
