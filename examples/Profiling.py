@@ -33,6 +33,7 @@
 
 # %%
 # %load_ext profila
+# %load_ext pyinstrument
 
 from time import time  # noqa: E402
 
@@ -129,7 +130,7 @@ while (time() - start) < 30:
 
 cubes = Cubes(
     dataset=ds,
-    particle_types="PartType0",
+    particle_types=["PartType0"],
 )
 
 # %% [markdown] jp-MarkdownHeadingCollapsed=true
@@ -190,11 +191,8 @@ while (time() - start) < 30:
 # %% [markdown]
 # # Python profiling
 
-# %%
-# %load_ext pyinstrument
-
 # %% [markdown]
-# ##
+# ## KDTree (python)
 
 # %%
 kdtree = KDTree(
@@ -214,7 +212,47 @@ sph_box = sph.bounding_box
 
 start = time()
 while (time() - start) < 30:
-    sph_inds = kdtree.query_ball_point(x=centers[0], r=radius)
+    sph_inds = kdtree.query_ball_point(
+        x=centers[0], r=radius, return_data_indices=True, return_lists=False
+    )
+
+# %% [markdown]
+# ## Packed (python)
+
+# %%
+tree = Optree(dataset=ds)
+center = np.array([15000, 15000, 15000])
+radius = 1000
+
+# %% [markdown]
+# ### Packed search
+
+# %%
+# %%pyinstrument
+
+start = time()
+while (time() - start) < 30:
+    sph_inds = tree.get_particle_indices_in_sphere(center=center, radius=radius)
+
+# %% [markdown]
+# ## Cubes
+
+# %% [markdown]
+# ### Cubes creation
+
+# %%
+# %%pyinstrument
+
+start = time()
+while (time() - start) < 30:
+    cubes = Cubes(
+        dataset=ds,
+        particle_types=["PartType0"],
+        save_dataset=False,
+    )
+
+# %% [markdown]
+# ### Cubes search
 
 # %%
 
