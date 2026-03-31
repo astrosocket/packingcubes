@@ -69,6 +69,12 @@ def _create_loading_pattern(filepath: str, loading_factor: int | None = None):
     num_chunks = np.floor(np.sqrt(num_loaded)).astype(int)
     num_skip = np.floor((num_particles - num_loaded) / num_chunks).astype(int)
     num_extra = num_loaded - num_chunks**2
+    LOGGER.debug(
+        f"""
+        Loading data as {num_chunks} chunks of {num_chunks} particles, skipping
+        {num_skip} particles between
+        """
+    )
     loading_pattern = []
     offset = 0
     for i in range(num_chunks):
