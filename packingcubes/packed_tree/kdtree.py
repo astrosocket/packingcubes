@@ -544,7 +544,10 @@ class KDTreeAPI:
                 ``r * (1 + eps)``.
             workers : int, optional
                 Number of jobs to schedule for parallel processing. If -1 is given
-                all processors are used. Default: -1.
+                all processors are used. Default: -1. Note: SciPy's kdtree
+                parallelizes across the number of points queried. Thus, querying
+                on a single point gets no speed-up from parallelization. We
+                parallelize on single point queries, thus the different default
 
             return_sorted : bool, optional
                 Sorts returned indices if True and does not sort them if False. If
