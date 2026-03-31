@@ -822,6 +822,7 @@ def parse_arguments(argv=None):
         "--number-balls",
         help="Number of search balls to create. More balls = better statistics",
         type=int,
+        default=10,
     )
     parser.add_argument(
         "-s",
