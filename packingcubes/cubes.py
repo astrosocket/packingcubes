@@ -454,7 +454,7 @@ def make_cubes(
     dataset: MultiParticleDataset,
     cubes_per_side: int = -1,
     cube_box: bbox.BoxLike | None = None,
-    particle_threshold: int = _DEFAULT_PARTICLE_THRESHOLD,
+    particle_threshold: int | None = None,
     particle_types: str | Collection[str] | None = None,
     save_dataset: bool = True,
     **kwargs,
@@ -542,6 +542,12 @@ def make_cubes(
             f" cubes per side, leading to >={particle_numbers / num_cubes}"
             f" particles per cube. Max per cube supported is {2**32}"
         )
+
+    particle_threshold = (
+        _DEFAULT_PARTICLE_THRESHOLD
+        if particle_threshold is None
+        else particle_threshold
+    )
 
     for pt in requested_types:
         LOGGER.info(f"Processing {pt}")
