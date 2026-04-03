@@ -17,7 +17,6 @@ def scipy_query_example():
     return KDTree(data=data, copy_data=True, leafsize=10)
 
 
-@pytest.mark.xfail(reason="Work in progress")
 def test_query_example1(scipy_query_example):
     tree = scipy_query_example
 
@@ -28,7 +27,6 @@ def test_query_example1(scipy_query_example):
     assert ii == pytest.approx([0, 13])
 
 
-@pytest.mark.xfail(reason="Work in progress")
 def test_query_example2(scipy_query_example):
     tree = scipy_query_example
 
@@ -39,7 +37,6 @@ def test_query_example2(scipy_query_example):
     assert ii.flatten() == pytest.approx([0, 13])
 
 
-@pytest.mark.xfail(reason="Work in progress")
 def test_query_example3(scipy_query_example):
     tree = scipy_query_example
 
@@ -50,7 +47,6 @@ def test_query_example3(scipy_query_example):
     assert ii.flatten() == pytest.approx([6, 19])
 
 
-@pytest.mark.xfail(reason="Work in progress")
 def test_query_example4(scipy_query_example):
     tree = scipy_query_example
 
@@ -61,7 +57,6 @@ def test_query_example4(scipy_query_example):
     assert ii.flatten() == pytest.approx([0, 6, 13, 19])
 
 
-@pytest.mark.xfail(reason="Work in progress")
 def test_query_example5(scipy_query_example):
     tree = scipy_query_example
 
