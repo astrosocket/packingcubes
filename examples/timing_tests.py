@@ -3,6 +3,7 @@ import contextlib
 import logging
 import pickle
 import sys
+import time
 import timeit
 from functools import partial
 from typing import TextIO
@@ -12,7 +13,7 @@ from numba import njit
 from numba.typed import List
 from numpy.typing import NDArray
 from scipy.spatial import KDTree
-from unyt import second, unyt_array, unyt_quantity
+from unyt import nanosecond, second, unyt_array, unyt_quantity
 
 import packingcubes
 import packingcubes.bounding_box as bbox
@@ -600,6 +601,69 @@ def _run_timer(
     return number, time_vec
 
 
+def _run_creation_perf_timer(
+    creation_fun: str, dataset: data_objects.MultiParticleDataset, setup_data
+) -> tuple[unyt_quantity, unyt_array]:
+    """
+    Time search object creation using perf_timer
+    """
+    creation_fun = globals()[creation_fun]
+    # do initial run to catch any precompilation issues and to prime data loading
+    creation_fun(setup_data)
+    # reset data
+    reset_data(dataset)
+
+    def timeit(
+        creation_fun,
+        dataset: data_objects.MultiParticleDataset,
+        setup_data,
+        number: int,
+    ) -> unyt_quantity:
+        t0 = time.perf_counter_ns()
+        delta = 0
+        for _ in range(number):
+            t1 = time.perf_counter_ns()
+            reset_data(dataset)
+            delta += time.perf_counter_ns() - t1
+            creation_fun(setup_data)
+        tfinal = time.perf_counter_ns()
+        return (tfinal - t0 - delta) * nanosecond
+
+    # do manual autorange
+    scale = 1
+    done = False
+    try:
+        while not done:
+            for i in [1, 2, 5]:
+                number = i * scale
+                time_taken = timeit(
+                    creation_fun=creation_fun,
+                    dataset=dataset,
+                    setup_data=setup_data,
+                    number=number,
+                )
+                if time_taken.to("s") >= 0.2:
+                    done = True
+                    break
+    except ValueError as ve:
+        LOGGER.warning(ve)
+        return -1, [-1, -1] * second
+
+    time_vec = unyt_array(np.full((5,), -1.0), "s")
+    try:
+        for i in range(len(time_vec)):
+            time_vec[i] = timeit(
+                creation_fun=creation_fun,
+                dataset=dataset,
+                setup_data=setup_data,
+                number=number,
+            ).to("s")
+    except ValueError as ve:
+        LOGGER.warning(ve)
+        return -1, [-1, -1] * second
+    return number, time_vec
+
+
 def get_search_obj(
     *,
     function: str,
@@ -619,10 +683,8 @@ def get_search_obj(
         LOGGER.debug(f"Timing {function} creation")
         statement = f"reset_data(dataset);{cd['fun']}(setup_data)"
         if not dry_run:
-            timer = timeit.Timer(statement, globals=globals())
-            number, time_vec = _run_timer(
-                timer,
-                add_scaling=scaling,
+            number, time_vec = _run_creation_perf_timer(
+                creation_fun=cd["fun"], dataset=dataset, setup_data=setup_data
             )
         else:
             number = -1
