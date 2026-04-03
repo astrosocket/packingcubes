@@ -315,6 +315,7 @@ class KDTreeAPI:
         distance_upper_bound: float,
         p: float,
         return_data_indices: bool,
+        return_sorted: bool,
     ) -> tuple[float | NDArray, int | NDArray]:
         """
         Private helper that wraps the PackedTree get_closest_particles method
@@ -332,13 +333,11 @@ class KDTreeAPI:
                 distance_upper_bound=distance_upper_bound,
                 p=p,
                 k=k_max,
+                return_shuffle_indices=not return_data_indices,
+                return_sorted=return_sorted,
             )
             d[ind, : len(dists)] = dists
-            # kdtree needs the *original* indices if we copied the data and
-            # might want them if we didn't
-            i[ind, : len(inds)] = (
-                inds if return_data_indices else self._dataset._index[inds]
-            )
+            i[ind, : len(inds)] = inds
         if k_max == 1 and not isinstance(k, Sequence):
             return d.squeeze(), i.squeeze()
         if isinstance(k, Sequence):
@@ -356,6 +355,7 @@ class KDTreeAPI:
         workers: int | None = None,
         *,
         return_data_indices: bool | None = None,
+        return_sorted: bool | None = None,
     ) -> tuple[float | NDArray, int | NDArray]:
         """
         Query the KDTree for nearest neighbors
@@ -393,6 +393,10 @@ class KDTreeAPI:
             Return indices into the sorted data if True instead of into the
             original. Specify None to have this set by the copy_data argument
             used during tree construction.
+
+            return_sorted: bool, optional
+            Flag to return the distances and indices in distance-sorted order.
+            Set to False for a performance boost. Default True
 
         Returns:
             d: float or array of floats
@@ -447,12 +451,15 @@ class KDTreeAPI:
             not self._copied if return_data_indices is None else return_data_indices
         )
 
+        return_sorted = True if return_sorted is None else return_sorted
+
         return self._query(
             x=x,
             k=k,
             distance_upper_bound=distance_upper_bound,
             p=p,
             return_data_indices=return_data_indices,
+            return_sorted=return_sorted,
         )
 
     def _query_ball_point(
