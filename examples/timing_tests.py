@@ -361,7 +361,7 @@ def packed_kdtree_query_ball_point(
 
 def packed_kdtree_query(tree: optree.KDTree, *, centers, k=10, **kwargs):
     for c in centers:
-        dd, ii = tree.query(c, k=k)
+        dd, ii = tree.query(c, k=k, return_data_indices=True, return_sorted=False)
 
 
 def brute_force_creation(ds):
