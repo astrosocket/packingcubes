@@ -508,7 +508,7 @@ class PackedTreeNumba:
         # )
         # kwargs aren't supported
         return CurrentNode(
-            self.box,
+            self.box.copy(),
             0,
             self.tree[1],
             self.tree[2],
