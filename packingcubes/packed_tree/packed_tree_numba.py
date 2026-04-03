@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import heapq
 import logging
 from array import array
 from collections.abc import Callable, Iterator, Sequence
@@ -42,7 +43,14 @@ def euclidean_distance(xyz: NDArray, pxyz: NDArray) -> NDArray:
     return np.sqrt(np.sum(np.atleast_2d((xyz - pxyz) ** 2), axis=1))
 
 
-@njit
+@njit(fastmath=True)
+def euclidean_distance_particle(
+    x: float, y: float, z: float, px: float, py: float, pz: float
+) -> float:
+    return np.sqrt(euclidean_d2(x, y, z, px, py, pz))
+
+
+@njit(fastmath=True)
 def euclidean_d2(
     x: float, y: float, z: float, px: float, py: float, pz: float
 ) -> float:
@@ -50,56 +58,143 @@ def euclidean_d2(
 
 
 @njit
-def closest_particles(
+def get_minmax_particles_in_node(
     node_start: int,
     node_end: int,
     data: DataContainer,
     xyz: NDArray,
-    distance: Callable[[NDArray, NDArray], NDArray],
-    k: int = 1,
-    brute_threshold: int = 10,
-) -> tuple[NDArray[np.float64], NDArray[np.uint32]]:
+    distance: Callable[[float, float, float, float, float, float], float],
+) -> tuple[tuple[float, float], tuple[int, int]]:
+    x, y, z = xyz
+
     num_particles = node_end - node_start
 
-    pos = np.empty((num_particles, 3), dtype=data._positions.dtype)
-    ind = node_start
+    positions = data._positions[node_start : node_end + 1]
+
+    max_dist = 0.0
+    max_ind = 0
+    min_dist = 1e300
+    min_ind = 0
     for i in range(num_particles):
-        pos[i, 0] = data._positions[ind, 0]
-        pos[i, 1] = data._positions[ind, 1]
-        pos[i, 2] = data._positions[ind, 2]
-        ind += 1
+        px, py, pz = positions[i, 0:3]
+        dist = distance(x, y, z, px, py, pz)
+        if dist > max_dist:
+            max_dist = dist
+            max_ind = node_start + i
+        if dist < min_dist:
+            min_dist = dist
+            min_ind = node_start + i
 
-    distances = distance(pos, xyz)
+    return (min_dist, max_dist), (min_ind, max_ind)
 
-    # Unfortunately, we can't just return the distances/indices if k >=
-    # num_particles, we need to sort them. So it needs to be lumped into the
-    # other cases
 
-    # if k < log2(n), then finding k closest particles by just looping through
-    # is guaranteed faster than sorting first. But also we should be dealing
-    # with small numbers (unless we're not using the default particle threshold)
-    # so allow a user_specified threshold for brute force with a small default
-    # (something like 20*10=200 loop iterations is probably faster than sorting)
-    sort_threshold = max(np.log2(num_particles), brute_threshold)
+@jitclass
+class _HeapNode:
+    dist: types.float64
+    ind: types.int_
 
-    if k < num_particles and k < sort_threshold:
-        return_dists = np.empty((k,), dtype=np.float64)
-        return_inds = np.empty((k,), dtype=np.uint32)
-        for i in range(k):
-            min_dist = 1e100
-            min_ind = 0
-            for j, d in enumerate(distances):
-                if d < min_dist:
-                    min_dist = d
-                    min_ind = j
-            return_dists[i] = min_dist
-            return_inds[i] = min_ind + node_start
-            distances[min_ind] = 1e101
-        return return_dists, return_inds
+    def __init__(self, dist: types.float64, ind: types.int_):
+        self.dist = dist
+        self.ind = ind
 
-    arg_dists = np.argsort(distances).astype(np.uint32)
-    return_inds = arg_dists[:k]
-    return distances[return_inds], return_inds + node_start
+    def __le__(self, other):
+        return self.dist <= other.dist
+
+    def __lt__(self, other):
+        return self.dist < other.dist
+
+    def __ge__(self, other):
+        return self.dist >= other.dist
+
+    def __gt__(self, other):
+        return self.dist > other.dist
+
+    def __eq__(self, other):
+        return self.dist == other.dist and self.ind == other.ind
+
+    def __ne__(self, other):
+        return self.dist != other.dist or self.ind != other.ind
+
+    def __repr__(self) -> str:
+        return "(" + str(self.dist) + ", " + str(self.ind) + ")"
+
+
+try:
+    hntype = as_numba_type(_HeapNode)
+except TypeError:
+    hntype = type(_HeapNode)
+
+
+@njit
+def _get_heap_in_range(
+    x: float,
+    y: float,
+    z: float,
+    k: int,
+    slices: NDArray,
+    data: DataContainer,
+    distance_function: Callable[[float, float, float, float, float, float], float],
+    use_shuffle: bool,  # noqa: FBT001, FBT002
+) -> List[tuple[float, int]]:
+    """
+    Create a k-length distance-based "min"-heap from the indices in slices
+
+    Note that we actually want a max heap, in the sense that we want the heap
+    to contain the k-closest particles. Since max-heaps aren't supported in
+    Numba, distances are stored in the negative. So the head element has the
+    largest distance, at -heap[0].dist.
+
+    Args:
+        x,y,z: float
+        The coordinates to compute the distance from
+
+        k: int
+        Number of particles in the min-heap
+
+        slices: NDArray
+        Array of start-stop slice indices. See _get_particle_indices_in_shape
+        for more details.
+
+        distance_function: Callable
+        Jitted function of the form dist=distance_function(x, y, z, px, py, pz)
+
+        use_shuffle: bool
+        Flag to use the shuffle index (True) or data index (False) as the
+        particle index
+
+    Returns:
+        Heap of _HeapNode objects
+
+    """
+    # k_heap = List([_HeapNode(-1.0,0)])
+    # k_heap.pop()
+    k_heap = List.empty_list(hntype)
+    # Note: k_heap is a min-heap (max-heaps aren't supported) so to keep
+    # track of the k *closest* particles, we need to use the *negative*
+    # distance inside the heap
+    max_dist = np.inf
+    len_heap = 0
+    for s, e, _ in slices:
+        # we don't currently use partiality
+        positions = data._positions[s:e, 0:3]
+        if use_shuffle:
+            indices = data._index[s:e]
+
+        num_particles = e - s
+        for i in range(num_particles):
+            px, py, pz = positions[i, :]
+            dist = np.float64(distance_function(x, y, z, px, py, pz))
+            index = np.int_(s + i)
+            if use_shuffle:
+                index = np.int_(indices[i])
+            if len_heap < k:
+                heapq.heappush(k_heap, _HeapNode(-dist, index))
+                max_dist = -k_heap[0].dist
+                len_heap += 1
+            elif dist < max_dist:
+                heapq.heapreplace(k_heap, _HeapNode(-dist, index))
+                max_dist = -k_heap[0].dist
+    return k_heap
 
 
 @njit
@@ -1184,10 +1279,11 @@ class PackedTreeNumba:
         self,
         data: DataContainer,
         xyz: NDArray,
-        distance_function: Callable[[NDArray, NDArray], NDArray],
+        distance_function: Callable[[float, float, float, float, float, float], float],
         distance_upper_bound: float,
         k: int = 1,
-        brute_threshold: int = 10,
+        use_shuffle: bool = False,  # noqa: FBT001, FBT002
+        return_sorted: bool = False,  # noqa: FBT001, FBT002
     ) -> tuple[NDArray[np.float64], NDArray[np.uint32]]:
         """
         Get kth nearest particle distances and indices to point
@@ -1213,10 +1309,12 @@ class PackedTreeNumba:
             k: int, optional
             Number of closest particles to return. Default 1
 
-            brute_threshold: int, optional
-            Number of particles used for per-node brute search. Above this
-            the per-node search switches to sorting the particles in the node.
-            Default 10.
+            use_shuffle: bool, optional
+            Flag to return shuffle indices instead of sorted data indices.
+            Default False.
+
+            return_sorted: bool, optional
+            Return output in order by distance. Default False
 
         Returns:
             distances: NDArray[float]
@@ -1228,79 +1326,76 @@ class PackedTreeNumba:
             Indices in data of the kth nearest neighbors. Has same shape as
             distances
 
+        Raises:
+            OctreeError if something goes wrong with the search process
+
         """
 
         # ensure point is in octree, project if not
-        if not self.box.contains_point(xyz[0], xyz[1], xyz[2]):
-            # Project point onto root
-            px, py, pz = self.box.project_point_on_box(xyz)
-
+        x, y, z = xyz
+        px, py, pz = self.box.project_point_on_box(xyz)
         node = self._get_containing_node_of_point(np.array([px, py, pz]))
         node = node if node is not None else self._make_root_node()
 
         # because we need the kth nearest particles, make sure the node we're
         # looking at has at least that many particles. This means it might not
         # be a leaf, not that that should matter
-        while node.node_end - node.node_start + 1 < k:
+        while len(node) < k and not is_root(node):
             _move_to_parent(self.tree, node)
 
-        # get closest particles in this node
-        return_dists, return_inds = closest_particles(
-            node.node_start,
-            node.node_end,
-            data,
-            xyz,
-            distance_function,
-            k,
-            brute_threshold,
+        return_dists = np.full((k,), np.inf, dtype=np.float64)
+        return_inds = np.full((k,), len(data), dtype=np.uint32)
+
+        if len(node) < k:
+            # root node has insufficient particles, return them all
+            # note: these will not be sorted!
+            positions = data._positions[node.node_start : node.node_end + 1, 0:3]
+            for i in range(len(node)):
+                px, py, pz = positions[i, 0:3]
+                return_dists[i] = distance_function(x, y, z, px, py, pz)
+                return_inds[i] = i
+            return return_dists, return_inds
+
+        # get min & max distances to particles in this node
+        (min_dist, max_dist), (min_ind, max_ind) = get_minmax_particles_in_node(
+            node.node_start, node.node_end, data, xyz, distance_function
         )
 
-        temp_dists = np.empty_like(return_dists)
-        temp_inds = np.empty_like(return_inds)
+        # generate search box - 3 cases:
+        #   a) k=1
+        #     1) min_dist=0 - Nothing will be closer, return
+        #     2) - just need to check if any other particle is closer
+        #        -> use minimum distance
+        #   b) k>1 - Since node contains k particles, we only need to check
+        #      the distance to the farthest particle in node.
+        if k == 1 and min_dist == 0:
+            return_dists[0] = 0
+            return_inds[0] = min_ind
+            return return_dists, return_inds
+        dist = min_dist if k == 1 else max_dist
+        dist = min(dist, distance_upper_bound)
+        search_box = bbox.BoundingBox(
+            np.array([x - dist, y - dist, z - dist, 2 * dist, 2 * dist, 2 * dist])
+        )
 
-        closest_dist = min(return_dists[len(return_dists) - 1], distance_upper_bound)
-        # Closest distance is now the maximum distance we need to look for
-        # neighbors from other nodes. Either they're inside, or we wouldn't
-        # care about them anyway
+        # clip search box to tree bounding box
+        clip = search_box.clip_to_box(self.box)
+        if not clip:
+            raise octree.OctreeError("Search box entirely outside of tree")
 
-        # Need to check all nodes in neighborhood, which is all nodes
-        # overlapping with the sphere with same radius as the closest distance
-        sph = bbox.BoundingSphere(xyz, closest_dist)
-        sph_inds = self._get_particle_indices_in_shape(sph)
-        for s, e, _ in sph_inds:
-            # skip subnodes of node. Only need to check node_start since nodes
-            # are pure super/sub-sets
-            if node.node_start <= s <= node.node_end:
-                continue
-            neighbor_dist, neighbor_inds = closest_particles(
-                s, e, data, xyz, distance_function, k, brute_threshold
-            )
-            rind = 0
-            nind = 0
-            for i in range(k):
-                # rind is guaranteed to be less than len(return_dist) because
-                # len(return_dist)==k
-                if (
-                    nind < len(neighbor_dist)
-                    and return_dists[rind] > neighbor_dist[nind]
-                ):
-                    temp_dists[i] = neighbor_dist[nind]
-                    temp_inds[i] = neighbor_inds[nind]
-                    nind += 1
-                else:
-                    temp_dists[i] = return_dists[rind]
-                    temp_inds[i] = return_inds[rind]
-                    rind += 1
+        box_inds = self._get_particle_indices_in_shape(search_box)
 
-            # swap temp and return arrays
-            temp_pointer = return_dists
-            return_dists = temp_dists
-            temp_dists = temp_pointer
+        k_heap = _get_heap_in_range(
+            x, y, z, k, box_inds, data, distance_function, use_shuffle
+        )
 
-            temp_pointer = return_inds
-            return_inds = temp_inds
-            temp_inds = return_inds
+        if return_sorted:
+            k_heap.sort(reverse=True)
 
+        for i in range(k):
+            hn = k_heap[i]
+            return_dists[i] = -hn.dist
+            return_inds[i] = hn.ind
         return return_dists, return_inds
 
 
