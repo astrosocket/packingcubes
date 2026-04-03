@@ -520,9 +520,9 @@ class KDTreeAPI:
         eps: float | None = None,
         workers: int = -1,
         *,
-        return_sorted: bool | None = None,
+        return_sorted: bool | None = False,
         return_length: bool = False,
-        return_lists: bool | None = None,
+        return_lists: bool | None = False,
         return_data_indices: bool | None = None,
         strict: bool | None = None,
     ) -> int | list[int] | NDArray:
@@ -553,7 +553,7 @@ class KDTreeAPI:
                 Sorts returned indices if True and does not sort them if False. If
                 None, does not sort single point queries, but does sort
                 multi-point queries which was the behavior before this option
-                was added.
+                was added. Default False.
 
             return_length : bool, optional
                 Return the number of points inside the radius instead of a list
@@ -562,8 +562,8 @@ class KDTreeAPI:
             return_lists : bool, optional
                 Force returning lists instead of arrays. PackedTrees return
                 arrays of indices by default, but this doesn't match the
-                expected query_ball_point signature. For a slight performance
-                increase, set this to False
+                expected query_ball_point signature. To exactly match SciPy,
+                set this to False.
 
             return_data_indices: bool | None, optional
                 Return indices into the sorted data if True instead of into the
