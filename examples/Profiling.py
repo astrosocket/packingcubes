@@ -74,12 +74,11 @@ tree.get_particle_indices_in_sphere(center=center, radius=radius)
 cubes = Cubes(
     dataset=ds,
     particle_types=["PartType0"],
+    save_dataset=False,
 )
 
 # %%
-cubes.get_particle_indices_in_sphere(
-    particle_types="PartType0", center=center, radius=radius
-)
+cubes.get_particle_indices_in_sphere(center=center, radius=radius)
 
 # %%
 kdtree = KDTree(
@@ -128,10 +127,13 @@ while (time() - start) < 30:
 # %%
 # %%profila
 
-cubes = Cubes(
-    dataset=ds,
-    particle_types=["PartType0"],
-)
+start = time()
+while (time() - start) < 30:
+    cubes = Cubes(
+        dataset=ds,
+        particle_types=["PartType0"],
+        save_dataset=False,
+    )
 
 # %% [markdown] jp-MarkdownHeadingCollapsed=true
 # ## Profile cubes search
