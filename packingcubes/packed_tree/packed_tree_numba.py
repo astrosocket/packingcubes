@@ -1081,7 +1081,7 @@ class PackedTreeNumba:
                 if containment_obj.contains_point(x, y, z):
                     indices[ind] = i + s[0]
                     ind += 1
-                i += 1
+                i += 1  # noqa: SIM113
 
         return indices[0:ind]
 
