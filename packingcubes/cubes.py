@@ -736,7 +736,7 @@ def _parallel_expand_data_indices(
             if shape.contains_point(x, y, z):
                 indices[ind] = j + start
                 ind += 1
-            j += 1
+            j += 1  # noqa: SIM113
         num_contained += ind - offset
         end_bound = offset + size
         while ind < end_bound:
@@ -791,7 +791,7 @@ def _parallel_expand_shuffle_indices(
             if shape.contains_point(x, y, z):
                 indices[ind] = shuffle[j]
                 ind += 1
-            j += 1
+            j += 1  # noqa: SIM113
         num_contained += ind - offset
         while ind < offset + size:
             indices[ind] = -1
