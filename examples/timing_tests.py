@@ -32,6 +32,7 @@ snapfile = ill_path / "snapshot_090.hdf5"
 particle_type = "PartType0"
 
 rng = np.random.default_rng(0xBA55ADE89)
+_DEFAULT_QUERY_SIZE = 100
 
 
 def _create_loading_pattern(filepath: str, loading_factor: int | None = None):
@@ -359,9 +360,11 @@ def packed_kdtree_query_ball_point(
             )
 
 
-def packed_kdtree_query(tree: optree.KDTree, *, centers, k=10, **kwargs):
+def packed_kdtree_query(
+    tree: optree.KDTree, *, centers, k=_DEFAULT_QUERY_SIZE, **kwargs
+):
     for c in centers:
-        dd, ii = tree.query(c, k=k, return_data_indices=True, return_sorted=False)
+        dd, ii = tree.query(c, k=k, return_data_indices=True, return_sorted=True)
 
 
 def brute_force_creation(ds):
@@ -406,7 +409,7 @@ def scipy_kdtree_query_ball_point(
             )
 
 
-def scipy_kdtree_query(tree: KDTree, *, centers, k=10, **kwargs):
+def scipy_kdtree_query(tree: KDTree, *, centers, k=_DEFAULT_QUERY_SIZE, **kwargs):
     for c in centers:
         dd, ii = tree.query(c, k=k)
 
