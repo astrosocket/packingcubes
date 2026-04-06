@@ -645,6 +645,7 @@ def _run_creation_perf_timer(
                 if time_taken.to("s") >= 0.2:
                     done = True
                     break
+            scale *= 10
     except ValueError as ve:
         LOGGER.warning(ve)
         return -1, [-1, -1] * second
