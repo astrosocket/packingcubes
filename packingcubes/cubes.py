@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-from collections.abc import Collection
+from collections.abc import Callable, Collection
 from pathlib import Path
 from typing import cast
 
@@ -36,11 +36,14 @@ from packingcubes.octree import _DEFAULT_PARTICLE_THRESHOLD
 from packingcubes.packed_tree import (
     PackedTree,
 )
+from packingcubes.packed_tree.fixed_distance_heap import FixedDistanceHeap
 from packingcubes.packed_tree.packed_tree_numba import (
     PackedTreeNumba,
     _construct_tree,
     _index_tuple_type,
     _list_index_tuple,
+    _process_slice_against_heap,
+    euclidean_distance_particle,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -733,7 +736,7 @@ def _parallel_expand_data_indices(
             if shape.contains_point(x, y, z):
                 indices[ind] = j + start
                 ind += 1
-            j += 1
+            j += 1  # noqa: SIM113
         num_contained += ind - offset
         end_bound = offset + size
         while ind < end_bound:
@@ -788,7 +791,7 @@ def _parallel_expand_shuffle_indices(
             if shape.contains_point(x, y, z):
                 indices[ind] = shuffle[j]
                 ind += 1
-            j += 1
+            j += 1  # noqa: SIM113
         num_contained += ind - offset
         while ind < offset + size:
             indices[ind] = -1
@@ -827,6 +830,153 @@ def _get_particle_index_list_in_shape(
     if data is None:
         return _parallel_expand_all_shuffle_indices(slices, shape, data)
     return _parallel_expand_shuffle_indices(slices, shape, data)
+
+
+@njit(parallel=False)
+def _get_closest_cube(
+    cubes: List[BoundingBox],
+    xyz: NDArray,
+    distance_function: Callable[[float, float, float, float, float, float], float],
+) -> np.int_:
+    """
+    Return the index of the closest cube to a point
+    """
+    x, y, z = xyz
+    cube_dists = np.empty((len(cubes),), dtype=np.float64)
+    for i in prange(len(cubes)):
+        li = np.int64(i)
+        px, py, pz = cubes[li].project_point_on_box(xyz)
+        cube_dists[i] = distance_function(x, y, z, px, py, pz)
+
+    return np.argmin(cube_dists)
+
+
+@njit
+def _get_closest_particles(
+    cubes: List[BoundingBox],
+    trees: List[PackedTreeNumba],
+    cube_indices: NDArray,
+    data: DataContainer,
+    xyz: NDArray,
+    k: int,
+    distance_function: Callable[[float, float, float, float, float, float], float],
+    distance_upper_bound: float,
+    use_shuffle: bool,  # noqa: FBT001, FBT002
+    return_sorted: bool,  # noqa: FBT001, FBT002
+) -> tuple[NDArray, NDArray]:
+    """
+    Return the k-closest particle distances and their indices
+
+    Args:
+        cubes: List[BoundingBox]
+        The cube boxes
+
+        trees: List[PackedTreeNumba]
+        The cube trees
+
+        cube_indices: NDArray
+        The cube index offsets
+
+        data: DataContainer
+        The container of the position data
+
+        xyz: NDArray
+        The 3 Cartesian coordinates
+
+        k: positive int
+        The number of particles to return. No verification of sign is performed
+
+        distance_function: Callable[[float, float, float, float, float, float], float]
+        The distance function between two Cartesian points,
+        e.g. d = distance_function(x1, y1, z1, x2, y2, z2)
+
+        distance_upper_bound: float
+        The maximum distance to consider particles within. May result in fewer
+        than k particles being returned if too stringent
+
+        use_shuffle: bool
+        Flag to return shuffle indices instead of sorted data indices
+
+    Returns:
+        dists: NDArray[float]
+        K-length vector of distances
+
+        inds: NDArray[int]
+        K-length vector of particle indices
+    """
+    x, y, z = xyz
+
+    num_cubes = len(cubes)
+    containing_cube = _get_closest_cube(cubes, xyz, distance_function)
+
+    cube_start = cube_indices[containing_cube]
+    cube_end = (
+        cube_indices[containing_cube + 1]
+        if containing_cube + 1 < num_cubes
+        else len(data)
+    )
+
+    # need to pass sub_data because otherwise tree indices will be wrong
+    sub_data = subview(data, cube_start, cube_end)
+    # we don't need the heap to be sorted because it's still being processed
+    dists, inds = trees[containing_cube].get_closest_particles(
+        sub_data,
+        xyz,
+        distance_function,
+        distance_upper_bound,
+        k,
+        use_shuffle,  # noqa: FBT003
+        False,  # noqa: FBT003 # return_sorted
+    )
+
+    # data inds don't include cube offsets
+    if not use_shuffle:
+        for i in range(len(inds)):
+            inds[i] += cube_start
+
+    # dists[0] is max distance due to heap invariant, *as long as we're not
+    # returning the sorted version!*
+    if dists[0] == 0:
+        # we've found k particles and we're done
+        return dists, inds
+
+    # heap can be recreated easily from dists, inds
+    heap = FixedDistanceHeap(k, -1)
+    heap.distances = dists
+    heap.indices = inds
+    heap.max_distance = heap.distances[0]
+
+    # separate in case we allow making FDHs from arrays
+    max_dist = heap.max_distance
+    search_box = BoundingBox(
+        np.array(
+            [
+                x - max_dist,
+                y - max_dist,
+                z - max_dist,
+                2 * max_dist,
+                2 * max_dist,
+                2 * max_dist,
+            ]
+        )
+    )
+
+    slices = _get_particle_indices_in_shape(cubes, trees, cube_indices, search_box)
+
+    for i in range(slices.shape[0]):
+        s, e = slices[i, 0], slices[i, 1]
+        # skip slice if it's a subslice of the node we already looked at
+        if cube_start <= s < cube_end:
+            continue
+        _process_slice_against_heap(
+            heap, data, xyz, distance_function, s, e, use_shuffle
+        )
+
+    distances, indices = heap.distances, heap.indices
+    if return_sorted:
+        distances, indices = heap.sorted()
+
+    return distances, indices
 
 
 class ParticleCubes:
@@ -1071,13 +1221,85 @@ class ParticleCubes:
         data: DataContainer | Dataset,
         xyz: NDArray,
         distance_upper_bound: float | None = None,
-        p: float = 2.0,
-        k: int = 1,
-    ):
-        raise NotImplementedError(
-            """
-            Still in progress. Try a PackedTree for this functionatlity
-            """
+        p: float | None = None,
+        k: int | None = None,
+        return_shuffle_indices: bool | None = None,
+        return_sorted: bool | None = None,
+    ) -> tuple[NDArray, NDArray]:
+        """
+        Get kth nearest particle distances and indices to point
+
+        Args:
+            data: DataContainer | Dataset
+            Source of particle position data
+
+            xyz: ArrayLike
+            Coordinates of point to check
+
+            distance_upper_bound: nonnegative float, optional
+            Return only neighbors from other nodes within this distance. This
+            is used for tree pruning, so if you are doing a series of
+            nearest-neighbor queries, it may help to supply the distance to the
+            nearest neighbor of the most recent point.
+
+            p: float, optional
+            Which Minkowski p-norm to use. 1 is the sum of absolute-values
+            distance ("Manhattan" distance). 2 is the usual Euclidean distance.
+            Infinity is the maximum-coordinate-difference distance. Currently,
+            only p=2 is supported.
+
+            k: int, optional
+            Number of closest particles to return. Default 1
+
+            return_shuffle_indices: bool, optional
+            Flag to return the shuffle indices instead of the data indices.
+            Default False.
+
+            return_sorted: bool, optional
+            Flag to return the distances and indices in distance-sorted order.
+            Set to False for a performance boost. Default True
+
+        Returns:
+            distances: NDArray[float]
+            Distances to the kth nearest neighbors. Has shape (min(N,k),),
+            where N is the number of particles in the sphere bounded by
+            distance_upper_bound
+
+            indices: NDArray[int]
+            Indices in data of the kth nearest neighbors. Has same shape as
+            distances
+
+        Raises:
+            NotImplementedError
+            If a p value of then 2 is provided
+        """
+
+        p = 2 if p is None else p
+        if p != 2:
+            raise NotImplementedError("Only p=2 is currently supported")
+        distance_function = euclidean_distance_particle
+
+        distance_upper_bound = (
+            1e100 if distance_upper_bound is None else distance_upper_bound
+        )
+
+        k = 1 if k is None else k
+        return_shuffle_indices = (
+            False if return_shuffle_indices is None else return_shuffle_indices
+        )
+        return_sorted = True if return_sorted is None else return_sorted
+
+        return _get_closest_particles(
+            self.cube_boxes,
+            self._numba_trees,
+            self.cube_indices,
+            data if isinstance(data, DataContainer) else data.data_container,
+            xyz,
+            k,
+            distance_function,
+            distance_upper_bound,
+            return_shuffle_indices,
+            return_sorted,
         )
 
     def _get_pilis_cubes(
@@ -1507,6 +1729,86 @@ class MultiCubes:
             strict=strict,
             use_data_indices=use_data_indices,
         )
+
+    def get_closest_particles(
+        self,
+        *,
+        data: DataContainer | Dataset,
+        xyz: NDArray,
+        particle_types: str | Collection[str] | None = None,
+        distance_upper_bound: float | None = None,
+        p: float | None = None,
+        k: int | None = None,
+        return_shuffle_indices: bool | None = None,
+        return_sorted: bool | None = None,
+    ):
+        """
+        Get kth nearest particle distances and indices to point
+
+        Args:
+            data: DataContainer | Dataset
+            Source of particle position data
+
+            xyz: ArrayLike
+            Coordinates of point to check
+
+            particle_types: str | Collection[str], optional
+            Particle type(s) to include. Defaults to self.particle_types
+
+            distance_upper_bound: nonnegative float, optional
+            Return only neighbors from other nodes within this distance. This
+            is used for tree pruning, so if you are doing a series of
+            nearest-neighbor queries, it may help to supply the distance to the
+            nearest neighbor of the most recent point.
+
+            p: float, optional
+            Which Minkowski p-norm to use. 1 is the sum of absolute-values
+            distance ("Manhattan" distance). 2 is the usual Euclidean distance.
+            Infinity is the maximum-coordinate-difference distance. Currently,
+            only p=2 is supported.
+
+            k: int, optional
+            Number of closest particles to return. Default 1
+
+            return_shuffle_indices: bool, optional
+            Flag to return the shuffle indices instead of the data indices.
+            Default False.
+
+            return_sorted: bool, optional
+            Flag to return the distances and indices in distance-sorted order.
+            Set to False for a performance boost. Default True
+
+        Returns:
+            distances: NDArray[float]
+            Distances to the kth nearest neighbors. Has shape (min(N,k),),
+            where N is the number of particles in the sphere bounded by
+            distance_upper_bound
+
+            indices: NDArray[int]
+            Indices in data of the kth nearest neighbors. Has same shape as
+            distances
+
+        Raises:
+            NotImplementedError
+            If a p value of then 2 is provided
+        """
+        if particle_types is None:
+            particle_types = self.particle_types
+        if isinstance(particle_types, str):
+            particle_types = [particle_types]
+        data = data.data_container if isinstance(data, Dataset) else data
+        inds = {}
+        for pt in particle_types:
+            inds[pt] = self.cubes_dict[pt].get_closest_particles(
+                data=data,
+                xyz=xyz,
+                distance_upper_bound=distance_upper_bound,
+                p=p,
+                k=k,
+                return_shuffle_indices=return_shuffle_indices,
+                return_sorted=return_sorted,
+            )
+        return inds
 
     def save(
         self,

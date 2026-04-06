@@ -592,6 +592,45 @@ class BoundingBox(BoundingVolume):
         cz = min(max(z, bz + jz), bz + dz - jz)
         return cx, cy, cz
 
+    def clip_to_box(self, obox: BoundingBox) -> int:
+        """
+        Clip this box so it entirely fits within obox
+
+        Note: this action is potentiall unsafe! We do no checking that the new
+        box is correct in terms of floating point precision.
+
+        Args:
+            obox: BoundingBox
+            The box to clip to
+
+        Returns:
+            Returns 0 if any of the dx terms are 0, 1 otherwise
+        """
+        # The algorithm is similar to project_point_on_box
+        x, y, z, dx, dy, dz = self.box
+        ox, oy, oz, odx, ody, odz = obox.box
+
+        x = min(max(x, ox), ox + odx)
+        y = min(max(y, oy), oy + ody)
+        z = min(max(z, oz), oz + odz)
+        xfar = min(max(x + dx, ox), ox + odx)
+        yfar = min(max(y + dy, oy), oy + ody)
+        zfar = min(max(z + dz, oz), oz + odz)
+
+        new_dx = xfar - x
+        new_dy = yfar - y
+        new_dz = zfar - z
+
+        if new_dx <= 0 or new_dy <= 0 or new_dz <= 0:
+            return 0
+        self.box[0] = x
+        self.box[3] = new_dx
+        self.box[1] = y
+        self.box[4] = new_dy
+        self.box[2] = z
+        self.box[5] = new_dz
+        return 1
+
     def check_box_overlap(self, obox: BoundingBox) -> int:
         """
         Return the "overlap" between this box and obox

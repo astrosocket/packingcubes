@@ -21,7 +21,7 @@ from packingcubes.packed_tree.packed_tree_numba import (
     PackedTreeNumba,
     _construct_tree,
     euclidean_d2,
-    euclidean_distance,
+    euclidean_distance_particle,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -410,8 +410,9 @@ class PackedTree(octree.Octree):
         distance_upper_bound: float | None = None,
         p: float = 2,
         k: int = 1,
-        brute_threshold: int = 10,
-    ) -> tuple[NDArray[np.float64], NDArray[np.uint32]]:
+        use_data_indices: bool = True,
+        return_sorted: bool = True,
+    ) -> tuple[NDArray[np.float64], NDArray[np.int_]]:
         """
         Get kth nearest particle distances and indices to point
 
@@ -437,10 +438,13 @@ class PackedTree(octree.Octree):
             k: int, optional
             Number of closest particles to return. Default 1
 
-            brute_threshold: int, optional
-            Number of particles used for per-node brute search. Above this
-            the per-node search switches to sorting the particles in the node.
-            Default 10.
+            use_data_indices: bool, optional
+            Flag to return indices into the sorted dataset (True, default) or
+            into the shuffle list (False)
+
+            return_sorted: bool, optional
+            Flag to return the distances and indices in distance-sorted order.
+            Set to False for a performance boost. Default True
 
         Returns:
             distances: NDArray[float]
@@ -456,13 +460,17 @@ class PackedTree(octree.Octree):
             NotImplementedError
             If a p value of then 2 is provided
         """
+        if k <= 0:
+            raise ValueError("k must be positive!")
         if p != 2:
             raise NotImplementedError("Only p=2 is currently supported")
-        distance_fun = euclidean_distance
+        distance_fun = euclidean_distance_particle
 
         distance_upper_bound = (
             1e100 if distance_upper_bound is None else distance_upper_bound
         )
+
+        return_sorted = True if return_sorted is None else return_sorted
 
         return self._tree.get_closest_particles(
             data if isinstance(data, DataContainer) else data.data_container,
@@ -470,7 +478,8 @@ class PackedTree(octree.Octree):
             distance_fun,
             distance_upper_bound,
             k,
-            brute_threshold,
+            not use_data_indices,  # use_shuffle_inds
+            return_sorted,
         )
 
     def count_neighbors(self, *, other: PackedTree, r: float) -> int:
