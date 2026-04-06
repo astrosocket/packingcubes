@@ -412,7 +412,7 @@ class PackedTree(octree.Octree):
         k: int = 1,
         use_data_indices: bool = True,
         return_sorted: bool = True,
-    ) -> tuple[NDArray[np.float64], NDArray[np.uint32]]:
+    ) -> tuple[NDArray[np.float64], NDArray[np.int_]]:
         """
         Get kth nearest particle distances and indices to point
 

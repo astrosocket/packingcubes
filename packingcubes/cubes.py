@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import heapq
 import logging
 import sys
 from collections.abc import Callable, Collection
@@ -37,14 +36,14 @@ from packingcubes.octree import _DEFAULT_PARTICLE_THRESHOLD
 from packingcubes.packed_tree import (
     PackedTree,
 )
+from packingcubes.packed_tree.fixed_distance_heap import FixedDistanceHeap
 from packingcubes.packed_tree.packed_tree_numba import (
     PackedTreeNumba,
     _construct_tree,
-    _HeapNode,
     _index_tuple_type,
     _list_index_tuple,
+    _process_slice_against_heap,
     euclidean_distance_particle,
-    hntype,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -833,7 +832,7 @@ def _get_particle_index_list_in_shape(
     return _parallel_expand_shuffle_indices(slices, shape, data)
 
 
-@njit(parallel=True)
+@njit(parallel=False)
 def _get_closest_cube(
     cubes: List[BoundingBox],
     xyz: NDArray,
@@ -850,49 +849,6 @@ def _get_closest_cube(
         cube_dists[i] = distance_function(x, y, z, px, py, pz)
 
     return np.argmin(cube_dists)
-
-
-@njit
-def _modify_distance_heap(
-    heap: List[_HeapNode],
-    xyz: NDArray,
-    k: int,
-    slices: NDArray[np.int_],
-    data: DataContainer,
-    distance_function: Callable[[float, float, float, float, float, float], float],
-    exclusion_start: int,
-    exclusion_end: int,
-    use_shuffle: bool,  # noqa: FBT001, FBT002
-):
-    """
-    Modify distance heap in-place from extra slices
-    """
-    # Modified from PackedTreeNumba's get_closest_particles
-    x, y, z = xyz
-    max_dist = -heap[0].dist
-    heap_size = len(heap)
-    for s, e, _ in slices:
-        if exclusion_start <= s <= exclusion_end:
-            continue
-        positions = data._positions[s:e, 0:3]
-        if use_shuffle:
-            indices = data._index[s:e]
-        num_particles = e - s
-        for i in range(num_particles):
-            px, py, pz = positions[i, 0:3]
-            dist = np.float64(distance_function(x, y, z, px, py, pz))
-            if heap_size < k:
-                index = s + i
-                if use_shuffle:
-                    index = indices[i]
-                heapq.heappush(heap, _HeapNode(-dist, index))
-                heap_size += 1
-            if dist < max_dist:
-                index = s + i
-                if use_shuffle:
-                    index = indices[i]
-                heapq.heapreplace(heap, _HeapNode(-dist, index))
-                max_dist = -heap[0].dist
 
 
 @njit
@@ -951,14 +907,7 @@ def _get_closest_particles(
     x, y, z = xyz
 
     num_cubes = len(cubes)
-    containing_cube = -1
-    for i in range(num_cubes):
-        if cubes[i].contains_point(x, y, z):
-            containing_cube = i
-            break
-    if containing_cube < 0:
-        # point not contained. Just find closest cube
-        containing_cube = _get_closest_cube(cubes, xyz, distance_function)
+    containing_cube = _get_closest_cube(cubes, xyz, distance_function)
 
     cube_start = cube_indices[containing_cube]
     cube_end = (
@@ -985,18 +934,20 @@ def _get_closest_particles(
         for i in range(len(inds)):
             inds[i] += cube_start
 
-    # Need to populate with a placeholder for typing
-    # heap = List([_HeapNode(-1.0,0)])
-    # heap.pop()
-    heap = List.empty_list(hntype)
+    # dists[0] is max distance due to heap invariant, *as long as we're not
+    # returning the sorted version!*
+    if dists[0] == 0:
+        # we've found k particles and we're done
+        return dists, inds
 
-    n = len(dists)
-    offset = cube_indices[containing_cube]
-    for i in range(n):
-        heap.append(_HeapNode(-dists[i], inds[i]))
+    # heap can be recreated easily from dists, inds
+    heap = FixedDistanceHeap(k, -1)
+    heap.distances = dists
+    heap.indices = inds
+    heap.max_distance = heap.distances[0]
 
-    # dists are unsorted, but do still retain the heap invariant
-    max_dist = dists[0]
+    # separate in case we allow making FDHs from arrays
+    max_dist = heap.max_distance
     search_box = BoundingBox(
         np.array(
             [
@@ -1012,28 +963,20 @@ def _get_closest_particles(
 
     slices = _get_particle_indices_in_shape(cubes, trees, cube_indices, search_box)
 
-    _modify_distance_heap(
-        heap, xyz, k, slices, data, distance_function, cube_start, cube_end, use_shuffle
-    )
+    for i in range(slices.shape[0]):
+        s, e = slices[i, 0], slices[i, 1]
+        # skip slice if it's a subslice of the node we already looked at
+        if cube_start <= s < cube_end:
+            continue
+        _process_slice_against_heap(
+            heap, data, xyz, distance_function, s, e, use_shuffle
+        )
 
+    distances, indices = heap.distances, heap.indices
     if return_sorted:
-        heap.sort(reverse=True)
+        distances, indices = heap.sorted()
 
-    # spit back out as arrays
-    n = len(heap)
-    return_dists = np.empty((n,), dtype=np.float64)
-    return_inds = np.empty((n,), dtype=np.int_)
-
-    for i in range(n):
-        hn = heap[i]
-        # need to invert the list...
-        return_dists[i] = -hn.dist
-        return_inds[i] = hn.ind
-
-    return_dists = np.empty((k,), dtype=np.float64)
-    return_inds = np.empty((k,), dtype=np.int_)
-
-    return return_dists, return_inds
+    return distances, indices
 
 
 class ParticleCubes:

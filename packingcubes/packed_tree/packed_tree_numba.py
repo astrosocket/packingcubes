@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import heapq
 import logging
 from array import array
 from collections.abc import Callable, Iterator, Sequence
@@ -23,6 +22,7 @@ import packingcubes.bounding_box as bbox
 import packingcubes.octree as octree
 from packingcubes.configuration import FIELD_FORMAT
 from packingcubes.data_objects import DataContainer, dc_type
+from packingcubes.packed_tree.fixed_distance_heap import FixedDistanceHeap
 from packingcubes.packed_tree.packed_node import (
     CurrentNode,
     PackedNodeNumba,
@@ -58,143 +58,31 @@ def euclidean_d2(
 
 
 @njit
-def get_minmax_particles_in_node(
-    node_start: int,
-    node_end: int,
+def _process_slice_against_heap(
+    heap: FixedDistanceHeap,
     data: DataContainer,
     xyz: NDArray,
-    distance: Callable[[float, float, float, float, float, float], float],
-) -> tuple[tuple[float, float], tuple[int, int]]:
-    x, y, z = xyz
-
-    num_particles = node_end - node_start
-
-    positions = data._positions[node_start : node_end + 1]
-
-    max_dist = 0.0
-    max_ind = 0
-    min_dist = 1e300
-    min_ind = 0
-    for i in range(num_particles):
-        px, py, pz = positions[i, 0:3]
-        dist = distance(x, y, z, px, py, pz)
-        if dist > max_dist:
-            max_dist = dist
-            max_ind = node_start + i
-        if dist < min_dist:
-            min_dist = dist
-            min_ind = node_start + i
-
-    return (min_dist, max_dist), (min_ind, max_ind)
-
-
-@jitclass
-class _HeapNode:
-    dist: types.float64
-    ind: types.int_
-
-    def __init__(self, dist: types.float64, ind: types.int_):
-        self.dist = dist
-        self.ind = ind
-
-    def __le__(self, other):
-        return self.dist <= other.dist
-
-    def __lt__(self, other):
-        return self.dist < other.dist
-
-    def __ge__(self, other):
-        return self.dist >= other.dist
-
-    def __gt__(self, other):
-        return self.dist > other.dist
-
-    def __eq__(self, other):
-        return self.dist == other.dist and self.ind == other.ind
-
-    def __ne__(self, other):
-        return self.dist != other.dist or self.ind != other.ind
-
-    def __repr__(self) -> str:
-        return "(" + str(self.dist) + ", " + str(self.ind) + ")"
-
-
-try:
-    hntype = as_numba_type(_HeapNode)
-except TypeError:
-    hntype = type(_HeapNode)
-
-
-@njit
-def _get_heap_in_range(
-    x: float,
-    y: float,
-    z: float,
-    k: int,
-    slices: NDArray,
-    data: DataContainer,
     distance_function: Callable[[float, float, float, float, float, float], float],
+    start: int,
+    end: int,
     use_shuffle: bool,  # noqa: FBT001, FBT002
-) -> List[tuple[float, int]]:
+):
     """
-    Create a k-length distance-based "min"-heap from the indices in slices
-
-    Note that we actually want a max heap, in the sense that we want the heap
-    to contain the k-closest particles. Since max-heaps aren't supported in
-    Numba, distances are stored in the negative. So the head element has the
-    largest distance, at -heap[0].dist.
-
-    Args:
-        x,y,z: float
-        The coordinates to compute the distance from
-
-        k: int
-        Number of particles in the min-heap
-
-        slices: NDArray
-        Array of start-stop slice indices. See _get_particle_indices_in_shape
-        for more details.
-
-        distance_function: Callable
-        Jitted function of the form dist=distance_function(x, y, z, px, py, pz)
-
-        use_shuffle: bool
-        Flag to use the shuffle index (True) or data index (False) as the
-        particle index
-
-    Returns:
-        Heap of _HeapNode objects
-
+    Iteratively try every particle in slice against distance heap
     """
-    # k_heap = List([_HeapNode(-1.0,0)])
-    # k_heap.pop()
-    k_heap = List.empty_list(hntype)
-    # Note: k_heap is a min-heap (max-heaps aren't supported) so to keep
-    # track of the k *closest* particles, we need to use the *negative*
-    # distance inside the heap
-    max_dist = np.inf
-    len_heap = 0
-    for s, e, _ in slices:
-        # we don't currently use partiality
-        positions = data._positions[s:e, 0:3]
+    x, y, z = xyz
+    positions = data._positions[start:end, 0:3]
+    if use_shuffle:
+        indices = data._index[start:end]
+
+    num_particles = end - start
+    for i in range(num_particles):
+        px, py, pz = positions[i, :]
+        dist = np.float64(distance_function(x, y, z, px, py, pz))
+        index = np.int_(start + i)
         if use_shuffle:
-            indices = data._index[s:e]
-
-        num_particles = e - s
-        for i in range(num_particles):
-            px, py, pz = positions[i, :]
-            dist = np.float64(distance_function(x, y, z, px, py, pz))
-            index = np.int_(s + i)
-            if use_shuffle:
-                index = np.int_(indices[i])
-            if len_heap < k:
-                heapq.heappush(k_heap, _HeapNode(-dist, index))
-                max_dist = -k_heap[0].dist
-                len_heap += 1
-            elif dist < max_dist:
-                heapq.heapreplace(k_heap, _HeapNode(-dist, index))
-                max_dist = -k_heap[0].dist
-    return k_heap
+            index = np.int_(indices[i])
+        heap.try_replace(dist, index)
 
 
 @njit
@@ -1284,7 +1172,7 @@ class PackedTreeNumba:
         k: int = 1,
         use_shuffle: bool = False,  # noqa: FBT001, FBT002
         return_sorted: bool = False,  # noqa: FBT001, FBT002
-    ) -> tuple[NDArray[np.float64], NDArray[np.uint32]]:
+    ) -> tuple[NDArray[np.float64], NDArray[np.int_]]:
         """
         Get kth nearest particle distances and indices to point
 
@@ -1343,37 +1231,30 @@ class PackedTreeNumba:
         while len(node) < k and not is_root(node):
             _move_to_parent(self.tree, node)
 
-        return_dists = np.full((k,), np.inf, dtype=np.float64)
-        return_inds = np.full((k,), len(data), dtype=np.uint32)
+        heap = FixedDistanceHeap(k, len(data))
 
-        if len(node) < k:
-            # root node has insufficient particles, return them all
-            # note: these will not be sorted!
-            positions = data._positions[node.node_start : node.node_end + 1, 0:3]
-            for i in range(len(node)):
-                px, py, pz = positions[i, 0:3]
-                return_dists[i] = distance_function(x, y, z, px, py, pz)
-                return_inds[i] = i
-            return return_dists, return_inds
-
-        # get min & max distances to particles in this node
-        (min_dist, max_dist), (min_ind, max_ind) = get_minmax_particles_in_node(
-            node.node_start, node.node_end, data, xyz, distance_function
+        _process_slice_against_heap(
+            heap,
+            data,
+            xyz,
+            distance_function,
+            node.node_start,
+            node.node_end + 1,
+            use_shuffle,
         )
 
-        # generate search box - 3 cases:
-        #   a) k=1
-        #     1) min_dist=0 - Nothing will be closer, return
-        #     2) - just need to check if any other particle is closer
-        #        -> use minimum distance
-        #   b) k>1 - Since node contains k particles, we only need to check
-        #      the distance to the farthest particle in node.
-        if k == 1 and min_dist == 0:
-            return_dists[0] = 0
-            return_inds[0] = min_ind
-            return return_dists, return_inds
-        dist = min_dist if k == 1 else max_dist
-        dist = min(dist, distance_upper_bound)
+        max_distance = heap.max_distance
+
+        if max_distance == 0 or is_root(node):
+            # We've found k particles that are as close as possible or we
+            # already looked at all particles. We're done
+            if return_sorted:
+                # heap sorting will return early if max_distance==0, so this
+                # won't do much extra work
+                heap.sorted()
+            return heap.distances, heap.indices
+
+        dist = min(max_distance, distance_upper_bound)
         search_box = bbox.BoundingBox(
             np.array([x - dist, y - dist, z - dist, 2 * dist, 2 * dist, 2 * dist])
         )
@@ -1385,18 +1266,19 @@ class PackedTreeNumba:
 
         box_inds = self._get_particle_indices_in_shape(search_box)
 
-        k_heap = _get_heap_in_range(
-            x, y, z, k, box_inds, data, distance_function, use_shuffle
-        )
+        for s, e, _ in box_inds:
+            # skip slice if it's a subslice of the node we already looked at
+            if node.node_start <= s < node.node_end:
+                continue
+            _process_slice_against_heap(
+                heap, data, xyz, distance_function, s, e, use_shuffle
+            )
 
+        distances, indices = heap.distances, heap.indices
         if return_sorted:
-            k_heap.sort(reverse=True)
+            distances, indices = heap.sorted()
 
-        for i in range(k):
-            hn = k_heap[i]
-            return_dists[i] = -hn.dist
-            return_inds[i] = hn.ind
-        return return_dists, return_inds
+        return distances, indices
 
 
 try:
