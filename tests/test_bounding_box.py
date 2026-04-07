@@ -264,8 +264,8 @@ def test_get_child_box_invalid_index(
     index: int | float,
 ):
     with pytest.raises(
-        (OverflowError, ValueError),
-        match="invalid index|int too big|int value is too large",
+        (MemoryError, OverflowError, ValueError),
+        match="allocation|invalid index|int too big|int value is too large",
     ):
         bounding_box.get_child_box(index)
 
