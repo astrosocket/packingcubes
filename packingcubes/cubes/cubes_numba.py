@@ -33,8 +33,6 @@ from packingcubes.packed_tree.packed_tree_numba import (
 
 LOGGER = logging.getLogger(__name__)
 
-nthreads = get_num_threads()
-
 
 # need to test parallelism - have issues with using the tbb backend
 # so it's useful to print diagnostic info
@@ -48,7 +46,7 @@ def test_parallel():
 
 test_parallel()
 layer = threading_layer()
-LOGGER.debug(f"Running on the {layer} threading layer with {nthreads} threads")
+LOGGER.debug(f"Running on the {layer} threading layer with {get_num_threads()} threads")
 if layer == "tbb":
     LOGGER.warning(
         "Parallel support for cubes is known to be flaky on the tbb threading "
@@ -115,6 +113,7 @@ def _cube_position(x: float, y: float, z: float, cubes_per_side: int, box: Bound
 @njit(cache=True)
 def _pretty(matrix: NDArray):
     assert len(matrix.shape) == 2
+    nthreads = get_num_threads()
     n_rows = matrix.shape[0]
     n_cols = matrix.shape[1]
     max_str_width = int(np.max(np.ceil(np.log10(matrix))))
@@ -138,6 +137,8 @@ def cube(data: DataContainer, cubes_per_side: int, box: BoundingBox):
     """
     num_cubes = cubes_per_side**3 + 1
     # print(f"Begin cubing into {num_cubes} cubes")
+
+    nthreads = get_num_threads()
 
     chopping_block = np.zeros((num_cubes, nthreads), dtype=np.uint64)
 
