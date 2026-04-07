@@ -556,11 +556,15 @@ def test_bsph_contains_invalid_point(sph: bbox.BoundingSphere, xyz: ArrayLike):
     assert not np.any(sph.contains(xyz))
 
 
+@example(
+    sph=bbox.make_bounding_sphere(radius=134217728.0, center=[0, 0, 2]),
+    xyz=np.array([1.34217728e8, 0.0, 0.0]),
+).via("discovered failure in test logic")
 @given(ct.valid_bounding_spheres(), ct.valid_positions())
 def test_bsph_contains_valid(sph: bbox.BoundingSphere, xyz: ArrayLike):
     center, radius = sph.center, sph.radius
-    dist = np.sqrt(np.sum((xyz - center) ** 2, axis=1))
-    inside_sph = dist <= radius
+    dist = np.sum((xyz - center) ** 2, axis=1)
+    inside_sph = dist <= radius**2
     assert np.all(inside_sph == sph.contains(xyz))
 
 
