@@ -3,14 +3,17 @@ import contextlib
 import logging
 import pickle
 import sys
+import time
 import timeit
 from functools import partial
 from typing import TextIO
 
 import numpy as np
+from numba import njit
+from numba.typed import List
 from numpy.typing import NDArray
 from scipy.spatial import KDTree
-from unyt import second, unyt_array, unyt_quantity
+from unyt import nanosecond, second, unyt_array, unyt_quantity
 
 import packingcubes
 import packingcubes.bounding_box as bbox
@@ -29,6 +32,57 @@ snapfile = ill_path / "snapshot_090.hdf5"
 particle_type = "PartType0"
 
 rng = np.random.default_rng(0xBA55ADE89)
+_DEFAULT_QUERY_SIZE = 100
+
+
+def _create_loading_pattern(filepath: str, loading_factor: int | None = None):
+    """
+    Create chunky slice loading if loading factor requested
+
+    A "chunky" slice is similar to striding the data (e.g. ::10) except each
+    slice is some number of particles thick. So effectively, normal striding
+    would be chunky slicing with a chunk size of 1.
+
+    Args:
+        filepath: str
+        Location of datafile
+
+        loading_factor: int, optional
+        The loading factor. Default is none
+
+    Results:
+        slices: list of slices or None
+        List of chunky slices or None if loading_factor is None or 1
+    """
+
+    if loading_factor is None or loading_factor == 1:
+        return None
+
+    LOGGER.debug("Temporary data loading to determine length")
+    ds = data_objects.GadgetishHDF5Dataset(
+        name="", filepath=filepath, data_slices=np.s_[0:1]
+    )
+    num_particles = ds._particle_numbers[ds._particle_type]
+    # want "chunky" slices - i.e. instead of every 10th particle out of 1000
+    # grab 10 10-particle slices evenly distributed. So 0:10, 100:110, etc
+    # use closest ints to sqrt(N/loading_factor) and evenly distribute
+    # remainder
+    num_loaded = num_particles / loading_factor
+    num_chunks = np.floor(np.sqrt(num_loaded)).astype(int)
+    num_skip = np.floor((num_particles - num_loaded) / num_chunks).astype(int)
+    num_extra = num_loaded - num_chunks**2
+    LOGGER.debug(
+        f"""
+        Loading data as {num_chunks} chunks of {num_chunks} particles, skipping
+        {num_skip} particles between.
+        """
+    )
+    loading_pattern = []
+    offset = 0
+    for i in range(num_chunks):
+        loading_pattern.append(np.s_[offset : offset + num_chunks + (i <= num_extra)])
+        offset += num_chunks + (i <= num_extra) + num_skip
+    return loading_pattern
 
 
 def load_data(
@@ -41,10 +95,11 @@ def load_data(
     loading_factor: int | None = None,
 ):
     LOGGER.debug("Beginning data loading")
+    loading_pattern = _create_loading_pattern(filepath, loading_factor)
     ds = data_objects.GadgetishHDF5Dataset(
         name=name,
         filepath=filepath,
-        data_slices=np.s_[::loading_factor] if loading_factor else None,
+        data_slices=loading_pattern,
     )
     # ds._positions = ds._positions[: int(len(ds) / decimation_factor), :]
     if ds.particle_type != particle_type:
@@ -259,6 +314,31 @@ def packed_octree_query_ball_point_indices(
         )
 
 
+@njit
+def _packed_octree_qbp_jitted(
+    tree: optree.packed_tree_numba.PackedTreeNumba,
+    spheres: List[bbox.BoundingSphere],
+    sphere_boxes: List[bbox.BoundingBox],
+    num_reps: int,
+):
+    for i in range(len(spheres)):
+        sph = spheres[i]
+        sph_box = sphere_boxes[i]
+        for _ in range(num_reps):
+            sph_inds = tree._get_particle_indices_in_shape(sph_box, sph)
+
+
+def packed_octree_qbp_jitted(tree: optree.PackedTree, *, centers, radii, **kwargs):
+    spheres = List.empty_list(bbox.bs_type)
+    sphere_boxes = List.empty_list(bbox.bbn_type)
+    for c, r in zip(centers, radii, strict=True):
+        sph = bbox.make_bounding_sphere(r, center=c, unsafe=True)
+        spheres.append(sph)
+        sphere_boxes.append(sph.bounding_box)
+    num_reps = 100000
+    _packed_octree_qbp_jitted(tree._tree, spheres, sphere_boxes, num_reps)
+
+
 def packed_kdtree_creation(ds):
     return optree.KDTree(data=ds, leafsize=octree._DEFAULT_PARTICLE_THRESHOLD)
 
@@ -275,14 +355,16 @@ def packed_kdtree_query_ball_point(
             raise ValueError(
                 f"""
                 Particle number mismatch: expected {particle_numbers[i]} particles
-                for ball {i} and only got {len(sph_inds)}.
+                for ball {i} and got {len(sph_inds)}.
                 """
             )
 
 
-def packed_kdtree_query(tree: optree.KDTree, *, centers, k=10, **kwargs):
+def packed_kdtree_query(
+    tree: optree.KDTree, *, centers, k=_DEFAULT_QUERY_SIZE, **kwargs
+):
     for c in centers:
-        dd, ii = tree.query(c, k=k)
+        dd, ii = tree.query(c, k=k, return_data_indices=True, return_sorted=True)
 
 
 def brute_force_creation(ds):
@@ -299,7 +381,7 @@ def brute_force_search(
             raise ValueError(
                 f"""
                 Particle number mismatch: expected {particle_numbers[i]} particles
-                for ball {i} and only got {number}.
+                for ball {i} and got {number}.
                 """
             )
 
@@ -322,12 +404,12 @@ def scipy_kdtree_query_ball_point(
             raise ValueError(
                 f"""
                 Particle number mismatch: expected {particle_numbers[i]} particles
-                for ball {i} and only got {len(sph_inds)}.
+                for ball {i} and got {len(sph_inds)}.
                 """
             )
 
 
-def scipy_kdtree_query(tree: KDTree, *, centers, k=10, **kwargs):
+def scipy_kdtree_query(tree: KDTree, *, centers, k=_DEFAULT_QUERY_SIZE, **kwargs):
     for c in centers:
         dd, ii = tree.query(c, k=k)
 
@@ -420,7 +502,6 @@ def cubing(setup):
 def cubes_query_ball_points(cubes, *, centers, radii, **kwargs):
     for c, r in zip(centers, radii, strict=True):
         sph_inds = cubes.get_particle_indices_in_sphere(
-            particle_types=particle_type,
             center=c,
             radius=r,
         )
@@ -456,6 +537,11 @@ def get_creation_search_dicts():
                 "packed_octree_query_ball_point_indices(data, search_obj)"
             ),  # needs dataset + tree
             "tree": "packed",
+        },
+        "packnumb": {
+            "fun": "packed_octree_qbp_jitted(search_obj)",
+            "tree": "packed",
+            "scaling": 100000,
         },
         "cubes": {
             "fun": "cubes_query_ball_points(search_obj)",
@@ -518,6 +604,70 @@ def _run_timer(
     return number, time_vec
 
 
+def _run_creation_perf_timer(
+    creation_fun: str, dataset: data_objects.MultiParticleDataset, setup_data
+) -> tuple[unyt_quantity, unyt_array]:
+    """
+    Time search object creation using perf_timer
+    """
+    creation_fun = globals()[creation_fun]
+    # do initial run to catch any precompilation issues and to prime data loading
+    creation_fun(setup_data)
+    # reset data
+    reset_data(dataset)
+
+    def timeit(
+        creation_fun,
+        dataset: data_objects.MultiParticleDataset,
+        setup_data,
+        number: int,
+    ) -> unyt_quantity:
+        t0 = time.perf_counter_ns()
+        delta = 0
+        for _ in range(number):
+            t1 = time.perf_counter_ns()
+            reset_data(dataset)
+            delta += time.perf_counter_ns() - t1
+            creation_fun(setup_data)
+        tfinal = time.perf_counter_ns()
+        return (tfinal - t0 - delta) * nanosecond
+
+    # do manual autorange
+    scale = 1
+    done = False
+    try:
+        while not done:
+            for i in [1, 2, 5]:
+                number = i * scale
+                time_taken = timeit(
+                    creation_fun=creation_fun,
+                    dataset=dataset,
+                    setup_data=setup_data,
+                    number=number,
+                )
+                if time_taken.to("s") >= 0.2:
+                    done = True
+                    break
+            scale *= 10
+    except ValueError as ve:
+        LOGGER.warning(ve)
+        return -1, [-1, -1] * second
+
+    time_vec = unyt_array(np.full((5,), -1.0), "s")
+    try:
+        for i in range(len(time_vec)):
+            time_vec[i] = timeit(
+                creation_fun=creation_fun,
+                dataset=dataset,
+                setup_data=setup_data,
+                number=number,
+            ).to("s")
+    except ValueError as ve:
+        LOGGER.warning(ve)
+        return -1, [-1, -1] * second
+    return number, time_vec
+
+
 def get_search_obj(
     *,
     function: str,
@@ -528,6 +678,7 @@ def get_search_obj(
 ):
     cd = creation_dict[function]
     setup = cd.get("setup", lambda dataset: dataset)
+    scaling = cd.get("scaling", 1)
     setup_data = setup(dataset=dataset)
     globals()["dataset"] = dataset
     globals()["setup_data"] = setup_data
@@ -536,9 +687,8 @@ def get_search_obj(
         LOGGER.debug(f"Timing {function} creation")
         statement = f"reset_data(dataset);{cd['fun']}(setup_data)"
         if not dry_run:
-            timer = timeit.Timer(statement, globals=globals())
-            number, time_vec = _run_timer(
-                timer,
+            number, time_vec = _run_creation_perf_timer(
+                creation_fun=cd["fun"], dataset=dataset, setup_data=setup_data
             )
         else:
             number = -1
@@ -631,6 +781,7 @@ def manual_timing(
         globals()["centers"] = centers
         globals()["radii"] = radii
         globals()["particle_numbers"] = particle_numbers
+        scaling = sd.get("scaling", 1)
         if not dry_run:
             fun_str = sd["fun"].replace(
                 "search_obj",
@@ -640,7 +791,7 @@ def manual_timing(
             timer = timeit.Timer(
                 fun_str, setup="import gc;gc.enable()", globals=globals()
             )
-            number, time_vec = _run_timer(timer, add_scaling=len(radii))
+            number, time_vec = _run_timer(timer, add_scaling=scaling * len(radii))
         else:
             number = -1
             time_vec = [-1, -1] * second
@@ -737,6 +888,7 @@ def parse_arguments(argv=None):
         "--number-balls",
         help="Number of search balls to create. More balls = better statistics",
         type=int,
+        default=10,
     )
     parser.add_argument(
         "-s",
@@ -858,6 +1010,8 @@ def _print_with_search_balls(
         result_array = np.full((len(decimation_factors),), np.nan)
         for i, df in enumerate(decimation_factors):
             res_name = f"df={df}_ns={search_ball_sizes[0]}"
+            if res_name not in results:
+                continue
             res = results[res_name][test][0]
             if res >= 0:
                 result_array[i] = res.to("s")
@@ -872,6 +1026,8 @@ def _print_with_search_balls(
         for i, df in enumerate(decimation_factors):
             for j, sb in enumerate(search_ball_sizes):
                 res_name = f"df={df}_ns={sb}"
+                if res_name not in results:
+                    continue
                 res = results[res_name][test_name][0]
                 if res >= 0:
                     result_array[i, j] = res.to("ms")
@@ -893,7 +1049,10 @@ def _print_no_search_balls(
     for test in creation_list:
         result_array = np.full(res_array_size, np.nan)
         for i, df in enumerate(decimation_factors):
-            res = results[f"df={df}"][test][0]
+            key = f"df={df}"
+            if key not in results:
+                continue
+            res = results[key][test][0]
             if res >= 0:
                 result_array[i] = res.to("s")
         result_str = np.array2string(result_array, separator=", ", precision=3)
@@ -903,7 +1062,10 @@ def _print_no_search_balls(
         result_array = np.full(res_array_size, np.nan)
         test_name = test + "-search"
         for i, df in enumerate(decimation_factors):
-            res = results[f"df={df}"][test_name][0]
+            key = f"df={df}"
+            if key not in results:
+                continue
+            res = results[key][test_name][0]
             if res >= 0:
                 result_array[i] = res.to("ms")
         result_str = np.array2string(result_array, separator=", ", precision=4)
@@ -977,6 +1139,15 @@ if __name__ == "__main__":
                     number_balls=args.number_balls,
                     dcrp=(ds, centers, radii, particle_numbers),
                 )
+                if args.save:
+                    collate_results(
+                        creation_list=creation_list,
+                        search_list=search_list,
+                        decimation_factors=args.decimation_factor,
+                        search_ball_sizes=args.number_search,
+                        results=results,
+                        outfilepath=args.save,
+                    )
         else:
             results[f"df={df}"] = manual_timing(
                 snapshot=args.snapshot,
@@ -988,13 +1159,13 @@ if __name__ == "__main__":
                 number_balls=args.number_balls,
                 dcrp=(ds, centers, radii, particle_numbers),
             )
-    if args.save:
-        collate_results(
-            creation_list=creation_list,
-            search_list=search_list,
-            decimation_factors=args.decimation_factor,
-            search_ball_sizes=args.number_search,
-            results=results,
-            outfilepath=args.save,
-        )
+            if args.save:
+                collate_results(
+                    creation_list=creation_list,
+                    search_list=search_list,
+                    decimation_factors=args.decimation_factor,
+                    search_ball_sizes=args.number_search,
+                    results=results,
+                    outfilepath=args.save,
+                )
     print(results)  # noqa: T201

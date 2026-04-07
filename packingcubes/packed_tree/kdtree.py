@@ -8,9 +8,15 @@ import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
 import packingcubes.bounding_box as bbox
+import packingcubes.cubes as cubes
 import packingcubes.octree as octree
-from packingcubes.data_objects import DataContainer, Dataset, InMemory
-from packingcubes.packed_tree.packed_tree import PackedTree
+from packingcubes.data_objects import (
+    DataContainer,
+    InMemory,
+)
+from packingcubes.data_objects import (
+    MultiParticleDataset as Dataset,
+)
 
 LOGGER = logging.getLogger(__name__)
 logging.captureWarnings(capture=True)
@@ -63,7 +69,39 @@ def _check_data_shape(*, data: ArrayLike, copy_data: bool) -> tuple[NDArray, boo
         zero_pad[:, : data_shape[1]] = data
         # we can ignore the copy_data flag; the data was already copied
         return zero_pad, True
-    return data.copy() if copy_data else data, copy_data
+    return (data.copy() if copy_data else data), copy_data
+
+
+def _process_boxsize(boxsize, data_box: bbox.BoundingBox) -> bbox.BoundingBox:
+    if boxsize is not None:
+        boxsize = np.atleast_1d(boxsize)
+        box_warning = """
+        PackedTrees do not need or expect data points to be normalized to the
+        [0, 1) interval. We will assume that the data is within [0, L_i] with
+        no wrapping. If you have negative or overly-large data values, simply
+        use the full 6 terms and provide the full bounding box or pass None to
+        generate it from the data extents. If you truly need the toroidal
+        geometry, please impose that before calling the constructor. \n\n
+        You can suppress this message by passing the full 6 terms (or None).
+        """
+        match len(boxsize):
+            case 1:
+                warnings.warn(box_warning, KDTreeWarning, stacklevel=1)
+                box = np.array([0, 0, 0, boxsize, boxsize, boxsize])
+            case 3:
+                warnings.warn(box_warning, KDTreeWarning, stacklevel=1)
+                box = np.hstack(([0, 0, 0], boxsize.flatten()))
+            case 6:
+                box = boxsize
+            case _:
+                raise KDTreeError(
+                    f"Cannot handle boxsize argument with length {len(boxsize)}. "
+                    "Supported options are 1, 3, and 6."
+                )
+        bounding_box = bbox.make_bounding_box(box)
+    else:
+        bounding_box = data_box
+    return bounding_box
 
 
 class KDTreeAPI:
@@ -116,11 +154,19 @@ class KDTreeAPI:
         z_min = 0. If boxsize is a scalar, dx = dy = dz = boxsize. Other
         boxsize lengths are unsupported. Scipy's KDTree will impose a toroidal
         topology in addition; this functionality is currently unsupported.
+
+        cubes_per_side: int, optional
+        Size of the top-level grid. Must be between 3 and 32 or -1 (default).
+        The default uses the number of available threads to ensure there are
+        more grid cells than threads.
+
+        save_dataset: bool, optional
+        If data is a dataset, save sorted positions/indices to file. Default False
     """
 
-    _tree: PackedTree
+    _cubes: cubes.ParticleCubes
     """
-    The actual tree
+    The actual cubes grid structure containing the different trees, offsets, etc
     """
     _dataset: Dataset
     """
@@ -168,6 +214,9 @@ class KDTreeAPI:
         copy_data: bool = False,  # noqa: FBT001, FBT002
         balanced_tree: bool | None = None,  # noqa: FBT001
         boxsize=None,
+        *,
+        cubes_per_side: int = -1,
+        save_dataset: bool = False,
     ):
         if compact_nodes is not None:
             if boxsize is None:
@@ -203,6 +252,13 @@ class KDTreeAPI:
 
             self._dataset = InMemory(positions=data)
             self._copied = data_copied
+            if save_dataset:
+                warnings.warn(
+                    "Can only save sorted positions when data is a Dataset",
+                    KDTreeWarning,
+                    stacklevel=1,
+                )
+                save_dataset = False
         else:
             self._dataset = data
             self._copied = False
@@ -213,45 +269,24 @@ class KDTreeAPI:
         self.mins = data_box.box[:3]
         self.maxs = data_box.box[:3] + data_box.box[3:]
 
-        if boxsize is not None:
-            boxsize = np.atleast_1d(boxsize)
-            box_warning = """
-            PackedTrees do not need or expect data points to be normalized to the
-            [0, 1) interval. We will assume that the data is within [0, L_i] with
-            no wrapping. If you have negative or overly-large data values, simply
-            use the full 6 terms and provide the full bounding box or pass None to
-            generate it from the data extents. If you truly need the toroidal
-            geometry, please impose that before calling the constructor. \n\n
-            You can suppress this message by passing the full 6 terms (or None).
-            """
-            match len(boxsize):
-                case 1:
-                    warnings.warn(box_warning, KDTreeWarning, stacklevel=1)
-                    box = np.array([0, 0, 0, boxsize, boxsize, boxsize])
-                case 3:
-                    warnings.warn(box_warning, KDTreeWarning, stacklevel=1)
-                    box = np.hstack(([0, 0, 0], boxsize.flatten()))
-                case 6:
-                    box = boxsize
-                case _:
-                    raise KDTreeError(
-                        f"Cannot handle boxsize argument with length {len(boxsize)}. "
-                        "Supported options are 1, 3, and 6."
-                    )
-            bounding_box = bbox.make_bounding_box(box)
-        else:
-            bounding_box = data_box
+        bounding_box = _process_boxsize(boxsize=boxsize, data_box=data_box)
 
         self.leafsize = (
             octree._DEFAULT_PARTICLE_THRESHOLD if leafsize is None else leafsize
         )
-        self._tree = PackedTree(
+
+        self._cubes = cubes.make_ParticleCubes(
             dataset=self._dataset,
             particle_threshold=leafsize,
-            bounding_box=bounding_box,
+            cube_box=bounding_box,
+            save_dataset=save_dataset,
+            # Want only one particle type (current)
+            particle_types=self._dataset.particle_type,
         )
-        # Each node is 5 fields, so number of nodes = length/5
-        self.size = int(len(self._tree._tree.tree) / 5)
+
+        # Each node is 5 fields, so number of nodes in a single tree = length/5
+        # But we have 1 tree per cube...
+        self.size = sum(int(len(ct._tree.tree) / 5) for ct in self._cubes.cube_trees)
 
     @property
     def sort_index(self):
@@ -280,6 +315,7 @@ class KDTreeAPI:
         distance_upper_bound: float,
         p: float,
         return_data_indices: bool,
+        return_sorted: bool,
     ) -> tuple[float | NDArray, int | NDArray]:
         """
         Private helper that wraps the PackedTree get_closest_particles method
@@ -291,19 +327,17 @@ class KDTreeAPI:
         d = np.full((len(x), k_max), np.inf)
         i = np.full((len(x), k_max), self.n)
         for ind, xyz in enumerate(x):
-            dists, inds = self._tree.get_closest_particles(
+            dists, inds = self._cubes.get_closest_particles(
                 data=self._data_container,
                 xyz=xyz,
                 distance_upper_bound=distance_upper_bound,
                 p=p,
                 k=k_max,
+                return_shuffle_indices=not return_data_indices,
+                return_sorted=return_sorted,
             )
             d[ind, : len(dists)] = dists
-            # kdtree needs the *original* indices if we copied the data and
-            # might want them if we didn't
-            i[ind, : len(inds)] = (
-                inds if return_data_indices else self._dataset._index[inds]
-            )
+            i[ind, : len(inds)] = inds
         if k_max == 1 and not isinstance(k, Sequence):
             return d.squeeze(), i.squeeze()
         if isinstance(k, Sequence):
@@ -321,6 +355,7 @@ class KDTreeAPI:
         workers: int | None = None,
         *,
         return_data_indices: bool | None = None,
+        return_sorted: bool | None = None,
     ) -> tuple[float | NDArray, int | NDArray]:
         """
         Query the KDTree for nearest neighbors
@@ -358,6 +393,10 @@ class KDTreeAPI:
             Return indices into the sorted data if True instead of into the
             original. Specify None to have this set by the copy_data argument
             used during tree construction.
+
+            return_sorted: bool, optional
+            Flag to return the distances and indices in distance-sorted order.
+            Set to False for a performance boost. Default True
 
         Returns:
             d: float or array of floats
@@ -412,12 +451,15 @@ class KDTreeAPI:
             not self._copied if return_data_indices is None else return_data_indices
         )
 
+        return_sorted = True if return_sorted is None else return_sorted
+
         return self._query(
             x=x,
             k=k,
             distance_upper_bound=distance_upper_bound,
             p=p,
             return_data_indices=return_data_indices,
+            return_sorted=return_sorted,
         )
 
     def _query_ball_point(
@@ -434,7 +476,6 @@ class KDTreeAPI:
         """
         Private method to actually compute the query after inputs validated
         """
-
         if return_length:
             # psuedocode:
             # for center in centers:
@@ -447,27 +488,25 @@ class KDTreeAPI:
             lengths = [
                 sum(
                     e - s
-                    for (s, e, _) in self._tree.get_particle_indices_in_sphere(
-                        center=center, radius=radius
+                    for (s, e, _) in self._cubes.get_particle_indices_in_sphere(
+                        center=center,
+                        radius=radius,
                     )
                 )
                 for center in centers
             ]
             return lengths[0] if len(lengths) == 1 else lengths
+
         results = [
-            self._tree.get_particle_index_list_in_sphere(
+            self._cubes.get_particle_index_list_in_sphere(
                 data=self._data_container,
                 center=center,
                 radius=radius,
                 strict=strict,
+                use_data_indices=return_data_indices,
             )
             for center in centers
         ]
-        # get_particle_index_list_in_sphere returns the indices in the
-        # reordered dataset. If we need the original indices, we need to use
-        # the shuffle list
-        if not return_data_indices:
-            results = [self._dataset._index[r] for r in results]
         #  results is now list of list of (unsorted) indices
         if return_sorted:
             for r in results:
@@ -486,11 +525,11 @@ class KDTreeAPI:
         r: float,
         p: float | None = 2.0,
         eps: float | None = None,
-        workers: int = 1,
+        workers: int = -1,
         *,
-        return_sorted: bool | None = None,
+        return_sorted: bool | None = False,
         return_length: bool = False,
-        return_lists: bool | None = None,
+        return_lists: bool | None = False,
         return_data_indices: bool | None = None,
         strict: bool | None = None,
     ) -> int | list[int] | NDArray:
@@ -512,13 +551,16 @@ class KDTreeAPI:
                 ``r * (1 + eps)``.
             workers : int, optional
                 Number of jobs to schedule for parallel processing. If -1 is given
-                all processors are used. Default: 1.
+                all processors are used. Default: -1. Note: SciPy's kdtree
+                parallelizes across the number of points queried. Thus, querying
+                on a single point gets no speed-up from parallelization. We
+                parallelize on single point queries, thus the different default
 
             return_sorted : bool, optional
                 Sorts returned indices if True and does not sort them if False. If
                 None, does not sort single point queries, but does sort
                 multi-point queries which was the behavior before this option
-                was added.
+                was added. Default False.
 
             return_length : bool, optional
                 Return the number of points inside the radius instead of a list
@@ -527,8 +569,8 @@ class KDTreeAPI:
             return_lists : bool, optional
                 Force returning lists instead of arrays. PackedTrees return
                 arrays of indices by default, but this doesn't match the
-                expected query_ball_point signature. For a slight performance
-                increase, set this to False
+                expected query_ball_point signature. To exactly match SciPy,
+                set this to False.
 
             return_data_indices: bool | None, optional
                 Return indices into the sorted data if True instead of into the
@@ -609,11 +651,12 @@ class KDTreeAPI:
                 "For performance, strict is only valid when return_length=False"
             )
 
-        if workers != 1:
+        if workers != -1:
             warnings.warn(
                 """
-                PackedTrees are single-threaded. For multi-threading consider
-                switching to the Cubes API. Proceeding with workers=1.
+                Cubes use all available threads by default. 
+                To reduce the number of threads used, run with the NUMBA_NUM_THREADS=N
+                environmental variable set. Proceeding with workers=-1.
                 """,
                 KDTreeWarning,
                 stacklevel=1,
@@ -649,10 +692,10 @@ class KDTreeAPI:
         """
         Private wrapper method for PackedTree's _get_pilis_tree
         """
-        pil = self._tree._get_pilis_tree(
+        pil = self._cubes._get_pilis_cubes(
             data=self._data_container,
             odata=other._data_container,
-            otree=other._tree,
+            ocubes=other._cubes,
             r=r,
             p=p,
             strict=strict,
@@ -779,10 +822,10 @@ class KDTreeAPI:
         """
         Private wrapper method for PackedTree's _get_pilis_tree
         """
-        pil = self._tree._get_pilis_tree(
+        pil = self._cubes._get_pilis_cubes(
             data=self._data_container,
             odata=self._data_container,
-            otree=self._tree,
+            ocubes=self._cubes,
             r=r,
             p=2.0,
             strict=strict,

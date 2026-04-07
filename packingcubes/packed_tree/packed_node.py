@@ -223,7 +223,7 @@ class CurrentNode:
         self.empty = empty
 
     def __len__(self):
-        return self.node_end - self.node_start
+        return self.node_end - self.node_start + 1
 
 
 try:

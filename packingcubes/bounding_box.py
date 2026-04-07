@@ -462,7 +462,7 @@ class BoundingBox(BoundingVolume):
         in_box = np.empty((xyz.shape[0],), dtype=np.bool_)
         bx, by, bz, dx, dy, dz = self.box
         for i in range(xyz.shape[0]):
-            x, y, z = xyz[i, 0:2]
+            x, y, z = xyz[i, 0:3]
             in_box[i] = (
                 ((bx <= x) & (x <= bx + dx))
                 & ((by <= y) & (y <= by + dy))
@@ -493,7 +493,7 @@ class BoundingBox(BoundingVolume):
         in_box = 0
         bx, by, bz, dx, dy, dz = self.box
         for i in range(xyz.shape[0]):
-            x, y, z = xyz[i, 0:2]
+            x, y, z = xyz[i, 0:3]
             in_box += (
                 ((bx <= x) & (x <= bx + dx))
                 & ((by <= y) & (y <= by + dy))
@@ -592,6 +592,45 @@ class BoundingBox(BoundingVolume):
         cz = min(max(z, bz + jz), bz + dz - jz)
         return cx, cy, cz
 
+    def clip_to_box(self, obox: BoundingBox) -> int:
+        """
+        Clip this box so it entirely fits within obox
+
+        Note: this action is potentiall unsafe! We do no checking that the new
+        box is correct in terms of floating point precision.
+
+        Args:
+            obox: BoundingBox
+            The box to clip to
+
+        Returns:
+            Returns 0 if any of the dx terms are 0, 1 otherwise
+        """
+        # The algorithm is similar to project_point_on_box
+        x, y, z, dx, dy, dz = self.box
+        ox, oy, oz, odx, ody, odz = obox.box
+
+        x = min(max(x, ox), ox + odx)
+        y = min(max(y, oy), oy + ody)
+        z = min(max(z, oz), oz + odz)
+        xfar = min(max(x + dx, ox), ox + odx)
+        yfar = min(max(y + dy, oy), oy + ody)
+        zfar = min(max(z + dz, oz), oz + odz)
+
+        new_dx = xfar - x
+        new_dy = yfar - y
+        new_dz = zfar - z
+
+        if new_dx <= 0 or new_dy <= 0 or new_dz <= 0:
+            return 0
+        self.box[0] = x
+        self.box[3] = new_dx
+        self.box[1] = y
+        self.box[4] = new_dy
+        self.box[2] = z
+        self.box[5] = new_dz
+        return 1
+
     def check_box_overlap(self, obox: BoundingBox) -> int:
         """
         Return the "overlap" between this box and obox
@@ -614,13 +653,13 @@ class BoundingBox(BoundingVolume):
         # check if any overlap at all
         # pxyz = obox.project_point_on_box( our center)
         # overlap = self.contains(pxyz)
-        x, y, z, odx, ody, odz = obox.box
+        ox, oy, oz, odx, ody, odz = obox.box
         mx, my, mz = self.midplane()
         bx, by, bz, dx, dy, dz = self.box
 
-        cx = min(max(mx, x), x + odx)
-        cy = min(max(my, y), y + ody)
-        cz = min(max(mz, z), z + odz)
+        cx = min(max(mx, ox), ox + odx)
+        cy = min(max(my, oy), oy + ody)
+        cz = min(max(mz, oz), oz + odz)
 
         overlap = (
             ((bx <= cx) & (cx <= bx + dx))
@@ -632,12 +671,12 @@ class BoundingBox(BoundingVolume):
             return 0
 
         # check how many vertices are contained
-        x0 = x
-        x1 = x + odx
-        y0 = y
-        y1 = y + ody
-        z0 = z
-        z1 = z + odz
+        x0 = ox
+        x1 = ox + odx
+        y0 = oy
+        y1 = oy + ody
+        z0 = oz
+        z1 = oz + odz
 
         overlap = (
             ((bx <= x0) & (x0 <= bx + dx))
@@ -789,7 +828,7 @@ class BoundingSphere(BoundingVolume):
         cx, cy, cz = self.center
         in_sph = np.empty((xyz.shape[0],), dtype=np.bool_)
         for i in range(xyz.shape[0]):
-            x, y, z = xyz[i, 0:2]
+            x, y, z = xyz[i, 0:3]
             in_sph[i] = (cx - x) ** 2 + (cy - y) ** 2 + (cz - z) ** 2 <= r2
         return in_sph
 
@@ -817,7 +856,7 @@ class BoundingSphere(BoundingVolume):
         r2 = self.radius * self.radius
         cx, cy, cz = self.center
         for i in range(xyz.shape[0]):
-            x, y, z = xyz[i, 0:2]
+            x, y, z = xyz[i, 0:3]
             in_sph += (cx - x) ** 2 + (cy - y) ** 2 + (cz - z) ** 2 <= r2
         return in_sph
 
@@ -843,13 +882,13 @@ class BoundingSphere(BoundingVolume):
         # check if any overlap at all
         # pxyz = obox.project_point_on_box( our center)
         # overlap = self.contains(pxyz)
-        x, y, z, odx, ody, odz = obox.box
+        ox, oy, oz, odx, ody, odz = obox.box
         cx, cy, cz = self.center
         r2 = self.radius * self.radius
 
-        px = min(max(cx, x), x + odx)
-        py = min(max(cy, y), y + ody)
-        pz = min(max(cz, z), z + odz)
+        px = min(max(cx, ox), ox + odx)
+        py = min(max(cy, oy), oy + ody)
+        pz = min(max(cz, oz), oz + odz)
 
         overlap = (cx - px) ** 2 + (cy - py) ** 2 + (cz - pz) ** 2 <= r2
 
@@ -857,12 +896,12 @@ class BoundingSphere(BoundingVolume):
             return 0
 
         # check how many vertices are contained
-        x0 = x
-        x1 = x + odx
-        y0 = y
-        y1 = y + ody
-        z0 = z
-        z1 = z + odz
+        x0 = ox
+        x1 = ox + odx
+        y0 = oy
+        y1 = oy + ody
+        z0 = oz
+        z1 = oz + odz
 
         overlap = (cx - x0) ** 2 + (cy - y0) ** 2 + (cz - z0) ** 2 <= r2
 

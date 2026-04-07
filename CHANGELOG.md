@@ -1,3 +1,91 @@
+## [0.3.0] - 2026-04-07
+
+### 🚀 Features
+
+- Switch to custom heap implementation ([0cabc92](https://github.com/astrosocket/packingcubes/commit/0cabc92a97eebd31b3d0172122f3f50dbcdbb850))
+- Update Cubes API for get_closest_particles ([8f8627c](https://github.com/astrosocket/packingcubes/commit/8f8627c73d3b7bbab53f92839558996a7b91f884))
+- Add get_closest_particles for Cubes ([234c1d7](https://github.com/astrosocket/packingcubes/commit/234c1d7984b36caaaa824bac3d24cb7f4f62e31b))
+- Add clip_to_box method ([261933b](https://github.com/astrosocket/packingcubes/commit/261933b1fe3ca34d7a720b512714154c8bdb1092))
+- Change slice handling to use slice lists ([85e8aa2](https://github.com/astrosocket/packingcubes/commit/85e8aa213d4aa483028c97f0555d55ecb3585e17))
+- Expose save_dataset if Dataset passed to KDtree ([dcb735f](https://github.com/astrosocket/packingcubes/commit/dcb735fec2b989feb1e0335362a76a27fbabe5d6))
+- Updated default workers argument and warning ([79c1d49](https://github.com/astrosocket/packingcubes/commit/79c1d49fdc4b350f3841084a845de5b1444c5cc5))
+- Switch to using ParticleCubes as the backing search object ([9368f3f](https://github.com/astrosocket/packingcubes/commit/9368f3ffec410e27ccdebb18cff4524d41e31165))
+- Add stubs for closest particle queries and index lists for cubes ([de36637](https://github.com/astrosocket/packingcubes/commit/de366370eac8a72a0d3dceea6191ae9abcfb5fe8))
+- Add methods to get particle_index_lists ([6442a16](https://github.com/astrosocket/packingcubes/commit/6442a16e20486323ba23a43ba6fd12810de99c49))
+- Add method to save ParticleCubes to file ([e2298ab](https://github.com/astrosocket/packingcubes/commit/e2298ab7ce3abd732ada9cb2294b99ee952094d4))
+- Add method to get single ParticleCubes instance ([8eecee6](https://github.com/astrosocket/packingcubes/commit/8eecee65f72b0a8c81d92393641ecac5a5ebaeb7))
+- Add _get_indices_in_shape, replace in _sphere, _box ([7f79f2b](https://github.com/astrosocket/packingcubes/commit/7f79f2b4fbaf182f2c04554196010c3f3c734a1f))
+- Allow single string particle types when making cubes ([7b7bb19](https://github.com/astrosocket/packingcubes/commit/7b7bb1944aa9de10c304b3acd5aefc0f9594ebbe))
+- Add a pass to remove empty cubes ([c1e2c2b](https://github.com/astrosocket/packingcubes/commit/c1e2c2b3a4ebab75aa98012c89d170607caca164))
+- Add PackedTree __len__ as number of particles ([34c2c87](https://github.com/astrosocket/packingcubes/commit/34c2c87d2cf9f865baea0728a716318f39556f83))
+
+### 🐛 Bug Fixes
+
+- Forgot to increase scale ([8c5bb15](https://github.com/astrosocket/packingcubes/commit/8c5bb150c2a6c9e98236b45392b2617cb8afdffc))
+- Nodes were changing the tree box ([202cd07](https://github.com/astrosocket/packingcubes/commit/202cd07a5a2eab5e5ecebe426b9e3d749dd5523d))
+- Handle passing None to particle_threshold ([3bd6629](https://github.com/astrosocket/packingcubes/commit/3bd6629bbf18689d61f0c8bb35bd7bbdf1b30b50))
+- Some keys not populated yet in incremental saving ([b1ca1a5](https://github.com/astrosocket/packingcubes/commit/b1ca1a581b4ad70a2b6272a6b51675a6ed33e0d6))
+- Add default value for number_balls ([22410d8](https://github.com/astrosocket/packingcubes/commit/22410d83eba5de2dd983135d8e10659b88c17f19))
+- Bounding_box setup after position loading ([202e658](https://github.com/astrosocket/packingcubes/commit/202e6585b34d55ab3b41ea35588de34c18f9164c))
+- Explicit type conversion, move objmode out of loop ([0f6fea0](https://github.com/astrosocket/packingcubes/commit/0f6fea057eaa6ed8d3643aabdeb755fc100bc991))
+- ParticleCubes don't have particle_type, clean up warning ([cc3b6d8](https://github.com/astrosocket/packingcubes/commit/cc3b6d8bf434ff0db68994fd6c278ab9283bc198))
+- Incorrect box sizes passed to tree construction ([520000f](https://github.com/astrosocket/packingcubes/commit/520000f14472ddc7b167d7c6c4d4b8a841111f90))
+- More off-by-one errors ([1f74205](https://github.com/astrosocket/packingcubes/commit/1f742055978885617d03f2a3491f0cca4b045ad0))
+- Actually sort in place ([0837807](https://github.com/astrosocket/packingcubes/commit/0837807541424b52c67725ac6625d80d5a125505))
+- Leaf root nodes should still check partiality ([f08e3db](https://github.com/astrosocket/packingcubes/commit/f08e3dbd7899935fe61300d4be04748fac4dbc4d))
+- Off-by-one error on node length ([c1af9e2](https://github.com/astrosocket/packingcubes/commit/c1af9e2432c89581f8182089c66648281ff1d407))
+- Dumb off-by-one error ([870315f](https://github.com/astrosocket/packingcubes/commit/870315f78c65e43c5112a2833fbde35d3f3c36af))
+
+### 💼 Other
+
+- Fix another parallel list index casting ([ed3f038](https://github.com/astrosocket/packingcubes/commit/ed3f0386cbc3883ec7e2b257dcfabf00654b8f0e))
+
+### 🚜 Refactor
+
+- Move boxsize processing to separate function ([b32fd92](https://github.com/astrosocket/packingcubes/commit/b32fd92f54e8033579897b41b748e9026c913352))
+- Make variable names more consistent ([5531354](https://github.com/astrosocket/packingcubes/commit/553135414765df435a84387862f060cd79d17930))
+- Change Cubes class to MultiCubes, add factory functions ([01bc347](https://github.com/astrosocket/packingcubes/commit/01bc347f4644689f5d91f2d60873ad5a6740d8d8))
+- Use self._get_indices_in_shape instead _get_indices_in_shape ([7cb35ba](https://github.com/astrosocket/packingcubes/commit/7cb35ba39329351bee1b3a42d6cfb3cf9484bccc))
+- Remove _big_index_tuple type ([849cf90](https://github.com/astrosocket/packingcubes/commit/849cf9025b5b95b738eb08d11f6d875403c1bb3c))
+- Change order of methods in file ([efe7069](https://github.com/astrosocket/packingcubes/commit/efe7069fce39337fcf56094ce253f3278f46d0e8))
+- Change output from list to array ([cd7fd50](https://github.com/astrosocket/packingcubes/commit/cd7fd50ded41a942a47736754dba299e499b1df2))
+- Remove unnecessary bounding_box ([6ac9a7c](https://github.com/astrosocket/packingcubes/commit/6ac9a7c780d18a936e57a66d4ba4a57ece8e0ab4))
+
+### 📚 Documentation
+
+- Add query performance timings ([0201e7d](https://github.com/astrosocket/packingcubes/commit/0201e7dca67bbe898c84486a8cdcae85da9f081f))
+- Formatting, update timings, switch to creation, improve scale plot ([3c5f347](https://github.com/astrosocket/packingcubes/commit/3c5f347fab42a2ad27cf11d1db30d04a9f0fe9b4))
+- Fix description of workers in qbp ([732a599](https://github.com/astrosocket/packingcubes/commit/732a5994aa0674e965d0ea70f602e1e5b05bd121))
+- Clean up _get_indices_in_shape ([083fafb](https://github.com/astrosocket/packingcubes/commit/083fafb13529e48b92e930f01df51e0adb843896))
+- Add missed changelog addition ([c19cdc4](https://github.com/astrosocket/packingcubes/commit/c19cdc4a09f669c41725ad0a32c724bc739dcaa7))
+
+### ⚡ Performance
+
+- Rework get_closest_particles to use min-heap ([54afcdd](https://github.com/astrosocket/packingcubes/commit/54afcddcb6937e649e5c74ec7061f3bc588e0dd5))
+- Updated timings showing strong scaling ([1dcd768](https://github.com/astrosocket/packingcubes/commit/1dcd7686a8e66ffa5718bb8510c811eb22a5a2f8))
+- Change query_ball_point defaults to performant values ([45b7521](https://github.com/astrosocket/packingcubes/commit/45b75214df4287a6e88fdcaba4ce2aa9bba45fc0))
+- Subboxes should probably be safe ([0bb1aee](https://github.com/astrosocket/packingcubes/commit/0bb1aee130ae7038269fd673d330380b77b54e32))
+- Skip extraneous function call ([723bf13](https://github.com/astrosocket/packingcubes/commit/723bf13103f88889135566669ff3d8aace32cac7))
+
+### 🎨 Styling
+
+- Supress additional enumeration warning ([efac873](https://github.com/astrosocket/packingcubes/commit/efac8735d6e026b29b0f41cbee98169a00b997fd))
+- Suppress complaint about enumerating for loops ([fef8c84](https://github.com/astrosocket/packingcubes/commit/fef8c842ef2cdf321eb6c3112293a3d81ce32c2f))
+
+### 🧪 Testing
+
+- Update query test to use config k, return sorted ([7942f96](https://github.com/astrosocket/packingcubes/commit/7942f966ab3f7359156ebc94e88580cbfe6f1483))
+- Add performance options for query timing ([e8831ee](https://github.com/astrosocket/packingcubes/commit/e8831ee6b17570be58212a69aec2b7c136248fca))
+- Kdtree query tests are working again ([d4359e6](https://github.com/astrosocket/packingcubes/commit/d4359e603d294be4d954251c6bf1d6a4d6d489e0))
+- Stop saving dataset changes, API updates, cube profile update ([eec90ae](https://github.com/astrosocket/packingcubes/commit/eec90ae616c7033fc00f3a2b21e14df49527b3b7))
+- Switch to custom timer for search objects ([7a039b2](https://github.com/astrosocket/packingcubes/commit/7a039b287d54f7ee44c7b31ae539a67ffa9410f0))
+- Update profiling notebook ([cfe673f](https://github.com/astrosocket/packingcubes/commit/cfe673ffb8636223781519b828c0a1544302e837))
+- Update benchmarking data ([c5a47dd](https://github.com/astrosocket/packingcubes/commit/c5a47dd2c2ac77adbd8b635f0bea8323f1a9383f))
+- Save output on every loop iteration for incremental results ([10571af](https://github.com/astrosocket/packingcubes/commit/10571aff35786399ba7a02b8f561c80a7be99904))
+- Add extra debug information ([eee95a0](https://github.com/astrosocket/packingcubes/commit/eee95a0777908605eec6de387817d2aa0737526c))
+- Use new slice lists to load chunks of dataset instead of striding ([a1be6db](https://github.com/astrosocket/packingcubes/commit/a1be6db72e50161608afd8a0f5946a7529fafb7e))
+- Add test for just the numba search portion ([eb9f60e](https://github.com/astrosocket/packingcubes/commit/eb9f60e1b33c3676e99907d709420b2b96925b4b))
+- Add custom scaling to tests ([e5c45d8](https://github.com/astrosocket/packingcubes/commit/e5c45d82929580f02ef67ec8f7cce6c607de9cb3))
 ## [0.2.3] - 2026-03-25
 
 ### 🚀 Features
@@ -46,6 +134,7 @@
 
 ### 🚀 Features
 
+- Enhancements derived from updating the README ([#12](https://github.com/astrosocket/packingcubes/issues/12)) ([256877c](https://github.com/astrosocket/packingcubes/commit/256877c79eb08fcc1dc6ee54d138c1ad67687a45))
 - Flesh out the readme ([e757b45](https://github.com/astrosocket/packingcubes/commit/e757b4586b2c79fe11e2152f70019a567f367d01))
 - Support passing a regular array to Cubes constructor ([c59097b](https://github.com/astrosocket/packingcubes/commit/c59097b8eb844dda5be5510125b7b4c487e7c54c))
 - Allow loading cubes data from file ([d45b5d7](https://github.com/astrosocket/packingcubes/commit/d45b5d70ee30975a870f75ee6ee348e745fafa37))

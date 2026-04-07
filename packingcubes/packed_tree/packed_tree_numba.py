@@ -22,6 +22,7 @@ import packingcubes.bounding_box as bbox
 import packingcubes.octree as octree
 from packingcubes.configuration import FIELD_FORMAT
 from packingcubes.data_objects import DataContainer, dc_type
+from packingcubes.packed_tree.fixed_distance_heap import FixedDistanceHeap
 from packingcubes.packed_tree.packed_node import (
     CurrentNode,
     PackedNodeNumba,
@@ -42,7 +43,14 @@ def euclidean_distance(xyz: NDArray, pxyz: NDArray) -> NDArray:
     return np.sqrt(np.sum(np.atleast_2d((xyz - pxyz) ** 2), axis=1))
 
 
-@njit
+@njit(fastmath=True)
+def euclidean_distance_particle(
+    x: float, y: float, z: float, px: float, py: float, pz: float
+) -> float:
+    return np.sqrt(euclidean_d2(x, y, z, px, py, pz))
+
+
+@njit(fastmath=True)
 def euclidean_d2(
     x: float, y: float, z: float, px: float, py: float, pz: float
 ) -> float:
@@ -50,56 +58,31 @@ def euclidean_d2(
 
 
 @njit
-def closest_particles(
-    node_start: int,
-    node_end: int,
+def _process_slice_against_heap(
+    heap: FixedDistanceHeap,
     data: DataContainer,
     xyz: NDArray,
-    distance: Callable[[NDArray, NDArray], NDArray],
-    k: int = 1,
-    brute_threshold: int = 10,
-) -> tuple[NDArray[np.float64], NDArray[np.uint32]]:
-    num_particles = node_end - node_start
+    distance_function: Callable[[float, float, float, float, float, float], float],
+    start: int,
+    end: int,
+    use_shuffle: bool,  # noqa: FBT001, FBT002
+):
+    """
+    Iteratively try every particle in slice against distance heap
+    """
+    x, y, z = xyz
+    positions = data._positions[start:end, 0:3]
+    if use_shuffle:
+        indices = data._index[start:end]
 
-    pos = np.empty((num_particles, 3), dtype=data._positions.dtype)
-    ind = node_start
+    num_particles = end - start
     for i in range(num_particles):
-        pos[i, 0] = data._positions[ind, 0]
-        pos[i, 1] = data._positions[ind, 1]
-        pos[i, 2] = data._positions[ind, 2]
-        ind += 1
-
-    distances = distance(pos, xyz)
-
-    # Unfortunately, we can't just return the distances/indices if k >=
-    # num_particles, we need to sort them. So it needs to be lumped into the
-    # other cases
-
-    # if k < log2(n), then finding k closest particles by just looping through
-    # is guaranteed faster than sorting first. But also we should be dealing
-    # with small numbers (unless we're not using the default particle threshold)
-    # so allow a user_specified threshold for brute force with a small default
-    # (something like 20*10=200 loop iterations is probably faster than sorting)
-    sort_threshold = max(np.log2(num_particles), brute_threshold)
-
-    if k < num_particles and k < sort_threshold:
-        return_dists = np.empty((k,), dtype=np.float64)
-        return_inds = np.empty((k,), dtype=np.uint32)
-        for i in range(k):
-            min_dist = 1e100
-            min_ind = 0
-            for j, d in enumerate(distances):
-                if d < min_dist:
-                    min_dist = d
-                    min_ind = j
-            return_dists[i] = min_dist
-            return_inds[i] = min_ind + node_start
-            distances[min_ind] = 1e101
-        return return_dists, return_inds
-
-    arg_dists = np.argsort(distances).astype(np.uint32)
-    return_inds = arg_dists[:k]
-    return distances[return_inds], return_inds + node_start
+        px, py, pz = positions[i, :]
+        dist = np.float64(distance_function(x, y, z, px, py, pz))
+        index = np.int_(start + i)
+        if use_shuffle:
+            index = np.int_(indices[i])
+        heap.try_replace(dist, index)
 
 
 @njit
@@ -254,7 +237,7 @@ def _process_leaf_for_pilis_tree(
     box.box[3] = node.box.box[3] + r2
     box.box[4] = node.box.box[4] + r2
     box.box[5] = node.box.box[5] + r2
-    pil = otree._get_particle_index_list_in_shape(odata, box, box)
+    pil = otree._get_particle_index_list_in_shape(odata, box)
     for index in range(node.node_start, node.node_end + 1):
         if strict:
             reduced_pil = List.empty_list(np.int64)
@@ -486,6 +469,10 @@ class PackedTreeNumba:
         self.tree = tree
         self.particle_threshold = particle_threshold
 
+    def __len__(self):
+        """The number particles in the tree"""
+        return self.tree[2] - self.tree[1] + 1
+
     def _make_root_node(self) -> CurrentNode:
         """
         Return a CurrentNode pointer at the tree root
@@ -504,7 +491,7 @@ class PackedTreeNumba:
         # )
         # kwargs aren't supported
         return CurrentNode(
-            self.box,
+            self.box.copy(),
             0,
             self.tree[1],
             self.tree[2],
@@ -838,16 +825,12 @@ class PackedTreeNumba:
 
     def _get_particle_indices_in_shape(
         self,
-        bounding_box: bbox.BoundingBox,
         containment_obj: bbox.BoundingVolume,
     ) -> list[tuple[int, int, int]]:
         """
-        Return all particles contained within a shape that fits inside bounding box
+        Return all particles contained within a shape
 
         Args:
-            bounding_box: BoundingBox
-            Shape bounding box
-
             containment_obj: BoundingVolume
             Object with bounding box specified by bounding_box. Provides
             a more exact containment test (e.g. contained within a sphere).
@@ -859,7 +842,6 @@ class PackedTreeNumba:
             particles (1) among the start-stop indices are contained or all (0)
         """
 
-        bbox_center = bounding_box.get_box_center()
         node = self._make_root_node()
 
         indices = List.empty_list(_index_tuple_type)
@@ -870,7 +852,7 @@ class PackedTreeNumba:
         # 8 box vertices
         if overlap == 8 or (overlap and is_leaf(node)):
             indices.append(
-                (node.node_start, np.uint32(node.node_end + 1), np.uint32(0))
+                (node.node_start, np.uint32(node.node_end + 1), np.uint32(overlap < 8))
             )
             return indices
 
@@ -926,7 +908,7 @@ class PackedTreeNumba:
         """
         with objmode(numba_box=bbox.bbn_type):
             numba_box = bbox.make_bounding_box(box)
-        return self._get_particle_indices_in_shape(numba_box.copy(), numba_box)
+        return self._get_particle_indices_in_shape(numba_box)
 
     def get_particle_indices_in_sphere(
         self,
@@ -953,7 +935,6 @@ class PackedTreeNumba:
             sph = bbox.make_bounding_sphere(center=center, radius=radius)
 
         return self._get_particle_indices_in_shape(
-            sph.bounding_box,
             sph,
         )
 
@@ -972,7 +953,7 @@ class PackedTreeNumba:
             query: List[List[tuple[int, int]]],
         ):
             sph.center[0], sph.center[1], sph.center[2] = node.box.midplane()
-            query.append(other._get_particle_indices_in_shape(sph.bounding_box, sph))
+            query.append(other._get_particle_indices_in_shape(sph))
 
         # check root node
         if is_leaf(node):
@@ -1011,7 +992,7 @@ class PackedTreeNumba:
         ) -> int:
             num_pairs = 0
             sph.center[0], sph.center[1], sph.center[2] = node.box.midplane()
-            pair_nodes = other._get_particle_indices_in_shape(sph.bounding_box, sph)
+            pair_nodes = other._get_particle_indices_in_shape(sph)
             for other_start, other_end, _ in pair_nodes:
                 num_pairs += (node.node_end - node.node_start + 1) * (
                     other_end - other_start + 1
@@ -1045,11 +1026,10 @@ class PackedTreeNumba:
     def _get_particle_index_list_in_shape(
         self,
         data: DataContainer | None,
-        bounding_box: bbox.BoundingBox,
         containment_obj: bbox.BoundingVolume,
     ) -> NDArray[np.int64]:
         """
-        Return all particles contained within a shape that fits inside bounding box
+        Return all particles contained within a shape
 
         If the data argument is specified, will do additional containment-checks at
         the particle level
@@ -1060,12 +1040,8 @@ class PackedTreeNumba:
             within shape, which is equivalent to expanding the node start/stops
             from _get_particle_indices_in_shape
 
-            bounding_box: BoundingBox
-            Shape bounding box
-
             containment_obj: BoundingVolume
-            Object with bounding box specified by bounding_box. Provides
-            a more exact containment test (e.g. contained within a sphere).
+            Provides an exact containment test (e.g. contained within a sphere).
 
         Returns:
             indices: NDArray[int]]
@@ -1073,7 +1049,7 @@ class PackedTreeNumba:
             any additional particles that can be found in the same nodes if
             data is not provided
         """
-        slices = self._get_particle_indices_in_shape(bounding_box, containment_obj)
+        slices = self._get_particle_indices_in_shape(containment_obj)
 
         # the following is an attempt to mimic what I _think_ the expand_ranges
         # function from swiftsimio (which is GPL 3) does.
@@ -1105,7 +1081,7 @@ class PackedTreeNumba:
                 if containment_obj.contains_point(x, y, z):
                     indices[ind] = i + s[0]
                     ind += 1
-                i += 1
+                i += 1  # noqa: SIM113
 
         return indices[0:ind]
 
@@ -1191,11 +1167,12 @@ class PackedTreeNumba:
         self,
         data: DataContainer,
         xyz: NDArray,
-        distance_function: Callable[[NDArray, NDArray], NDArray],
+        distance_function: Callable[[float, float, float, float, float, float], float],
         distance_upper_bound: float,
         k: int = 1,
-        brute_threshold: int = 10,
-    ) -> tuple[NDArray[np.float64], NDArray[np.uint32]]:
+        use_shuffle: bool = False,  # noqa: FBT001, FBT002
+        return_sorted: bool = False,  # noqa: FBT001, FBT002
+    ) -> tuple[NDArray[np.float64], NDArray[np.int_]]:
         """
         Get kth nearest particle distances and indices to point
 
@@ -1220,10 +1197,12 @@ class PackedTreeNumba:
             k: int, optional
             Number of closest particles to return. Default 1
 
-            brute_threshold: int, optional
-            Number of particles used for per-node brute search. Above this
-            the per-node search switches to sorting the particles in the node.
-            Default 10.
+            use_shuffle: bool, optional
+            Flag to return shuffle indices instead of sorted data indices.
+            Default False.
+
+            return_sorted: bool, optional
+            Return output in order by distance. Default False
 
         Returns:
             distances: NDArray[float]
@@ -1235,79 +1214,71 @@ class PackedTreeNumba:
             Indices in data of the kth nearest neighbors. Has same shape as
             distances
 
+        Raises:
+            OctreeError if something goes wrong with the search process
+
         """
 
         # ensure point is in octree, project if not
-        if not self.box.contains_point(xyz[0], xyz[1], xyz[2]):
-            # Project point onto root
-            px, py, pz = self.box.project_point_on_box(xyz)
-
+        x, y, z = xyz
+        px, py, pz = self.box.project_point_on_box(xyz)
         node = self._get_containing_node_of_point(np.array([px, py, pz]))
         node = node if node is not None else self._make_root_node()
 
         # because we need the kth nearest particles, make sure the node we're
         # looking at has at least that many particles. This means it might not
         # be a leaf, not that that should matter
-        while node.node_end - node.node_start + 1 < k:
+        while len(node) < k and not is_root(node):
             _move_to_parent(self.tree, node)
 
-        # get closest particles in this node
-        return_dists, return_inds = closest_particles(
-            node.node_start,
-            node.node_end,
+        heap = FixedDistanceHeap(k, len(data))
+
+        _process_slice_against_heap(
+            heap,
             data,
             xyz,
             distance_function,
-            k,
-            brute_threshold,
+            node.node_start,
+            node.node_end + 1,
+            use_shuffle,
         )
 
-        temp_dists = np.empty_like(return_dists)
-        temp_inds = np.empty_like(return_inds)
+        max_distance = heap.max_distance
 
-        closest_dist = min(return_dists[len(return_dists) - 1], distance_upper_bound)
-        # Closest distance is now the maximum distance we need to look for
-        # neighbors from other nodes. Either they're inside, or we wouldn't
-        # care about them anyway
+        if max_distance == 0 or is_root(node):
+            # We've found k particles that are as close as possible or we
+            # already looked at all particles. We're done
+            if return_sorted:
+                # heap sorting will return early if max_distance==0, so this
+                # won't do much extra work
+                heap.sorted()
+            return heap.distances, heap.indices
 
-        # Need to check all nodes in neighborhood, which is all nodes
-        # overlapping with the sphere with same radius as the closest distance
-        sph_inds = self.get_particle_indices_in_sphere(center=xyz, radius=closest_dist)
-        for s, e, _ in sph_inds:
-            # skip subnodes of node. Only need to check node_start since nodes
-            # are pure super/sub-sets
-            if node.node_start <= s <= node.node_end:
+        dist = min(max_distance, distance_upper_bound)
+        search_box = bbox.BoundingBox(
+            np.array([x - dist, y - dist, z - dist, 2 * dist, 2 * dist, 2 * dist])
+        )
+
+        # clip search box to tree bounding box
+        clip = search_box.clip_to_box(self.box)
+        if not clip:
+            raise octree.OctreeError("Search box entirely outside of tree")
+
+        box_inds = self._get_particle_indices_in_shape(search_box)
+
+        for s, e, _ in box_inds:
+            # skip slice if it's a subslice of the node we already looked at
+            if node.node_start <= s < node.node_end:
                 continue
-            neighbor_dist, neighbor_inds = closest_particles(
-                s, e, data, xyz, distance_function, k, brute_threshold
+            _process_slice_against_heap(
+                heap, data, xyz, distance_function, s, e, use_shuffle
             )
-            rind = 0
-            nind = 0
-            for i in range(k):
-                # rind is guaranteed to be less than len(return_dist) because
-                # len(return_dist)==k
-                if (
-                    nind < len(neighbor_dist)
-                    and return_dists[rind] > neighbor_dist[nind]
-                ):
-                    temp_dists[i] = neighbor_dist[nind]
-                    temp_inds[i] = neighbor_inds[nind]
-                    nind += 1
-                else:
-                    temp_dists[i] = return_dists[rind]
-                    temp_inds[i] = return_inds[rind]
-                    rind += 1
 
-            # swap temp and return arrays
-            temp_pointer = return_dists
-            return_dists = temp_dists
-            temp_dists = temp_pointer
+        distances, indices = heap.distances, heap.indices
+        if return_sorted:
+            distances, indices = heap.sorted()
 
-            temp_pointer = return_inds
-            return_inds = temp_inds
-            temp_inds = return_inds
-
-        return return_dists, return_inds
+        return distances, indices
 
 
 try:

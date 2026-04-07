@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-from collections.abc import Collection
+from collections.abc import Callable, Collection
 from pathlib import Path
 from typing import cast
 
@@ -36,11 +36,14 @@ from packingcubes.octree import _DEFAULT_PARTICLE_THRESHOLD
 from packingcubes.packed_tree import (
     PackedTree,
 )
+from packingcubes.packed_tree.fixed_distance_heap import FixedDistanceHeap
 from packingcubes.packed_tree.packed_tree_numba import (
     PackedTreeNumba,
     _construct_tree,
     _index_tuple_type,
     _list_index_tuple,
+    _process_slice_against_heap,
+    euclidean_distance_particle,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -233,10 +236,37 @@ def _get_cube_boxes(
         for j in range(cubes_per_side):
             for k in range(cubes_per_side):
                 cube_pos = box.position + [i, j, k] * cube_size
-                cube = make_bounding_box(np.hstack((cube_pos, cube_size)))
+                cube = bbox.BoundingBox(np.hstack((cube_pos, cube_size)))
                 cube_boxes.append(cube)
     cube_boxes.append(data.bounding_box)  # don't forget leftovers cube!
     return cube_boxes
+
+
+@njit
+def _prune_empty(
+    num_particles: int,
+    cube_indices: NDArray,
+    cube_boxes: List[BoundingBox],
+) -> tuple[NDArray, List[BoundingBox]]:
+    num_retained = 0
+    num_cubes = len(cube_indices)
+    for i in range(num_cubes):
+        cube_start = cube_indices[i]
+        cube_stop = cube_indices[i + 1] if i + 1 < num_cubes else num_particles
+        num_retained += cube_stop > cube_start
+
+    new_indices = np.empty((num_retained,), dtype=np.int_)
+    new_boxes = List.empty_list(bbox.bbn_type)
+    ind = 0
+    for i in range(num_cubes):
+        cube_start = cube_indices[i]
+        cube_stop = cube_indices[i + 1] if i + 1 < num_cubes else num_particles
+        if cube_stop > cube_start:
+            new_indices[ind] = cube_start
+            new_boxes.append(cube_boxes[i])
+            ind += 1
+
+    return new_indices, new_boxes
 
 
 @njit(cache=True, inline="always")
@@ -350,8 +380,12 @@ def _cube(data: DataContainer, cubes_per_side: int, box: BoundingBox):
         new_positions[offset, 1] = y
         new_positions[offset, 2] = z
 
-    data._positions = new_positions
-    data._index = shuffle_list
+    index = data._index
+    for i in prange(len(positions)):
+        positions[i, 0] = new_positions[i, 0]
+        positions[i, 1] = new_positions[i, 1]
+        positions[i, 2] = new_positions[i, 2]
+        index[i] = shuffle_list[i]
 
     # print("Dicing complete\nCubing complete")
 
@@ -372,28 +406,38 @@ def _make_trees(
         # empty arrays were giving a numba typing error
         trees.append(np.array([0], dtype=np.uint32))
 
+    particle_overflow = False
     for i in prange(num_cubes):
         cube_inds = (
             cube_indices[i],
-            cube_indices[i + 1] - 1 if i + 1 < num_cubes else len(data) - 1,
+            cube_indices[i + 1] if i + 1 < num_cubes else len(data),
         )
-        box = cube_boxes[i]
+        # Note: prange indices are uint64 in parallel mode but current
+        # TypedList _get_item implementation casts to intp type, which can
+        # be int64. We'll explicitly cast to avoid the warning and because
+        # len(cubes) **better** be < 2**63 !
+        li = np.int_(i)
+        box = cube_boxes[li]
 
         sub_data = subview(data, cube_inds[0], cube_inds[1])
 
         if i == num_cubes - 1 and len(sub_data) >= 2**32:
-            with objmode():
-                LOGGER.warn(
-                    "Requested cubes bounding box is too small. Leftovers box has "
-                    "more than 2**32 particles and likely will be invalid."
-                )
+            particle_overflow = True
 
         # print(f"Making tree for cube {i}. inds=({cube_inds[0]}, {cube_inds[1]})")
         tree = _construct_tree(
             data=sub_data,
+            box=box,
             particle_threshold=particle_threshold,
         )
-        trees[i] = tree
+        trees[li] = tree
+
+    if particle_overflow:
+        with objmode():
+            LOGGER.warn(
+                "Requested cubes bounding box is too small. Leftovers box has "
+                "more than 2**32 particles and likely will be invalid."
+            )
     return trees
 
 
@@ -413,8 +457,8 @@ def make_cubes(
     dataset: MultiParticleDataset,
     cubes_per_side: int = -1,
     cube_box: bbox.BoxLike | None = None,
-    particle_threshold: int = _DEFAULT_PARTICLE_THRESHOLD,
-    particle_types: Collection[str] | None = None,
+    particle_threshold: int | None = None,
+    particle_types: str | Collection[str] | None = None,
     save_dataset: bool = True,
     **kwargs,
 ) -> dict[str, dict[str, NDArray | list[bbox.BoundingBox] | list[PackedTree]]]:
@@ -468,6 +512,9 @@ def make_cubes(
     """
     cubes = {}
 
+    particle_types = (
+        [particle_types] if isinstance(particle_types, str) else particle_types
+    )
     if particle_types is None:
         requested_types = set(dataset.particle_types)
         particle_numbers = np.array(list(dataset.particle_numbers.values()))
@@ -499,6 +546,12 @@ def make_cubes(
             f" particles per cube. Max per cube supported is {2**32}"
         )
 
+    particle_threshold = (
+        _DEFAULT_PARTICLE_THRESHOLD
+        if particle_threshold is None
+        else particle_threshold
+    )
+
     for pt in requested_types:
         LOGGER.info(f"Processing {pt}")
         dataset.particle_type = pt
@@ -519,6 +572,9 @@ def make_cubes(
         cube_boxes = _get_cube_boxes(
             data=data, box=cube_box, cubes_per_side=cubes_per_side
         )
+
+        LOGGER.info("Removing empties")
+        cube_indices, cube_boxes = _prune_empty(len(data), cube_indices, cube_boxes)
 
         LOGGER.info("Making trees")
         trees = _make_trees(data, cube_indices, cube_boxes, particle_threshold)
@@ -546,17 +602,13 @@ def make_cubes(
     return cubes
 
 
-_big_index_tuple = types.UniTuple(types.uint64, 2)
-
-
 @njit(parallel=True)
 def _get_particle_indices_in_shape(
     cubes: List[BoundingBox],
     trees: List[PackedTreeNumba],
     cube_offsets: NDArray,
     shape: bbox.BoundingVolume,
-    shape_box: bbox.BoundingBox,
-) -> List[tuple[int, int]]:
+) -> NDArray[np.int_]:
     """
     Get the particle start-stop tuples in the specified shape
     """
@@ -565,7 +617,6 @@ def _get_particle_indices_in_shape(
         indices.append(List.empty_list(_index_tuple_type))
 
     # get particle indices from each tree
-    shape_midpoint = np.array(shape_box.midplane())
     for i in prange(len(cubes)):
         # Note: prange indices are uint64 in parallel mode but current
         # TypedList _get_item implementation casts to intp type, which can
@@ -575,16 +626,357 @@ def _get_particle_indices_in_shape(
         overlap = shape.check_box_overlap(cubes[li])
         if overlap:
             indices[li] = trees[li]._get_particle_indices_in_shape(
-                bounding_box=shape_box, containment_obj=shape
+                containment_obj=shape
             )
 
     # add cube offset and flatten list of indices
-    flattened_indices = List.empty_list(_big_index_tuple)
-    for cube_indices, cube_offset in zip(indices, cube_offsets):  # noqa: B905
-        for cube_start, cube_end, _ in cube_indices:
-            flattened_indices.append((cube_start + cube_offset, cube_end + cube_offset))
+    num_indices = 0
+    for i in prange(len(indices)):
+        li = np.int_(i)
+        num_indices += len(indices[li])
+    flattened_indices = np.empty((num_indices, 3), dtype=np.int_)
+    current_index = 0
+    # doing this in parallel is probably more effort than worth it
+    for i in range(len(indices)):
+        cube_indices = indices[i]
+        cube_offset = cube_offsets[i]
+        for cube_start, cube_end, partial in cube_indices:
+            # flattened_indices.append(
+            #     (cube_start + cube_offset, cube_end + cube_offset, partial)
+            # )
+            flattened_indices[current_index, 0] = cube_start + cube_offset
+            flattened_indices[current_index, 1] = cube_end + cube_offset
+            flattened_indices[current_index, 2] = partial
+            current_index += 1
 
     return flattened_indices
+
+
+@njit(parallel=True)
+def _parallel_expand_all_data_indices(
+    slices: NDArray[np.int_],
+    shape: bbox.BoundingVolume,
+):
+    num_particles = 0
+    offsets = np.empty((slices.shape[0],), dtype=np.int_)
+    for i in range(slices.shape[0]):
+        # can't parallelize this because offsets should be the cumsum
+        offsets[i] = num_particles
+        num_particles += slices[i, 1] - slices[i, 0]
+
+    indices = np.empty((num_particles,), dtype=np.int64)
+    #  ignore information about partial/full, just return indices as
+    # fast as possible
+    for i in prange(slices.shape[0]):
+        start = slices[i, 0]
+        end = slices[i, 1]
+        offset = offsets[i]
+        for j, index in enumerate(range(start, end)):
+            indices[offset + j] = index
+    return indices
+
+
+@njit(parallel=True)
+def _parallel_expand_all_shuffle_indices(
+    slices: NDArray[np.int_], shape: bbox.BoundingVolume, data: DataContainer
+):
+    num_particles = 0
+    offsets = np.empty((slices.shape[0],), dtype=np.int_)
+    for i in range(slices.shape[0]):
+        # can't parallelize this because offsets should be the cumsum
+        offsets[i] = num_particles
+        num_particles += slices[i, 1] - slices[i, 0]
+
+    indices = np.empty((num_particles,), dtype=np.int64)
+    #  ignore information about partial/full, just return indices as
+    # fast as possible
+    for i in prange(slices.shape[0]):
+        start = slices[i, 0]
+        end = slices[i, 1]
+        offset = offsets[i]
+        size = start - end
+        shuffle = data._index[start:end]
+        for j in range(size):
+            indices[offset + j] = shuffle[j]
+    return indices
+
+
+@njit(parallel=True)
+def _parallel_expand_data_indices(
+    slices: NDArray[np.int_],
+    shape: bbox.BoundingVolume,
+    data: DataContainer,
+) -> NDArray[np.int_]:
+    num_particles = 0
+    offsets = np.empty((slices.shape[0],), dtype=np.int_)
+    for i in range(slices.shape[0]):
+        # can't parallelize this because offsets should be the cumsum
+        offsets[i] = num_particles
+        num_particles += slices[i, 1] - slices[i, 0]
+
+    indices = np.empty((num_particles,), dtype=np.int64)
+
+    num_contained = 0
+    for i in prange(slices.shape[0]):
+        start = slices[i, 0]
+        end = slices[i, 1]
+        partial = slices[i, 2]
+        offset = offsets[i]
+        size = end - start
+        if not partial:
+            # fully enclosed
+            for j, index in enumerate(range(start, end)):
+                indices[offset + j] = index
+            num_contained += size
+            continue
+        positions = data._positions[start:end, 0:3]
+        j = 0
+        ind = offset
+        for x, y, z in positions:
+            if shape.contains_point(x, y, z):
+                indices[ind] = j + start
+                ind += 1
+            j += 1  # noqa: SIM113
+        num_contained += ind - offset
+        end_bound = offset + size
+        while ind < end_bound:
+            indices[ind] = -1
+            ind += 1
+
+    # not parallelizable since we're shrinking the array
+    out_indices = np.empty((num_contained,), dtype=np.int_)
+    ind = 0
+    for i in range(len(indices)):
+        index = indices[i]
+        if index >= 0:
+            out_indices[ind] = index
+            ind += 1
+
+    return out_indices
+
+
+@njit(parallel=True)
+def _parallel_expand_shuffle_indices(
+    slices: NDArray[np.int_],
+    shape: bbox.BoundingVolume,
+    data: DataContainer,
+) -> NDArray[np.int_]:
+    num_particles = 0
+    offsets = np.empty((slices.shape[0],), dtype=np.int_)
+    for i in range(slices.shape[0]):
+        # can't parallelize this because offsets should be the cumsum
+        offsets[i] = num_particles
+        num_particles += slices[i, 1] - slices[i, 0]
+
+    indices = np.empty((num_particles,), dtype=np.int64)
+
+    num_contained = 0
+    for i in prange(slices.shape[0]):
+        start = slices[i, 0]
+        end = slices[i, 1]
+        partial = slices[i, 2]
+        offset = offsets[i]
+        size = end - start
+        shuffle = data._index[start:end]
+        if not partial:
+            # fully enclosed
+            for j in range(size):
+                indices[offset + j] = shuffle[j]
+            num_contained += size
+            continue
+        positions = data._positions[start:end, 0:3]
+        j = 0
+        ind = offset
+        for x, y, z in positions:
+            if shape.contains_point(x, y, z):
+                indices[ind] = shuffle[j]
+                ind += 1
+            j += 1  # noqa: SIM113
+        num_contained += ind - offset
+        while ind < offset + size:
+            indices[ind] = -1
+            ind += 1
+
+    # not parallelizable since we're shrinking the array
+    out_indices = np.empty((num_contained,), dtype=np.int_)
+    ind = 0
+    for i in range(len(indices)):
+        index = indices[i]
+        if index >= 0:
+            out_indices[ind] = index
+            ind += 1
+
+    return out_indices
+
+
+@njit
+def _get_particle_index_list_in_shape(
+    cubes: List[BoundingBox],
+    trees: List[PackedTreeNumba],
+    cube_offsets: NDArray,
+    shape: bbox.BoundingVolume,
+    data: DataContainer | None,
+    use_data_indices: bool,  # noqa: FBT001, FBT002
+) -> NDArray[np.int_]:
+    """
+    Get the array of particle indices in the specified shape
+    """
+    slices = _get_particle_indices_in_shape(cubes, trees, cube_offsets, shape)
+
+    if use_data_indices:
+        if data is None:
+            return _parallel_expand_all_data_indices(slices, shape)
+        return _parallel_expand_data_indices(slices, shape, data)
+    if data is None:
+        return _parallel_expand_all_shuffle_indices(slices, shape, data)
+    return _parallel_expand_shuffle_indices(slices, shape, data)
+
+
+@njit(parallel=False)
+def _get_closest_cube(
+    cubes: List[BoundingBox],
+    xyz: NDArray,
+    distance_function: Callable[[float, float, float, float, float, float], float],
+) -> np.int_:
+    """
+    Return the index of the closest cube to a point
+    """
+    x, y, z = xyz
+    cube_dists = np.empty((len(cubes),), dtype=np.float64)
+    for i in prange(len(cubes)):
+        li = np.int64(i)
+        px, py, pz = cubes[li].project_point_on_box(xyz)
+        cube_dists[i] = distance_function(x, y, z, px, py, pz)
+
+    return np.argmin(cube_dists)
+
+
+@njit
+def _get_closest_particles(
+    cubes: List[BoundingBox],
+    trees: List[PackedTreeNumba],
+    cube_indices: NDArray,
+    data: DataContainer,
+    xyz: NDArray,
+    k: int,
+    distance_function: Callable[[float, float, float, float, float, float], float],
+    distance_upper_bound: float,
+    use_shuffle: bool,  # noqa: FBT001, FBT002
+    return_sorted: bool,  # noqa: FBT001, FBT002
+) -> tuple[NDArray, NDArray]:
+    """
+    Return the k-closest particle distances and their indices
+
+    Args:
+        cubes: List[BoundingBox]
+        The cube boxes
+
+        trees: List[PackedTreeNumba]
+        The cube trees
+
+        cube_indices: NDArray
+        The cube index offsets
+
+        data: DataContainer
+        The container of the position data
+
+        xyz: NDArray
+        The 3 Cartesian coordinates
+
+        k: positive int
+        The number of particles to return. No verification of sign is performed
+
+        distance_function: Callable[[float, float, float, float, float, float], float]
+        The distance function between two Cartesian points,
+        e.g. d = distance_function(x1, y1, z1, x2, y2, z2)
+
+        distance_upper_bound: float
+        The maximum distance to consider particles within. May result in fewer
+        than k particles being returned if too stringent
+
+        use_shuffle: bool
+        Flag to return shuffle indices instead of sorted data indices
+
+    Returns:
+        dists: NDArray[float]
+        K-length vector of distances
+
+        inds: NDArray[int]
+        K-length vector of particle indices
+    """
+    x, y, z = xyz
+
+    num_cubes = len(cubes)
+    containing_cube = _get_closest_cube(cubes, xyz, distance_function)
+
+    cube_start = cube_indices[containing_cube]
+    cube_end = (
+        cube_indices[containing_cube + 1]
+        if containing_cube + 1 < num_cubes
+        else len(data)
+    )
+
+    # need to pass sub_data because otherwise tree indices will be wrong
+    sub_data = subview(data, cube_start, cube_end)
+    # we don't need the heap to be sorted because it's still being processed
+    dists, inds = trees[containing_cube].get_closest_particles(
+        sub_data,
+        xyz,
+        distance_function,
+        distance_upper_bound,
+        k,
+        use_shuffle,  # noqa: FBT003
+        False,  # noqa: FBT003 # return_sorted
+    )
+
+    # data inds don't include cube offsets
+    if not use_shuffle:
+        for i in range(len(inds)):
+            inds[i] += cube_start
+
+    # dists[0] is max distance due to heap invariant, *as long as we're not
+    # returning the sorted version!*
+    if dists[0] == 0:
+        # we've found k particles and we're done
+        return dists, inds
+
+    # heap can be recreated easily from dists, inds
+    heap = FixedDistanceHeap(k, -1)
+    heap.distances = dists
+    heap.indices = inds
+    heap.max_distance = heap.distances[0]
+
+    # separate in case we allow making FDHs from arrays
+    max_dist = heap.max_distance
+    search_box = BoundingBox(
+        np.array(
+            [
+                x - max_dist,
+                y - max_dist,
+                z - max_dist,
+                2 * max_dist,
+                2 * max_dist,
+                2 * max_dist,
+            ]
+        )
+    )
+
+    slices = _get_particle_indices_in_shape(cubes, trees, cube_indices, search_box)
+
+    for i in range(slices.shape[0]):
+        s, e = slices[i, 0], slices[i, 1]
+        # skip slice if it's a subslice of the node we already looked at
+        if cube_start <= s < cube_end:
+            continue
+        _process_slice_against_heap(
+            heap, data, xyz, distance_function, s, e, use_shuffle
+        )
+
+    distances, indices = heap.distances, heap.indices
+    if return_sorted:
+        distances, indices = heap.sorted()
+
+    return distances, indices
 
 
 class ParticleCubes:
@@ -630,10 +1022,34 @@ class ParticleCubes:
 
         self._numba_trees = List([t._tree for t in self.cube_trees])
 
+    def _get_particle_indices_in_shape(
+        self,
+        shape: bbox.BoundingVolume,
+    ) -> NDArray[np.int_]:
+        """
+        Return all particles contained within the shape
+
+        This is a private version that uses a premade bounding volume
+
+        Args:
+            shape: BoundingVolume
+            The shape to search in
+
+        Returns:
+            indices: NDArray[int]
+            Array of particle start-stop indices contained within shape
+        """
+        return _get_particle_indices_in_shape(
+            cubes=self.cube_boxes,
+            trees=self._numba_trees,
+            cube_offsets=self.cube_indices,
+            shape=shape,
+        )
+
     def get_particle_indices_in_box(
         self,
         box: bbox.BoxLike,
-    ) -> list[tuple[int, int]]:
+    ) -> NDArray[np.int_]:
         """
         Return all particles contained within the box
 
@@ -642,24 +1058,18 @@ class ParticleCubes:
             Box to check
 
         Returns:
-            indices: list[tuple[int, int]]
-            List of particle start-stop indices contained within box
+            indices: NDArray[int]
+            Array of particle start-stop indices contained within box
         """
-        with objmode(numba_box=bbox.bbn_type):
-            numba_box = bbox.make_bounding_box(box)
-        return _get_particle_indices_in_shape(
-            cubes=self.cube_boxes,
-            trees=self._numba_trees,
-            cube_offsets=self.cube_indices,
-            shape_box=numba_box.copy(),
-            shape=numba_box,
-        )
+        numba_box = bbox.make_bounding_box(box)
+
+        return self._get_particle_indices_in_shape(numba_box)
 
     def get_particle_indices_in_sphere(
         self,
         center: NDArray,
         radius: float,
-    ) -> list[tuple[int, int]]:
+    ) -> NDArray[np.int_]:
         """
         Return all particles contained within the sphere defined by center and radius
 
@@ -671,48 +1081,259 @@ class ParticleCubes:
             Radius of the sphere
 
         Returns:
-            indices: list[tuple[int, int]]
-            List of particle start-stop indices contained within sphere
+            indices: NDArray[int]
+            Array of particle start-stop indices contained within sphere
         """
-        with objmode(sph=bbox.bs_type):
-            sph = bbox.make_bounding_sphere(center=center, radius=radius, unsafe=True)
+        sph = bbox.make_bounding_sphere(center=center, radius=radius, unsafe=True)
 
-        return _get_particle_indices_in_shape(
-            cubes=self.cube_boxes,
-            trees=self._numba_trees,
-            cube_offsets=self.cube_indices,
-            shape_box=sph.bounding_box,
-            shape=sph,
-        )
+        return self._get_particle_indices_in_shape(sph)
 
-    def _get_particle_indices_in_shape(
+    def _get_particle_index_list_in_shape(
         self,
+        data: DataContainer | Dataset,
         shape: bbox.BoundingVolume,
-        shape_box: bbox.BoundingBox,
-    ) -> list[tuple[int, int]]:
+        *,
+        use_data_indices: bool = True,
+        strict: bool = False,
+    ) -> NDArray[np.int_]:
         """
-        Return all particles contained within the box
+        Return all particle indices contained within the shape
 
-        This is a private version that uses a premade bounding_box
+        This is a private version that uses a premade bounding volume
 
         Args:
-            shape: BoundingVolume
-            The shape to search in
+            data: DataContainer | Dataset
+            Dataset containing the particle positions. Pass a DataContainer
+            object for a slight performance increase
 
             box: BoundingBox
             The bounding box of the shape
 
+            use_data_indices: bool, optional
+            Flag to return indices into the sorted dataset (True, default) or
+            into the shuffle list (False)
+
+            strict: bool, optional
+            Flag to specify whether only particles inside the shape will
+            be returned. If False (default), additional nearby particles may be
+            included for signficantly increased performance
+
         Returns:
-            indices: list[tuple[int, int]]
-            List of particle start-stop indices contained within box
+            indices: Array[int]
+            Array of particle indices contained within shape
         """
-        return _get_particle_indices_in_shape(
+        return _get_particle_index_list_in_shape(
             cubes=self.cube_boxes,
             trees=self._numba_trees,
             cube_offsets=self.cube_indices,
-            shape_box=shape_box,
             shape=shape,
+            data=data.data_container if isinstance(data, Dataset) else data,
+            use_data_indices=use_data_indices,
         )
+
+    def get_particle_index_list_in_box(
+        self,
+        data: DataContainer | Dataset,
+        box: bbox.BoxLike,
+        *,
+        use_data_indices: bool = True,
+        strict: bool = False,
+    ) -> NDArray[np.int_]:
+        """
+        Return all particle indices contained within the box
+
+        Args:
+            data: DataContainer | Dataset
+            Dataset containing the particle positions. Pass a DataContainer
+            object for a slight performance increase
+
+            box: BoxLike
+            The box to search in
+
+            use_data_indices: bool, optional
+            Flag to return indices into the sorted dataset (True, default) or
+            into the shuffle list (False)
+
+            strict: bool, optional
+            Flag to specify whether only particles inside the shape will
+            be returned. If False (default), additional nearby particles may be
+            included for signficantly increased performance
+
+        Returns:
+            indices: Array[int]
+            Array of particle indices contained within shape
+        """
+        numba_box = bbox.make_bounding_box(box)
+        return self._get_particle_index_list_in_shape(
+            data=data,
+            shape=numba_box,
+            use_data_indices=use_data_indices,
+            strict=strict,
+        )
+
+    def get_particle_index_list_in_sphere(
+        self,
+        data: DataContainer | Dataset,
+        center: NDArray,
+        radius: float,
+        *,
+        use_data_indices: bool = True,
+        strict: bool = False,
+    ) -> NDArray[np.int_]:
+        """
+        Return all particle indices contained within the sphere
+
+        Args:
+            data: DataContainer | Dataset
+            Dataset containing the particle positions. Pass a DataContainer
+            object for a slight performance increase
+
+            center: NDArray
+            Center point of the sphere
+
+            radius: float
+            Radius of the sphere
+
+            use_data_indices: bool, optional
+            Flag to return indices into the sorted dataset (True, default) or
+            into the shuffle list (False)
+
+            strict: bool, optional
+            Flag to specify whether only particles inside the shape will
+            be returned. If False (default), additional nearby particles may be
+            included for signficantly increased performance
+
+        Returns:
+            indices: NDArray[int]
+            Array of particle indices contained within the sphere
+        """
+        sph = bbox.make_bounding_sphere(radius, center=center, unsafe=True)
+        return self._get_particle_index_list_in_shape(
+            data=data,
+            shape=sph,
+            use_data_indices=use_data_indices,
+            strict=strict,
+        )
+
+    def get_closest_particles(
+        self,
+        *,
+        data: DataContainer | Dataset,
+        xyz: NDArray,
+        distance_upper_bound: float | None = None,
+        p: float | None = None,
+        k: int | None = None,
+        return_shuffle_indices: bool | None = None,
+        return_sorted: bool | None = None,
+    ) -> tuple[NDArray, NDArray]:
+        """
+        Get kth nearest particle distances and indices to point
+
+        Args:
+            data: DataContainer | Dataset
+            Source of particle position data
+
+            xyz: ArrayLike
+            Coordinates of point to check
+
+            distance_upper_bound: nonnegative float, optional
+            Return only neighbors from other nodes within this distance. This
+            is used for tree pruning, so if you are doing a series of
+            nearest-neighbor queries, it may help to supply the distance to the
+            nearest neighbor of the most recent point.
+
+            p: float, optional
+            Which Minkowski p-norm to use. 1 is the sum of absolute-values
+            distance ("Manhattan" distance). 2 is the usual Euclidean distance.
+            Infinity is the maximum-coordinate-difference distance. Currently,
+            only p=2 is supported.
+
+            k: int, optional
+            Number of closest particles to return. Default 1
+
+            return_shuffle_indices: bool, optional
+            Flag to return the shuffle indices instead of the data indices.
+            Default False.
+
+            return_sorted: bool, optional
+            Flag to return the distances and indices in distance-sorted order.
+            Set to False for a performance boost. Default True
+
+        Returns:
+            distances: NDArray[float]
+            Distances to the kth nearest neighbors. Has shape (min(N,k),),
+            where N is the number of particles in the sphere bounded by
+            distance_upper_bound
+
+            indices: NDArray[int]
+            Indices in data of the kth nearest neighbors. Has same shape as
+            distances
+
+        Raises:
+            NotImplementedError
+            If a p value of then 2 is provided
+        """
+
+        p = 2 if p is None else p
+        if p != 2:
+            raise NotImplementedError("Only p=2 is currently supported")
+        distance_function = euclidean_distance_particle
+
+        distance_upper_bound = (
+            1e100 if distance_upper_bound is None else distance_upper_bound
+        )
+
+        k = 1 if k is None else k
+        return_shuffle_indices = (
+            False if return_shuffle_indices is None else return_shuffle_indices
+        )
+        return_sorted = True if return_sorted is None else return_sorted
+
+        return _get_closest_particles(
+            self.cube_boxes,
+            self._numba_trees,
+            self.cube_indices,
+            data if isinstance(data, DataContainer) else data.data_container,
+            xyz,
+            k,
+            distance_function,
+            distance_upper_bound,
+            return_shuffle_indices,
+            return_sorted,
+        )
+
+    def _get_pilis_cubes(
+        self,
+        *,
+        data: DataContainer | Dataset,
+        odata: DataContainer | Dataset,
+        ocubes: ParticleCubes,
+        r: float,
+        p: float = 2.0,
+        k: int = 1,
+        strict: bool = True,
+    ):
+        raise NotImplementedError(
+            """
+            Still in progress. Try a PackedTree for this functionatlity
+            """
+        )
+
+    def save(
+        self,
+        dataset: str | Path | HDF5Dataset,
+        *,
+        force_overwrite: bool = False,
+    ) -> Path:
+        dataset = _check_overwrite(dataset, force_overwrite=force_overwrite)
+        save_cube(
+            dataset,
+            pt="PartType0",
+            cube_indices=self.cube_indices,
+            cube_boxes=self.cube_boxes,
+            cube_trees=self.cube_trees,
+        )
+        return dataset.filepath if isinstance(dataset, Dataset) else Path(dataset)
 
 
 def has_cubes(dataset: str | Path | MultiParticleDataset):
@@ -726,6 +1347,30 @@ def has_cubes(dataset: str | Path | MultiParticleDataset):
         with h5py.File(dataset) as file:
             return "cubes" in file
     return False
+
+
+def _check_overwrite(
+    dataset: str | Path | HDF5Dataset, *, force_overwrite: bool = False
+) -> str | Path | HDF5Dataset:
+    if not has_cubes(dataset):
+        return dataset
+    if force_overwrite:
+        LOGGER.warning(
+            f"Dataset {dataset} already contains cubes structure. Overwriting!"
+        )
+    else:
+        old_filepath = (
+            dataset.filepath if isinstance(dataset, HDF5Dataset) else Path(dataset)
+        )
+        new_filepath = (
+            old_filepath.parent / f"{old_filepath.stem}_cubes{old_filepath.suffix}"
+        )
+        LOGGER.info(
+            f"Dataset {old_filepath} already contains cubes structure."
+            f"Saving to {new_filepath} instead."
+        )
+        dataset = new_filepath
+    return dataset
 
 
 def save_cube(
@@ -814,49 +1459,11 @@ def _add_trees_to_cubes_dict(
         )
 
 
-class Cubes:
+class MultiCubes:
     cubes_dict: dict[str, ParticleCubes]
     """ Mapping from particle type to ParticleCubes for this dataset """
 
     def __init__(
-        self,
-        *,
-        dataset: str | NDArray | MultiParticleDataset | None = None,
-        cubes_dict: dict[str, dict] | None = None,
-        **kwargs,
-    ):
-        if cubes_dict is None and dataset is None:
-            raise CubesError("Must provide either a cubes_dict or dataset!")
-        dataset = (
-            InMemory(positions=dataset) if isinstance(dataset, np.ndarray) else dataset
-        )
-        # we only want to load the dataset if we need to
-        if cubes_dict is None:
-            assert dataset is not None
-            try:
-                cubes_dict = load_cubes(dataset)
-            except (NotImplementedError, ValueError):
-                dataset = (
-                    GadgetishHDF5Dataset(filepath=dataset)
-                    if isinstance(dataset, str)
-                    else dataset
-                )
-                cubes_dict = make_cubes(dataset=dataset, **kwargs)
-        else:
-            if not _has_trees(cubes_dict):
-                if dataset is None:
-                    raise CubesError("cubes_dict has no trees and dataset not provided")
-                dataset = (
-                    GadgetishHDF5Dataset(filepath=dataset)
-                    if isinstance(dataset, str)
-                    else dataset
-                )
-                _add_trees_to_cubes_dict(
-                    cubes_dict=cubes_dict, dataset=dataset, **kwargs
-                )
-        self._make_cubes(cubes_dict=cubes_dict, **kwargs)
-
-    def _make_cubes(
         self,
         *,
         cubes_dict: dict[str, dict],
@@ -881,12 +1488,52 @@ class Cubes:
     def particle_types(self):
         return self.cubes_dict.keys()
 
+    def get_single_cubes(self, particle_type: str) -> ParticleCubes:
+        """
+        Return the ParticleCubes instance corresponding to the specified type.
+        """
+        return self.cubes_dict[particle_type]
+
+    def _get_particle_indices_in_shape(
+        self,
+        shape: bbox.BoundingVolume,
+        *,
+        particle_types: str | Collection[str] | None = None,
+    ) -> dict[str, NDArray[np.int_]]:
+        """
+        Return all particles contained within the shape
+
+        Args:
+            particle_types: str | Collection[str]
+            Particle type(s) to include
+
+            shape: BoundingVolume
+            The shape to check
+
+            particle_types: str | Collection[str], optional
+            Particle type(s) to include. Defaults to self.particle_types
+        Returns:
+            indices: dict[str, NDArray[int]]
+            Dictionary of arrays of particle start-stop indices plus partiality
+            flag contained within shape, organized by particle type
+        """
+        if particle_types is None:
+            particle_types = self.particle_types
+        if isinstance(particle_types, str):
+            particle_types = [particle_types]
+        inds = {}
+        for pt in particle_types:
+            inds[pt] = self.cubes_dict[pt]._get_particle_indices_in_shape(
+                shape,
+            )
+        return inds
+
     def get_particle_indices_in_box(
         self,
         box: bbox.BoxLike,
         *,
         particle_types: str | Collection[str] | None = None,
-    ) -> dict[str, list[tuple[int, int]]]:
+    ) -> dict[str, NDArray[np.int_]]:
         """
         Return all particles contained within the box
 
@@ -897,21 +1544,14 @@ class Cubes:
             particle_types: str | Collection[str], optional
             Particle type(s) to include. Defaults to self.particle_types
         Returns:
-            indices: dict[str, list[tuple[int, int]][
-            Dictionary of lists of particle start-stop indices contained
-            within box, organized by particle type
+            indices: dict[str, NDArray[int]]
+            Dictionary of arrays of particle start-stop indices plus partiality
+            flag contained within box, organized by particle type
         """
-        if particle_types is None:
-            particle_types = self.particle_types
-        if isinstance(particle_types, str):
-            particle_types = [particle_types]
         numba_box = bbox.make_bounding_box(box)
-        inds = {}
-        for pt in particle_types:
-            inds[pt] = self.cubes_dict[pt]._get_particle_indices_in_shape(
-                numba_box, numba_box
-            )
-        return inds
+        return self._get_particle_indices_in_shape(
+            numba_box, particle_types=particle_types
+        )
 
     def get_particle_indices_in_sphere(
         self,
@@ -919,7 +1559,7 @@ class Cubes:
         radius: float,
         *,
         particle_types: str | Collection[str] | None = None,
-    ) -> dict[str, list[tuple[int, int]]]:
+    ) -> dict[str, NDArray[np.int_]]:
         """
         Return all particles contained within the sphere defined by center and radius
 
@@ -933,20 +1573,240 @@ class Cubes:
             radius: float
             Radius of the sphere
 
+            particle_types: str | Collection[str], optional
+            Particle type(s) to include. Defaults to self.particle_types
         Returns:
-            indices: dict[str, list[tuple[int, int]][
-            Dictionary of lists of particle start-stop indices contained
-            within sphere, organized by particle type
+            indices: dict[str, NDArray[int]]
+            Dictionary of arrays of particle start-stop indices plus partiality
+            flag contained within sphere, organized by particle type
+        """
+        sph = bbox.make_bounding_sphere(radius, center=center, unsafe=True)
+        return self._get_particle_indices_in_shape(sph, particle_types=particle_types)
+
+    def _get_particle_index_list_in_shape(
+        self,
+        *,
+        data: DataContainer | Dataset,
+        shape: bbox.BoundingVolume,
+        particle_types: str | Collection[str] | None = None,
+        strict: bool = True,
+        use_data_indices: bool = True,
+    ) -> dict[str, NDArray[np.int_]]:
+        """
+        Return all particles contained within the sphere defined by center and radius
+
+        Args:
+            data: DataContainer | Dataset
+            Dataset containing the particle positions. Pass a DataContainer
+            object for a slight performance increase
+
+            center: NDArray
+            Center point of the sphere
+
+            radius: float
+            Radius of the sphere
+
+            particle_types: str | Collection[str], optional
+            Particle type(s) to include. Defaults to self.particle_types
+
+            strict: bool, optional
+            Flag to specify whether only particles inside the sphere will
+            be returned. If False (default), additional nearby particles may be
+            included for signficantly increased performance
+
+            use_data_indices: bool, optional
+            Flag to return indices into the sorted dataset (True, default) or
+            into the shuffle list (False)
+
+        Returns:
+            indices: NDArray[int]
+            List of original particle indices contained within sphere
         """
         if particle_types is None:
             particle_types = self.particle_types
         if isinstance(particle_types, str):
             particle_types = [particle_types]
+        data = data.data_container if isinstance(data, Dataset) else data
         inds = {}
-        sph = bbox.make_bounding_sphere(radius, center=center, unsafe=True)
         for pt in particle_types:
-            inds[pt] = self.cubes_dict[pt]._get_particle_indices_in_shape(
-                sph, sph.bounding_box
+            inds[pt] = self.cubes_dict[pt]._get_particle_index_list_in_shape(
+                data,
+                shape,
+                use_data_indices=use_data_indices,
+            )
+        return inds
+
+    def get_particle_index_list_in_box(
+        self,
+        *,
+        data: DataContainer | Dataset,
+        box: bbox.BoxLike,
+        particle_types: str | Collection[str] | None = None,
+        strict: bool = True,
+        use_data_indices: bool = True,
+    ) -> dict[str, NDArray[np.int_]]:
+        """
+        Return all particles contained within the sphere defined by center and radius
+
+        Args:
+            data: DataContainer | Dataset
+            Dataset containing the particle positions. Pass a DataContainer
+            object for a slight performance increase
+
+            box: BoxLike
+            Box to check
+
+            particle_types: str | Collection[str], optional
+            Particle type(s) to include. Defaults to self.particle_types
+
+            strict: bool, optional
+            Flag to specify whether only particles inside the sphere will
+            be returned. If False (default), additional nearby particles may be
+            included for signficantly increased performance
+
+            use_data_indices: bool, optional
+            Flag to return indices into the sorted dataset (True, default) or
+            into the shuffle list (False)
+
+        Returns:
+            indices: NDArray[int]
+            List of original particle indices contained within sphere
+        """
+        bbn = bbox.make_bounding_box(box)
+        return self._get_particle_index_list_in_shape(
+            data=data,
+            shape=bbn,
+            particle_types=particle_types,
+            strict=strict,
+            use_data_indices=use_data_indices,
+        )
+
+    def get_particle_index_list_in_sphere(
+        self,
+        *,
+        data: DataContainer | Dataset,
+        center: NDArray,
+        radius: float,
+        particle_types: str | Collection[str] | None = None,
+        strict: bool = True,
+        use_data_indices: bool = True,
+    ) -> dict[str, NDArray[np.int_]]:
+        """
+        Return all particles contained within the sphere defined by center and radius
+
+        Args:
+            data: DataContainer | Dataset
+            Dataset containing the particle positions. Pass a DataContainer
+            object for a slight performance increase
+
+            center: NDArray
+            Center point of the sphere
+
+            radius: float
+            Radius of the sphere
+
+            particle_types: str | Collection[str], optional
+            Particle type(s) to include. Defaults to self.particle_types
+
+            strict: bool, optional
+            Flag to specify whether only particles inside the sphere will
+            be returned. If False (default), additional nearby particles may be
+            included for signficantly increased performance
+
+            use_data_indices: bool, optional
+            Flag to return indices into the sorted dataset (True, default) or
+            into the shuffle list (False)
+
+        Returns:
+            indices: NDArray[int]
+            List of original particle indices contained within sphere
+        """
+        sph = bbox.make_bounding_sphere(radius, center=center, unsafe=True)
+        return self._get_particle_index_list_in_shape(
+            data=data,
+            shape=sph,
+            particle_types=particle_types,
+            strict=strict,
+            use_data_indices=use_data_indices,
+        )
+
+    def get_closest_particles(
+        self,
+        *,
+        data: DataContainer | Dataset,
+        xyz: NDArray,
+        particle_types: str | Collection[str] | None = None,
+        distance_upper_bound: float | None = None,
+        p: float | None = None,
+        k: int | None = None,
+        return_shuffle_indices: bool | None = None,
+        return_sorted: bool | None = None,
+    ):
+        """
+        Get kth nearest particle distances and indices to point
+
+        Args:
+            data: DataContainer | Dataset
+            Source of particle position data
+
+            xyz: ArrayLike
+            Coordinates of point to check
+
+            particle_types: str | Collection[str], optional
+            Particle type(s) to include. Defaults to self.particle_types
+
+            distance_upper_bound: nonnegative float, optional
+            Return only neighbors from other nodes within this distance. This
+            is used for tree pruning, so if you are doing a series of
+            nearest-neighbor queries, it may help to supply the distance to the
+            nearest neighbor of the most recent point.
+
+            p: float, optional
+            Which Minkowski p-norm to use. 1 is the sum of absolute-values
+            distance ("Manhattan" distance). 2 is the usual Euclidean distance.
+            Infinity is the maximum-coordinate-difference distance. Currently,
+            only p=2 is supported.
+
+            k: int, optional
+            Number of closest particles to return. Default 1
+
+            return_shuffle_indices: bool, optional
+            Flag to return the shuffle indices instead of the data indices.
+            Default False.
+
+            return_sorted: bool, optional
+            Flag to return the distances and indices in distance-sorted order.
+            Set to False for a performance boost. Default True
+
+        Returns:
+            distances: NDArray[float]
+            Distances to the kth nearest neighbors. Has shape (min(N,k),),
+            where N is the number of particles in the sphere bounded by
+            distance_upper_bound
+
+            indices: NDArray[int]
+            Indices in data of the kth nearest neighbors. Has same shape as
+            distances
+
+        Raises:
+            NotImplementedError
+            If a p value of then 2 is provided
+        """
+        if particle_types is None:
+            particle_types = self.particle_types
+        if isinstance(particle_types, str):
+            particle_types = [particle_types]
+        data = data.data_container if isinstance(data, Dataset) else data
+        inds = {}
+        for pt in particle_types:
+            inds[pt] = self.cubes_dict[pt].get_closest_particles(
+                data=data,
+                xyz=xyz,
+                distance_upper_bound=distance_upper_bound,
+                p=p,
+                k=k,
+                return_shuffle_indices=return_shuffle_indices,
+                return_sorted=return_sorted,
             )
         return inds
 
@@ -967,26 +1827,7 @@ class Cubes:
             If dataset already contains cubes data, overwrite if True.
             Default False
         """
-        if has_cubes(dataset):
-            if force_overwrite:
-                LOGGER.warning(
-                    f"Dataset {dataset} already contains cubes structure. Overwriting!"
-                )
-            else:
-                old_filepath = (
-                    dataset.filepath
-                    if isinstance(dataset, HDF5Dataset)
-                    else Path(dataset)
-                )
-                new_filepath = (
-                    old_filepath.parent
-                    / f"{old_filepath.stem}_cubes{old_filepath.suffix}"
-                )
-                LOGGER.info(
-                    f"Dataset {old_filepath} already contains cubes structure."
-                    f"Saving to {new_filepath} instead."
-                )
-                dataset = new_filepath
+        dataset = _check_overwrite(dataset, force_overwrite=force_overwrite)
 
         for pt, cubes in self.cubes_dict.items():
             save_cube(
@@ -997,6 +1838,60 @@ class Cubes:
                 cube_trees=cubes.cube_trees,
             )
         return dataset.filepath if isinstance(dataset, Dataset) else Path(dataset)
+
+
+def Cubes(
+    *,
+    dataset: str | NDArray | MultiParticleDataset | None = None,
+    cubes_dict: dict[str, dict] | None = None,
+    **kwargs,
+) -> ParticleCubes | MultiCubes:
+    if cubes_dict is None and dataset is None:
+        raise CubesError("Must provide either a cubes_dict or dataset!")
+    dataset = (
+        InMemory(positions=dataset) if isinstance(dataset, np.ndarray) else dataset
+    )
+    # we only want to load the dataset if we need to
+    if cubes_dict is None:
+        assert dataset is not None
+        try:
+            cubes_dict = load_cubes(dataset)
+        except (NotImplementedError, ValueError):
+            dataset = (
+                GadgetishHDF5Dataset(filepath=dataset)
+                if isinstance(dataset, str)
+                else dataset
+            )
+            cubes_dict = make_cubes(dataset=dataset, **kwargs)
+    else:
+        if not _has_trees(cubes_dict):
+            if dataset is None:
+                raise CubesError("cubes_dict has no trees and dataset not provided")
+            dataset = (
+                GadgetishHDF5Dataset(filepath=dataset)
+                if isinstance(dataset, str)
+                else dataset
+            )
+            _add_trees_to_cubes_dict(cubes_dict=cubes_dict, dataset=dataset, **kwargs)
+    if len(cubes_dict) == 1:
+        cubes = next(iter(cubes_dict.values()))
+        return ParticleCubes(**cubes, **kwargs)
+    return MultiCubes(cubes_dict=cubes_dict, **kwargs)
+
+
+def make_ParticleCubes(**kwargs) -> ParticleCubes:
+    """
+    Wrapper for Cubes that explicitly returns ParticleCubes or raises an error
+    """
+    cubes = Cubes(**kwargs)
+    if not isinstance(cubes, ParticleCubes):
+        raise CubesError(
+            f"""
+            Multiple particle types present. Please specify one of 
+            {cubes.particle_types} as particle_types=PARTICLE_TYPE.
+            """
+        )
+    return cubes
 
 
 if __name__ == "__main__":
