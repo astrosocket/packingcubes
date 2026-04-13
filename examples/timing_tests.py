@@ -318,25 +318,21 @@ def packed_octree_query_ball_point_indices(
 def _packed_octree_qbp_jitted(
     tree: optree.packed_tree_numba.PackedTreeNumba,
     spheres: List[bbox.BoundingSphere],
-    sphere_boxes: List[bbox.BoundingBox],
     num_reps: int,
 ):
     for i in range(len(spheres)):
         sph = spheres[i]
-        sph_box = sphere_boxes[i]
         for _ in range(num_reps):
-            sph_inds = tree._get_particle_indices_in_shape(sph_box, sph)
+            sph_inds = tree._get_particle_indices_in_shape(sph)
 
 
 def packed_octree_qbp_jitted(tree: optree.PackedTree, *, centers, radii, **kwargs):
     spheres = List.empty_list(bbox.bs_type)
-    sphere_boxes = List.empty_list(bbox.bbn_type)
     for c, r in zip(centers, radii, strict=True):
         sph = bbox.make_bounding_sphere(r, center=c, unsafe=True)
         spheres.append(sph)
-        sphere_boxes.append(sph.bounding_box)
     num_reps = 100000
-    _packed_octree_qbp_jitted(tree._tree, spheres, sphere_boxes, num_reps)
+    _packed_octree_qbp_jitted(tree._tree, spheres, num_reps)
 
 
 def packed_kdtree_creation(ds):
