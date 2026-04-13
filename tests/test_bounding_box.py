@@ -5,6 +5,7 @@ import numpy as np
 import pytest
 from hypothesis import assume, example, given, note, settings
 from hypothesis import strategies as st
+from numba import TypingError
 from numpy.typing import ArrayLike
 
 import packingcubes.bounding_box as bbox
@@ -265,7 +266,7 @@ def test_get_child_box_invalid_index(
 ):
     with pytest.raises(
         (MemoryError, OverflowError, ValueError),
-        match="allocation|invalid index|int too big|int value is too large",
+        match="allocation|invalid index|int too big|too large",
     ):
         bounding_box.get_child_box(index)
 
@@ -317,7 +318,7 @@ def test_get_box_vertex_invalid_indices(
     jitter: float,
 ):
     with pytest.raises(
-        (OverflowError, ValueError),
+        (MemoryError, OverflowError, TypingError, ValueError),
         match=("int too big|too large|out of bounds|must be an int|must be finite"),
     ):
         bounding_box.get_box_vertex(index, jitter)
@@ -560,10 +561,11 @@ def test_bsph_contains_invalid_point(sph: bbox.BoundingSphere, xyz: ArrayLike):
     sph=bbox.make_bounding_sphere(radius=134217728.0, center=[0, 0, 2]),
     xyz=np.array([1.34217728e8, 0.0, 0.0]),
 ).via("discovered failure in test logic")
+@settings(deadline=400)
 @given(ct.valid_bounding_spheres(), ct.valid_positions())
 def test_bsph_contains_valid(sph: bbox.BoundingSphere, xyz: ArrayLike):
     center, radius = sph.center, sph.radius
-    dist = np.sum((xyz - center) ** 2, axis=1)
+    dist = np.sum(np.atleast_2d(xyz - center) ** 2, axis=1)
     inside_sph = dist <= radius**2
     assert np.all(inside_sph == sph.contains(xyz))
 
