@@ -1,3 +1,38 @@
+## [0.3.1] - 2026-04-15
+
+### 🚀 Features
+
+- Expose benchmarking scripts on install ([d9a53e2](https://github.com/astrosocket/packingcubes/commit/d9a53e2a65e627902e42fee8976af4ff336284cc))
+
+### 🐛 Bug Fixes
+
+- Forgot to update exposed cube script path ([fe91cd6](https://github.com/astrosocket/packingcubes/commit/fe91cd665eca9a4a3782fca1459f65815a025f1b))
+- Nthreads should be set inside function ([785dd10](https://github.com/astrosocket/packingcubes/commit/785dd10e0a29dd17fd996e470d831ca967d6613f))
+
+### 🚜 Refactor
+
+- Remove old Benchmarking code ([11d1a7b](https://github.com/astrosocket/packingcubes/commit/11d1a7b1bb41ba56d0d8a74a99c777c6781a5879))
+- No longer need search object bounding boxes ([5c3fdc5](https://github.com/astrosocket/packingcubes/commit/5c3fdc581047f107461bc8c8a7ca605856eeb36e))
+- Adding new cubes module files ([4d071ec](https://github.com/astrosocket/packingcubes/commit/4d071ec3e09f226d12f3e54b5fa7022f4f90b859))
+- Removing old cubes module ([629b134](https://github.com/astrosocket/packingcubes/commit/629b1340e911ce3706b47753dfe410de8d95660e))
+
+### 📚 Documentation
+
+- Minor updates to packed_format for better rendering ([a0bd3f3](https://github.com/astrosocket/packingcubes/commit/a0bd3f311baa3ee725e6aa9a5ddf9c9b4f25acb0))
+- Add basic readthedocs and zensical setup ([e7a8765](https://github.com/astrosocket/packingcubes/commit/e7a87655900c898f76f4c4d20839c2d4d01bf96a))
+- Move from doc folder to docs folder ([7fef852](https://github.com/astrosocket/packingcubes/commit/7fef852672bf7e04f1a7070a325112e5dc66619c))
+
+### 🧪 Testing
+
+- Increasing test deadline ([b2c148c](https://github.com/astrosocket/packingcubes/commit/b2c148c10f9328c7083aa601298fd735ce45946c))
+- Major benchmarking overhaul ([d857c86](https://github.com/astrosocket/packingcubes/commit/d857c86e74f84b7d1beeeeaf91c1098f77b8abc4))
+- Handle ints that are bigger than unit64, vectors ([16c081a](https://github.com/astrosocket/packingcubes/commit/16c081a999143e3256fead54766460d3ca477f5f))
+- Add additional large integer test ([f504380](https://github.com/astrosocket/packingcubes/commit/f50438094591cc2aa418f4b42faad40650396d46))
+- Fix floating point error in test ([f207ce6](https://github.com/astrosocket/packingcubes/commit/f207ce69e7632339eee2bf96f5f7a33b58cc7829))
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* Update Changelog ([da51d42](https://github.com/astrosocket/packingcubes/commit/da51d429a33a4b4b59f19baa67b9c0f688dffdf5))
 ## [0.3.0] - 2026-04-07
 
 ### 🚀 Features

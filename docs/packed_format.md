@@ -1,6 +1,6 @@
 # Packed Format Design Specification
 
-Version 1.0.0
+Version 1.0.1
 
 This file documents the format used to describe a PackedTree data structure.
 
@@ -13,7 +13,7 @@ The basic unit of the packed format is the `field`, currently defined as a
 and internally is stored as a numpy array of such.
 
 
-# Tree Metadata
+## Tree Metadata
 
 | Field | Bytes   | Description                                                                                                                                            |
 | ----- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -32,6 +32,7 @@ and internally is stored as a numpy array of such.
 | 35    | 140-143 | Particle threshold                                                                                                                                     |
 
 Timestamp is currently computed via
+
 ```python
 # conversion to timestamp
 t = np.float64(datetime.datetime.now(tz=datetime.UTC).timestamp())
@@ -40,6 +41,7 @@ datetime.datetime.fromtimestamp(t, tz=datetime.UTC)
 ```
 
 For the checksum, use [xxhash's xxh3](https://pypi.org/project/xxhash/) (not part of the standard library):
+
 ```python
 from xxhash import xxh3_64_intdigest 
 
@@ -47,9 +49,23 @@ checksum = xxh3_64_intdigest(packed_tree)
 ```
 This creates a uint64 checksum.
 
-# Tree Data Structure
+## Tree Data Structure
 
-## Internal Node:
+Essentially we can think of the tree structure as the equivalent of `numpy`'s
+structured array, except in an octree structure as opposed to the linear array
+structure. Thus, the bytes are organized such that all information for a node
+(*including it's children!*) are together in sequential order. 
+
+The intent is to mimic the in-memory structure of a simple tree from a language
+like C, where every child node pointer has been replaced by the actual bytes
+of the child node.
+
+Thus, the first few bytes correspond to data attached to the root node, the
+next few bytes are the first child's data, followed by the first grandchild,
+etc., in a pre-order depth-first traversal of the tree.
+
+
+### Internal Node:
 
 | skip_length | node_start | node_end | child_flag  | my_index | level | unused | C0  | C1  | C5  | C6  | C7  | parent_offset |
 | ----------- | ---------- | -------- | ----------- | -------- | ----- | ------ | --- | --- | --- | --- | --- | ------------- |
@@ -58,13 +74,38 @@ This creates a uint64 checksum.
 | field 0      | field 1     | field 2   | field 3      |          |       |        | *   | *   | *   | *   | *   | field 4        |
 
 For the present case, `child_flag` would be 227 ($=2^0 + 2^1 + 2^5 + 2^6 + 2^7$). If all 5 nodes were leaves, then `skip_length`=30.
-## Leaf Node:
+
+### Leaf Node:
 Size = 5 fields = 20 bytes
 
 | skip_length=20 | node_start | node_end | child_flag=0 | my_index | level | unused | parent_offset |
 | -------------- | ---------- | -------- | ------------ | -------- | ----- | ------ | ------------- |
 | uint32         | uint32     | uint32   | uint8        | uint8    | uint8 | uint8  | uint32        |
 
-## Example:
+### Example:
 ![Example packed array implementation](example_packed.jpg)
 Here, $x_{s}$, $x_{e}$, and $x_{m}$ are the node_start, node_end, and metadata (child_flag, my_index, level, and empty) fields for node $x$. The starred nodes in the tree are the last sibling for each group of children.
+
+
+<script id="MathJax-script" src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+<script>
+  window.MathJax = {
+    tex: {
+      inlineMath: [["\\(", "\\)"]],
+      displayMath: [["\\[", "\\]"]],
+      processEscapes: true,
+      processEnvironments: true
+    },
+    options: {
+      ignoreHtmlClass: ".*|",
+      processHtmlClass: "arithmatex"
+    }
+  };
+
+  document$.subscribe(() => {
+    MathJax.startup.output.clearCache()
+    MathJax.typesetClear()
+    MathJax.texReset()
+    MathJax.typesetPromise()
+  })
+</script>
