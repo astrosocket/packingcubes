@@ -1,6 +1,6 @@
 version: 2
 
- build:
+build:
    os: ubuntu-24.04
    tools:
      python: latest
@@ -13,7 +13,7 @@ version: 2
        - pixi install -e docs
      build:
        html:
-         - zensical build
+         - pixi run -e docs zensical build
      post_build:
        - mkdir -p $READTHEDOCS_OUTPUT/html/
        - cp --recursive site/* $READTHEDOCS_OUTPUT/html/
