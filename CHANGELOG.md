@@ -24,10 +24,15 @@
 
 ### 🧪 Testing
 
+- Increasing test deadline ([b2c148c](https://github.com/astrosocket/packingcubes/commit/b2c148c10f9328c7083aa601298fd735ce45946c))
 - Major benchmarking overhaul ([d857c86](https://github.com/astrosocket/packingcubes/commit/d857c86e74f84b7d1beeeeaf91c1098f77b8abc4))
 - Handle ints that are bigger than unit64, vectors ([16c081a](https://github.com/astrosocket/packingcubes/commit/16c081a999143e3256fead54766460d3ca477f5f))
 - Add additional large integer test ([f504380](https://github.com/astrosocket/packingcubes/commit/f50438094591cc2aa418f4b42faad40650396d46))
 - Fix floating point error in test ([f207ce6](https://github.com/astrosocket/packingcubes/commit/f207ce69e7632339eee2bf96f5f7a33b58cc7829))
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* Update Changelog ([da51d42](https://github.com/astrosocket/packingcubes/commit/da51d429a33a4b4b59f19baa67b9c0f688dffdf5))
 ## [0.3.0] - 2026-04-07
 
 ### 🚀 Features
