@@ -76,11 +76,15 @@ dev = [
     {include-group = "profile"},
     {include-group = "jupyter"},
 ]
+docs = ["griffe-pydantic", "zensical", "mkdocstrings-python", "mkdocstrings"]
 
 [project.scripts]
 packcubes = "packingcubes.cubes.cubes_creation.__main__:main"
 packcubes_timing_run = "tests.performance.timing.__main__:main"
 packcubes_timing_plot = "tests.performance.plot_timings.__main__:main"
+
+[tool.setuptools]
+packages = ["packingcubes"]
 
 [tool.setuptools.dynamic]
 readme = {file = ["README.md"], content-type="text/markdown"}
@@ -147,6 +151,7 @@ test = { features = ["test","viz", "jupyter"], solve-group = "default" }
 viz = { features = ["viz", "jupyter"], solve-group = "default" }
 jupyter = { features = ["jupyter"], solve-group = "default" }
 build = { features = ["build"], solve-group = "default" }
+docs = { features = ["docs", "jupyter"], solve-group = "default" }
 
 [tool.pixi.tasks]
 
@@ -186,6 +191,12 @@ jupyter-rfb = ">=0.5.4,<0.6"
 
 [tool.pixi.feature.build.dependencies]
 twine = ">=6.2.0,<7"
+
+[tool.pixi.feature.docs.dependencies]
+zensical = ">=0.0.32,<0.0.33"
+mkdocstrings = ">=1.0.3,<2"
+mkdocstrings-python = ">=2.0.2,<3"
+griffe-pydantic = ">=1.3.1,<2"
 
 [tool.pixi.dependencies]
 numpy = "*"
