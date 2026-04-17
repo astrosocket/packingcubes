@@ -34,7 +34,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-from packingcubes import HDF5Dataset, Optree
+from packingcubes import GadgetishHDF5Dataset, PackedTree
 from packingcubes.configuration import get_test_data_dir_path
 
 # %% [markdown]
@@ -61,13 +61,13 @@ snapfile = ill_path / "snapshot_090.hdf5"
 # ## Load dataset
 
 # %%
-ds = HDF5Dataset(name=simname, filepath=snapfile)
+ds = GadgetishHDF5Dataset(name=simname, filepath=snapfile)
 
 # %% [markdown]
 # # Create tree
 
 # %%
-tree = Optree(dataset=ds)
+tree = PackedTree(dataset=ds)
 
 
 # %%

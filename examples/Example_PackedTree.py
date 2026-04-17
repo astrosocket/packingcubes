@@ -63,7 +63,7 @@ except ImportError as ie:
 import packingcubes.bounding_box as bbox
 import packingcubes.packed_tree as optree
 import packingcubes.tree_vis as tree_vis
-from packingcubes import HDF5Dataset, Optree
+from packingcubes import GadgetishHDF5Dataset, PackedTree
 
 # %%
 simname = "IllustrisTNG"
@@ -79,7 +79,7 @@ snapfile = ill_path / "snapshot_090.hdf5"
 
 # %%
 print("Loading data files")
-ds = HDF5Dataset(name=simname, filepath=snapfile)
+ds = GadgetishHDF5Dataset(name=simname, filepath=snapfile)
 # decimate the data so it loads/runs faster
 decimation_factor = 10
 new_length = int(len(ds) / decimation_factor)
@@ -111,7 +111,7 @@ print("Creating tree. Note this takes a few seconds to JIT compile code.")
 # tree = octree.PythonOctree(
 #     dataset=ds,
 # )
-tree = Optree(
+tree = PackedTree(
     dataset=ds,
 )
 

@@ -39,7 +39,7 @@ from time import time  # noqa: E402
 
 import numpy as np  # noqa: E402
 
-from packingcubes import Cubes, HDF5Dataset, KDTree, Optree  # noqa: E402
+from packingcubes import Cubes, GadgetishHDF5Dataset, KDTree, PackedTree  # noqa: E402
 from packingcubes.bounding_box import make_bounding_sphere  # noqa: E402
 from packingcubes.configuration import get_test_data_dir_path  # noqa: E402
 
@@ -59,13 +59,13 @@ snapfile = ill_path / "snapshot_090.hdf5"
 # ## Load the data
 
 # %%
-ds = HDF5Dataset(name=simname, filepath=snapfile)
+ds = GadgetishHDF5Dataset(name=simname, filepath=snapfile)
 
 # %% [markdown]
 # ## Precompile numba components
 
 # %%
-tree = Optree(dataset=ds)
+tree = PackedTree(dataset=ds)
 center = np.array([0, 0, 0])
 radius = 1
 tree.get_particle_indices_in_sphere(center=center, radius=radius)
@@ -103,14 +103,14 @@ kdtree.query_ball_point(x=center, r=radius)
 start = time()
 # Run for 3 seconds
 while (time() - start) < 3:
-    tree = Optree(dataset=ds)
+    tree = PackedTree(dataset=ds)
 
 
 # %% [markdown] jp-MarkdownHeadingCollapsed=true
 # ## Profile tree search
 
 # %%
-tree = Optree(dataset=ds)
+tree = PackedTree(dataset=ds)
 center = np.array([15000, 15000, 15000])
 radius = 1000
 
@@ -222,7 +222,7 @@ while (time() - start) < 30:
 # ## Packed (python)
 
 # %%
-tree = Optree(dataset=ds)
+tree = PackedTree(dataset=ds)
 center = np.array([15000, 15000, 15000])
 radius = 1000
 
