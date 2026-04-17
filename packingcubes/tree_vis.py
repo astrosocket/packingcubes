@@ -712,7 +712,7 @@ def plot_octreenode_mesh(
     *,
     canvas_scene: tuple[RenderCanvas, gfx.Scene] | None = None,
     color: ColorType | None = None,
-):
+) -> tuple[RenderCanvas, gfx.Scene]:
     """
     Plot a single OctreeNode
 
@@ -744,7 +744,7 @@ def plot_octree_mesh(
     canvas_scene: tuple[RenderCanvas, gfx.Scene] | None = None,
     cmap: mpl.colors.Colormap | None = None,
     leaves_only: bool = True,
-):
+) -> tuple[RenderCanvas, gfx.Scene]:
     """
     Plot an Octree or other list of OctreeNodes
 
