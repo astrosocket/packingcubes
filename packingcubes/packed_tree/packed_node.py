@@ -1,3 +1,5 @@
+"""PackedTree classes representing tree nodes and related functions"""
+
 from __future__ import annotations
 
 import logging
@@ -34,8 +36,7 @@ logging.captureWarnings(capture=True)
     ]
 )
 class PackedNodeNumba:
-    """
-    Private representation of a node in a packed tree
+    """Private representation of a node in a packed tree
 
     This class is what should be emitted by PackedTreeNumba methods that return
     nodes, rather than CurrentNode instances.
@@ -51,8 +52,7 @@ class PackedNodeNumba:
         box: bbox.BoundingBox,
         tag: str | None = None,
     ):
-        """
-        Initialize a packed root node
+        """Initialize a packed root node
 
         Args:
             node_end: int
@@ -69,6 +69,7 @@ class PackedNodeNumba:
         self.is_leaf = True
 
     def copy(self) -> PackedNodeNumba:
+        """Return a (deep) copy"""
         node = PackedNodeNumba(
             self.node_start,
             self.node_end,
@@ -81,8 +82,7 @@ class PackedNodeNumba:
 
 # Effectively, this class is just a python wrapper for a PackedNodeNumba
 class PackedNode(octree.OctreeNode):
-    """
-    Public representation of a node in the packed tree
+    """Public representation of a node in the packed tree
 
     Intended to be the equivalent of PythonOctreeNode for packed trees,
     primarily for typing checks. Note that this only represents the node
@@ -96,6 +96,16 @@ class PackedNode(octree.OctreeNode):
         self._node = node
 
     def __eq__(self, obj):
+        """
+        Test whether self and obj are equal
+
+        Self and obj are equal if and only if obj is of the same class as self
+        and they have the same:
+            * node_start
+            * node_end
+            * tag
+            * bounding box
+        """
         if not isinstance(self, PackedNodeNumba):
             return False
         return (
@@ -108,31 +118,34 @@ class PackedNode(octree.OctreeNode):
     @property
     def node_start(self) -> int:
         """
-        The start data index for this node. OctreeNodes have
-        node_end+1 - node_start particles
+        The start data index for this node.
+
+        OctreeNodes have node_end+1 - node_start particles
         """
         return self._node.node_start
 
     @property
     def node_end(self) -> int:
         """
-        The end data index for this node. OctreeNodes have
-        node_end+1 - node_start particles
+        The end data index for this node.
+
+        OctreeNodes have node_end+1 - node_start particles
         """
         return self._node.node_end
 
     @property
     def box(self) -> bbox.BoundingBox:
-        """
-        Bounding box of the form [x, y, z, dx, dy, dz] where (x, y, z) is the
+        """Bounding box of the node
+
+        Box has the form [x, y, z, dx, dy, dz] where (x, y, z) is the
         left-front-bottom corner. All particles are assumed to lie inside.
         """
         return self._node.box
 
     @property
     def tag(self) -> str:
-        """
-        List of 1-based z-order indices describing the current box.
+        """List of 1-based z-order indices describing the current box.
+
         E.g. if assuming the unit bounding box, the box
         [0.25, 0.25, 0.75, 0.25, 0.25, 0.25] would be [5,1]
         """
@@ -151,9 +164,7 @@ except TypingError:
 
 @njit
 def _convert_array_to_tag_str(tag: NDArray[np.uint8]) -> str:
-    """
-    Convert array of ints to a str
-    """
+    """Convert array of ints to a str"""
     return "".join([str(t) for t in tag[: tag[63] + 1]])
 
 
@@ -186,19 +197,47 @@ def _create_from_current_node(node: CurrentNode) -> PackedNodeNumba:
     ]
 )
 class CurrentNode:
+    """
+    Jitclass implementation of a node in a PackedTree
+
+    Essentially, this class represents a pointer to a PackedTree node,
+    effectively acting as the current struct in the
+    [Structured Tree](https://packingcubes.readthedocs.io/en/latest/packed_format).
+    """
+
     index: int
+    """Index in the tree data array of this node"""
     node_start: int
+    """Starting index of the particles in this node"""
     node_end: int
+    """(Inclusive) Ending index of the particles in this node"""
     tag: NDArray[np.uint8]
     """
-    tag is a (64,) uint8 array where tag[63] is a pointer to the current level
-    So node 0264 would look like [0, 2, 6, 4, 0, 0, ..., 0, 3]
+    tag is a (64,) uint8 array where tag[63] is a pointer to the current level.
+    So node 0264 would look like `[0, 2, 6, 4, 0, 0, ..., 0, 3]`
     """
     child_flag: int
+    """
+    Bitflag where values signify which of the possible 8 children are present
+    e.g. 00010100 corresponds to the 3rd and 5th children. A leaf node has 
+    `child_flag==0`
+    """
     my_index: int
+    """
+    The index order of this node among it's 8 siblings. Root is 0
+    """
     level: int
+    """
+    This node's level in the tree. Root is 0
+    """
     empty: int
+    """
+    Currently unused metadata. Only values within [0,255] would be meaningful
+    """
     box: bbox.BoundingBox
+    """
+    The bounding box of this node. This is computed from the root node
+    """
 
     def __init__(
         self,
@@ -223,6 +262,7 @@ class CurrentNode:
         self.empty = empty
 
     def __len__(self):
+        """Return the number of particles in this node"""
         return self.node_end - self.node_start + 1
 
 
@@ -234,8 +274,7 @@ except TypingError:
 
 @njit
 def _update_node_state(node: CurrentNode, child_index: int, old_my_index: int):
-    """
-    Update the internal state of this node depending on tree taversal direction
+    """Update the internal state of this node depending on tree taversal direction
 
     This has been separated out of _update_current_node so that it can be used
     by _construct_node_recursive, since these parts are not directly encoded in
@@ -281,39 +320,29 @@ def _update_node_state(node: CurrentNode, child_index: int, old_my_index: int):
 
 @njit
 def get_name(node: CurrentNode) -> str:
-    """
-    Get the name (tag) of this CurrentNode
-    """
+    """Get the name (tag) of this CurrentNode"""
     return _convert_array_to_tag_str(node.tag)
 
 
 @njit
 def get_children(node: CurrentNode) -> list[int]:
-    """
-    Return a list of 0-based children indices for this CurrentNode
-    """
+    """Return a list of 0-based children indices for this CurrentNode"""
     return List([i for i in range(8) if node.child_flag & (1 << i)])
 
 
 @njit
 def is_leaf(node: CurrentNode) -> bool:
-    """
-    Return True if node is a leaf node
-    """
+    """Return True if node is a leaf node"""
     return not bool(node.child_flag)
 
 
 @njit
 def is_root(node: CurrentNode) -> bool:
-    """
-    Return True if node is the root node
-    """
+    """Return True if node is the root node"""
     return not node.index
 
 
 @njit
 def expand_range(node: CurrentNode) -> NDArray:
-    """
-    Return the array of indices contained within this node
-    """
+    """Return the array of indices contained within this node"""
     return np.arange(node.node_start, node.node_end + 1)

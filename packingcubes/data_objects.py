@@ -1,3 +1,30 @@
+"""
+Particle Datasets
+
+Classes
+-------
+GadgetishHDF5Dataset
+    Use to load HDF5 Datasets that look like Gadget-2 snapshots
+
+InMemory
+    Use to convert an in-memory array into a dataset
+
+HDF5Dataset
+    Abstract dataset, use as a base for custom subclassing for loading HDF5 data
+    (see e.g. [GadgetishHDF5Dataset][GadgetishHDF5Dataset])
+
+Dataset
+    Generic dataset class, use for typing
+
+MultiParticleDataset
+    Generic dataset class with multiple particle types, use for typing
+
+DataContainer
+    Effectively a view of a Dataset, only use within `jit`ted code
+
+
+"""
+
 from __future__ import annotations
 
 import contextlib
@@ -20,10 +47,14 @@ logging.captureWarnings(capture=True)
 
 
 class DatasetError(Exception):
+    """Error when loading or manipulating data in Datasets"""
+
     pass
 
 
 class DatasetWarning(UserWarning):
+    """Warning when loading or manipulating data in Datasets"""
+
     pass
 
 
@@ -36,6 +67,16 @@ class DatasetWarning(UserWarning):
     ]
 )
 class DataContainer:
+    """Jitclass for particle position information
+
+    This class is intended for use in jitted Numba code and is effectively a
+    view on a [Dataset][Dataset]'s postion and index data.
+
+    See Also
+    --------
+    [Dataset][Dataset], [Dataset.data_container][Dataset.data_container]
+    """
+
     _positions: NDArray
     _index: NDArray
     _box: bbox.BoundingBox
@@ -49,6 +90,7 @@ class DataContainer:
 
     @property
     def positions(self) -> NDArray[np.float64]:
+        """Return the particle position data"""
         return self._positions
 
     def _setup_index(self):
@@ -65,6 +107,7 @@ class DataContainer:
 
     @property
     def index(self) -> NDArray[np.int_]:
+        """Return the shuffle list, creating if necessary"""
         if not hasattr(self, "_index"):
             self._setup_index()
         return self._index
@@ -86,10 +129,12 @@ class DataContainer:
         self._index_dirty = True
 
     def __len__(self) -> int:
+        """Return the number of particles in the DataContainer"""
         return len(self._positions)
 
     @property
     def bounding_box(self) -> bbox.BoundingBox:
+        """Return the BoundingBox of the DataContainer"""
         return self._box.copy()
 
 
@@ -101,6 +146,7 @@ except TypingError:
 
 @njit
 def subview(data: DataContainer, start_index: int, end_index: int) -> DataContainer:
+    """Return a view of the DataContainer from start_index to end_index"""
     return DataContainer(
         data._positions[start_index:end_index],
         data._index[start_index:end_index],
@@ -109,8 +155,19 @@ def subview(data: DataContainer, start_index: int, end_index: int) -> DataContai
 
 
 class Dataset:
+    """
+    Base class for holding particle position data and associated shuffle list
+
+    This class is intended to be the primary interface for octree access to the
+    position data. Essentially, it abstracts where the data is and what it
+    looks like so the octrees only care about the position data (and more
+    specifically, its order)
+    """
+
     name: str
+    """A name for this dataset (can be empty)"""
     filepath: Path
+    """The path to this dataset (can be empty)"""
     _positions: np.ndarray
 
     def __init__(
@@ -130,6 +187,7 @@ class Dataset:
 
     @property
     def positions(self) -> NDArray:
+        """Return the particle position data"""
         return self._positions
 
     def _setup_index(self):
@@ -146,11 +204,13 @@ class Dataset:
 
     @property
     def index(self) -> NDArray:
+        """Return the shuffle list, creating if necessary"""
         if not hasattr(self, "_index"):
             self._setup_index()
         return self._index
 
     def reorder(self, new_order):
+        """Impose a new order on the position data and shuffle list"""
         self._positions = self._positions[new_order, :]
         self._index = self._index[new_order]
 
@@ -164,19 +224,20 @@ class Dataset:
         self._index_dirty = True
 
     def __len__(self) -> int:
+        """Return the number of particles in the dataset"""
         return len(self._positions)
 
     def __repr__(self) -> str:
+        """Return a string representation of this dataset"""
         return f"Dataset with {len(self)} particles and box {self.bounding_box}"
 
     @property
     def bounding_box(self) -> bbox.BoundingBox:
+        """Return a copy of the bounding box for this dataset"""
         return self._box.copy()
 
     def _set_bounding_box(self):
-        """
-        Compute bounding box from data
-        """
+        """Compute bounding box from data"""
         if len(self.positions):
             # sadly no numpy extrema function...
             extremes = np.array(
@@ -196,31 +257,49 @@ class Dataset:
 
     @property
     def data_container(self) -> DataContainer:
+        """Return the DataContainer wrapping this dataset"""
         if not hasattr(self, "_data"):
             self._data = DataContainer(self._positions, self._index, self._box)
         return self._data
 
 
 class MultiParticleDataset(Dataset, ABC):
+    """
+    Dataset containing multiple particle types
+
+    Multiple particle types are handled by exposing only one particle type at a
+    time.
+    """
+
     @property
     @abstractmethod
-    def particle_type(self) -> str: ...
+    def particle_type(self) -> str:
+        """Currently selected particle type"""
+        ...
+
     @particle_type.setter
     @abstractmethod
     def particle_type(self, new_type: str): ...
     @property
     @abstractmethod
-    def particle_types(self) -> list[str]: ...
+    def particle_types(self) -> list[str]:
+        """List of particle types in this dataset"""
+        ...
+
     @property
     @abstractmethod
-    def particle_numbers(self) -> dict[str, int]: ...
+    def particle_numbers(self) -> dict[str, int]:
+        """Number of particles of each type"""
+        ...
+
     @abstractmethod
-    def save(self): ...
+    def save(self):
+        """Save this dataset to disk"""
+        ...
 
 
 class InMemory(MultiParticleDataset):
-    """
-    In-memory Dataset
+    """In-memory Dataset
 
     Class for datasets where the positions data is entirely in-memory. These
     datasets generally are not expected to have a name or filepath and may
@@ -230,6 +309,15 @@ class InMemory(MultiParticleDataset):
     _particle_type: str = "PartType0"
 
     def __init__(self, *, positions: NDArray, name: str = "", filepath: str = ""):
+        """
+        Initialize an InMemory Dataset
+
+        Parameters
+        ----------
+        positions: NxM NDArray
+            Array containing particle position data.
+
+        """
         positions = np.atleast_2d(positions)
         if positions.shape[1] != 3 or len(positions.shape) > 2:
             raise ValueError(
@@ -249,6 +337,7 @@ class InMemory(MultiParticleDataset):
 
     @property
     def particle_type(self) -> str:
+        """Currently selected particle type"""
         return self._particle_type
 
     @particle_type.setter
@@ -257,21 +346,23 @@ class InMemory(MultiParticleDataset):
 
     @property
     def particle_types(self) -> list[str]:
+        """List of particle types in this dataset"""
         return [self._particle_type]
 
     @property
     def particle_numbers(self) -> dict[str, int]:
+        """Number of particles of each type"""
         return {self._particle_type: len(self)}
 
     def save(
         self,
         output_file: str | Path | None = None,
     ):
-        """
-        Save sorted particle data and shuffle-list to disk in an HDF5 file
+        """Save sorted particle data and shuffle-list to disk in an HDF5 file
 
-        Args:
-            output_file: str | Path, optional
+        Parameters
+        ----------
+        output_file: str | Path, optional
             The name of the output file. Note this field is optional to match
             the superclass, however, specifying None is equivalent to a NOOP.
         """
@@ -289,18 +380,19 @@ class InMemory(MultiParticleDataset):
 
 
 def _load_data_from_slices(dataset: h5py.Dataset, slices: list | None) -> NDArray:
-    """
-    Load dataset possibly by slices
+    """Load dataset possibly by slices
 
-    Args:
-        dataset: h5py Dataset
+    Parameters
+    ----------
+    dataset: h5py Dataset
         The dataset to load
 
-        slices: list of slices | None
+    slices: list of slices | None
         The list of slices into the dataset
 
-    Returns:
-        data: NDArray
+    Returns
+    -------
+    data: NDArray
         The (possibly) sliced dataset
     """
     if slices is None:
@@ -319,8 +411,7 @@ def _load_data_from_slices(dataset: h5py.Dataset, slices: list | None) -> NDArra
 
 
 class HDF5Dataset(MultiParticleDataset):
-    """
-    HDF5 Dataset
+    """HDF5 Dataset
 
     Base class for using HDF5 datasets. We will assume the entire **positions**
     array can be loaded into memory. We do **not** need to be able to load the
@@ -357,14 +448,18 @@ class HDF5Dataset(MultiParticleDataset):
         sorted_filepath: str | Path | None = None,
         data_slices=None,
     ):
-        """
-        Args:
-            sorted_filepath: str | Path, optional
+        """Initialize an HDF5Dataset
+
+        Parameters
+        ----------
+        sorted_filepath: str | Path, optional
             Optional file to store sorted position and shuffle-list data
 
-            data_slices: np.s_ | dict[str, np.s_], optional
+        data_slices: np.s_ | dict[str, np.s_], optional
             A numpy slice object or dictionary of slice objects per particle
             type. This can be used to load only a portion of the dataset.
+            Effectively, the dataset will be loaded as
+            `data = data[data_slice[0]:data_slice[1]:data_slice[3]]`
         """
         super().__init__(name=name, filepath=filepath)
 
@@ -377,8 +472,7 @@ class HDF5Dataset(MultiParticleDataset):
         self._set_bounding_box()
 
     def _preload(self, sorted_filepath: str | Path | None):
-        """
-        Method to load certain attributes at initialization
+        """Load certain attributes at initialization
 
         Must set _positions_field, _particle_types, _particle_numbers,
         _top_level_groups, _sorted_file_name and _particle_type
@@ -417,9 +511,7 @@ class HDF5Dataset(MultiParticleDataset):
 
     @property
     def particle_type(self):
-        """
-        Current particle type
-        """
+        """Current particle type"""
         return self._particle_type
 
     @particle_type.setter
@@ -435,22 +527,16 @@ class HDF5Dataset(MultiParticleDataset):
 
     @property
     def particle_types(self):
-        """
-        List of particle types in this dataset
-        """
+        """List of particle types in this dataset"""
         return self._particle_types
 
     @property
     def particle_numbers(self):
-        """
-        Map of particle types to numbers in this dataset
-        """
+        """Map of particle types to numbers in this dataset"""
         return self._particle_numbers
 
     def _load_positions(self):
-        """
-        Load particle positions from file for the current particle type
-        """
+        """Load particle positions from file for the current particle type"""
         filepath = self._sorted_file_name if self._prefer_cache else self.filepath
         with h5py.File(filepath, "r") as file:
             if self._prefer_cache:
@@ -477,12 +563,14 @@ class HDF5Dataset(MultiParticleDataset):
         *,
         output_file: str | Path | None = None,
     ):
-        """
-        Save sorted particle positions and shuffle list to provided file (cache if None)
+        """Save sorted particle positions and shuffle list to provided file
 
-        Args:
-            output_file: str | Path |None, optional
-            File to save information to. Default is self._sorted_file_name
+        If no output file is specified, will save to the cache file
+
+        Parameters
+        ----------
+        output_file: str | Path |None, optional
+            File to save information to. Default is `self._sorted_file_name`
         """
         output_file = self._sorted_file_name if output_file is None else output_file
         pt = self.particle_type
@@ -493,8 +581,7 @@ class HDF5Dataset(MultiParticleDataset):
 
 
 class GadgetishHDF5Dataset(HDF5Dataset):
-    """
-    HDF5 dataset with Gadget-2 like header
+    """HDF5 dataset with Gadget-2 like header
 
     Represents an HDF5 dataset that at least has the fields from the Gadget-2
     header specification [here](https://wwwmpa.mpa-garching.mpg.de/gadget/html/structio__header.html)

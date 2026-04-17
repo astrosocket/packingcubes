@@ -1,3 +1,5 @@
+"""Implmentation of single-particle-type packing cubes"""
+
 from __future__ import annotations
 
 import logging
@@ -34,12 +36,10 @@ LOGGER = logging.getLogger(__name__)
 
 
 class ParticleCubes:
-    """
-    The cubes for a single particle type
-    """
+    """The cubes for a single particle type"""
 
     cube_indices: NDArray
-    """ Array if cube indices into the dataset """
+    """ Array of cube indices into the dataset """
     cube_boxes: List[BoundingBox]
     """ The bounding boxes for each cube """
     cube_trees: list[PackedTree]
@@ -80,18 +80,21 @@ class ParticleCubes:
         self,
         shape: bbox.BoundingVolume,
     ) -> NDArray[np.int_]:
-        """
-        Return all particles contained within the shape
+        """Return all particles contained within the shape
 
         This is a private version that uses a premade bounding volume
 
-        Args:
-            shape: BoundingVolume
+        Parameters
+        ----------
+        shape: BoundingVolume
             The shape to search in
 
-        Returns:
-            indices: NDArray[int]
-            Array of particle start-stop indices contained within shape
+        Returns
+        -------
+        indices: Xx3 NDArray[np.int_]
+            Array of index information. Each row describes a chunk/slice of data
+            in the form `[start, stop, partial]`, where partial is a flag - (1)
+            if the data chunk is entirely contained within `shape`, (0) otherwise.
         """
         return get_particle_indices_in_shape(
             cubes=self.cube_boxes,
@@ -104,16 +107,19 @@ class ParticleCubes:
         self,
         box: bbox.BoxLike,
     ) -> NDArray[np.int_]:
-        """
-        Return all particles contained within the box
+        """Return all particles contained within the box
 
-        Args:
-            box: BoxLike
+        Parameters
+        ----------
+        box: BoxLike
             Box to check
 
-        Returns:
-            indices: NDArray[int]
-            Array of particle start-stop indices contained within box
+        Returns
+        -------
+        indices: Xx3 NDArray[np.int_]
+            Array of index information. Each row describes a chunk/slice of data
+            in the form `[start, stop, partial]`, where partial is a flag - (1)
+            if the data chunk is entirely contained within `box`, (0) otherwise.
         """
         numba_box = bbox.make_bounding_box(box)
 
@@ -124,19 +130,23 @@ class ParticleCubes:
         center: NDArray,
         radius: float,
     ) -> NDArray[np.int_]:
-        """
-        Return all particles contained within the sphere defined by center and radius
+        """Return all particles contained within the sphere defined by center and radius
 
-        Args:
-            center: NDArray
+        Parameters
+        ----------
+        center: NDArray
             Center point of the sphere
 
-            radius: float
+        radius: float
             Radius of the sphere
 
-        Returns:
-            indices: NDArray[int]
-            Array of particle start-stop indices contained within sphere
+        Returns
+        -------
+        indices: Xx3 NDArray[np.int_]
+            Array of index information. Each row describes a chunk/slice of data
+            in the form `[start, stop, partial]`, where partial is a flag - (1)
+            if the data chunk is entirely contained within the sphere, (0)
+            otherwise.
         """
         sph = bbox.make_bounding_sphere(center=center, radius=radius, unsafe=True)
 
@@ -150,30 +160,31 @@ class ParticleCubes:
         use_data_indices: bool = True,
         strict: bool = False,
     ) -> NDArray[np.int_]:
-        """
-        Return all particle indices contained within the shape
+        """Return all particle indices contained within the shape
 
-        This is a private version that uses a premade bounding volume
+         This is a private version that uses a premade bounding volume
 
-        Args:
-            data: DataContainer | Dataset
+        Parameters
+        ----------
+        data: DataContainer | Dataset
             Dataset containing the particle positions. Pass a DataContainer
             object for a slight performance increase
 
-            box: BoundingBox
+        box: BoundingBox
             The bounding box of the shape
 
-            use_data_indices: bool, optional
+        use_data_indices: bool, optional
             Flag to return indices into the sorted dataset (True, default) or
             into the shuffle list (False)
 
-            strict: bool, optional
+        strict: bool, optional
             Flag to specify whether only particles inside the shape will
             be returned. If False (default), additional nearby particles may be
             included for signficantly increased performance
 
-        Returns:
-            indices: Array[int]
+        Returns
+        -------
+        indices: Array[int]
             Array of particle indices contained within shape
         """
         return get_particle_index_list_in_shape(
@@ -193,28 +204,29 @@ class ParticleCubes:
         use_data_indices: bool = True,
         strict: bool = False,
     ) -> NDArray[np.int_]:
-        """
-        Return all particle indices contained within the box
+        """Return all particle indices contained within the box
 
-        Args:
-            data: DataContainer | Dataset
+        Parameters
+        ----------
+        data: DataContainer | Dataset
             Dataset containing the particle positions. Pass a DataContainer
             object for a slight performance increase
 
-            box: BoxLike
+        box: BoxLike
             The box to search in
 
-            use_data_indices: bool, optional
+        use_data_indices: bool, optional
             Flag to return indices into the sorted dataset (True, default) or
             into the shuffle list (False)
 
-            strict: bool, optional
+        strict: bool, optional
             Flag to specify whether only particles inside the shape will
             be returned. If False (default), additional nearby particles may be
             included for signficantly increased performance
 
-        Returns:
-            indices: Array[int]
+        Returns
+        -------
+        indices: Array[int]
             Array of particle indices contained within shape
         """
         numba_box = bbox.make_bounding_box(box)
@@ -234,31 +246,32 @@ class ParticleCubes:
         use_data_indices: bool = True,
         strict: bool = False,
     ) -> NDArray[np.int_]:
-        """
-        Return all particle indices contained within the sphere
+        """Return all particle indices contained within the sphere
 
-        Args:
-            data: DataContainer | Dataset
+        Parameters
+        ----------
+        data: DataContainer | Dataset
             Dataset containing the particle positions. Pass a DataContainer
             object for a slight performance increase
 
-            center: NDArray
+        center: NDArray
             Center point of the sphere
 
-            radius: float
+        radius: float
             Radius of the sphere
 
-            use_data_indices: bool, optional
+        use_data_indices: bool, optional
             Flag to return indices into the sorted dataset (True, default) or
             into the shuffle list (False)
 
-            strict: bool, optional
+        strict: bool, optional
             Flag to specify whether only particles inside the shape will
             be returned. If False (default), additional nearby particles may be
             included for signficantly increased performance
 
-        Returns:
-            indices: NDArray[int]
+        Returns
+        -------
+        indices: NDArray[int]
             Array of particle indices contained within the sphere
         """
         sph = bbox.make_bounding_sphere(radius, center=center, unsafe=True)
@@ -280,54 +293,55 @@ class ParticleCubes:
         return_shuffle_indices: bool | None = None,
         return_sorted: bool | None = None,
     ) -> tuple[NDArray, NDArray]:
-        """
-        Get kth nearest particle distances and indices to point
+        """Get kth nearest particle distances and indices to point.
 
-        Args:
-            data: DataContainer | Dataset
+        Parameters
+        ----------
+        data: DataContainer | Dataset
             Source of particle position data
 
-            xyz: ArrayLike
+        xyz: ArrayLike
             Coordinates of point to check
 
-            distance_upper_bound: nonnegative float, optional
+        distance_upper_bound: nonnegative float, optional
             Return only neighbors from other nodes within this distance. This
             is used for tree pruning, so if you are doing a series of
             nearest-neighbor queries, it may help to supply the distance to the
             nearest neighbor of the most recent point.
 
-            p: float, optional
+        p: float, optional
             Which Minkowski p-norm to use. 1 is the sum of absolute-values
             distance ("Manhattan" distance). 2 is the usual Euclidean distance.
             Infinity is the maximum-coordinate-difference distance. Currently,
             only p=2 is supported.
 
-            k: int, optional
+        k: int, optional
             Number of closest particles to return. Default 1
 
-            return_shuffle_indices: bool, optional
+        return_shuffle_indices: bool, optional
             Flag to return the shuffle indices instead of the data indices.
             Default False.
 
-            return_sorted: bool, optional
+        return_sorted: bool, optional
             Flag to return the distances and indices in distance-sorted order.
             Set to False for a performance boost. Default True
 
-        Returns:
-            distances: NDArray[float]
+        Returns
+        -------
+        distances: NDArray[float]
             Distances to the kth nearest neighbors. Has shape (min(N,k),),
             where N is the number of particles in the sphere bounded by
             distance_upper_bound
 
-            indices: NDArray[int]
+        indices: NDArray[int]
             Indices in data of the kth nearest neighbors. Has same shape as
             distances
 
-        Raises:
-            NotImplementedError
-            If a p value of then 2 is provided
+        Raises
+        ------
+        NotImplementedError
+            If a p value of greater than 2 is provided
         """
-
         p = 2 if p is None else p
         if p != 2:
             raise NotImplementedError("Only p=2 is currently supported")
@@ -369,7 +383,7 @@ class ParticleCubes:
     ):
         raise NotImplementedError(
             """
-            Still in progress. Try a PackedTree for this functionatlity
+            Still in progress. Try a PackedTree for this functionality
             """
         )
 
@@ -379,6 +393,22 @@ class ParticleCubes:
         *,
         force_overwrite: bool = False,
     ) -> Path:
+        """Save cubes information to specified file
+
+        Parameters
+        ----------
+        dataset: str | HDF5Dataset
+            Location to store cubes data.
+
+        force_overwrite: bool, optional
+            If dataset already contains cubes data, overwrite if True.
+            Default False
+
+        Returns
+        -------
+        :
+            Path to the saved cubes information
+        """
         dataset = check_overwrite(dataset, force_overwrite=force_overwrite)
         save_cube(
             dataset,
@@ -406,6 +436,33 @@ def has_cubes(dataset: str | Path | MultiParticleDataset):
 def check_overwrite(
     dataset: str | Path | HDF5Dataset, *, force_overwrite: bool = False
 ) -> str | Path | HDF5Dataset:
+    """
+     Check if it is safe to overwrite cubes structure, returning new file if not
+
+     It's safe to overwrite cubes structure in two cases:
+
+      1. It doesn't exist
+      2. It does exist and force_overwrite is True
+
+     If it's not safe to overwrite the cubes structure, return a path to a new
+     file, specified as `dataset.filepath.stem+"_cubes.hdf5"`. Note that we do
+     not check if the new filepath already exists, so this could clobber the
+     information in that file!
+
+    Parameters
+    ----------
+    dataset: str | Path | HDF5Dataset
+        The location to check
+    force_overwrite: bool, optional
+        Force writing the cubes structure in the provided file, even if one
+        already exists. Default False
+
+    Returns
+    -------
+    :
+        The location to write the cubes structure to
+
+    """
     if not has_cubes(dataset):
         return dataset
     if force_overwrite:
@@ -434,9 +491,7 @@ def save_cube(
     cube_boxes: list[bbox.BoundingBox],
     cube_trees: list[PackedTree],
 ):
-    """
-    Save an individual cube's data to the dataset
-    """
+    """Save an individual cube's data to the dataset"""
     filepath = dataset.filepath if isinstance(dataset, HDF5Dataset) else dataset
     with h5py.File(filepath, "a") as file:
         cubes = file.create_group(f"cubes/{pt}")

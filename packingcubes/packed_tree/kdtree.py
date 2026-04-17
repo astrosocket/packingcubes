@@ -1,3 +1,5 @@
+"""Module containing Scipy's KDTree API equivalents"""
+
 from __future__ import annotations
 
 import logging
@@ -23,16 +25,19 @@ logging.captureWarnings(capture=True)
 
 
 class KDTreeWarning(octree.OctreeWarning):
+    """Warning for differences in API"""
+
     pass
 
 
 class KDTreeError(octree.OctreeError):
+    """Error for irreconcilable differences in API"""
+
     pass
 
 
 def _check_data_shape(*, data: ArrayLike, copy_data: bool) -> tuple[NDArray, bool]:
-    """
-    Check shape of provided data and coerce to 3D if possible
+    """Check shape of provided data and coerce to 3D if possible
 
     Args:
         data: NDArray
@@ -41,7 +46,8 @@ def _check_data_shape(*, data: ArrayLike, copy_data: bool) -> tuple[NDArray, boo
         copy_data: bool
         Whether the data should be copied if it's already (N,3)
 
-    Returns:
+    Returns
+    -------
         data: NDArray
         An (N,3) version of data
 
@@ -49,7 +55,8 @@ def _check_data_shape(*, data: ArrayLike, copy_data: bool) -> tuple[NDArray, boo
         Whether the data was copied. data_copied=copy_data if data was already
         (N,3), otherwise True
 
-    Raises:
+    Raises
+    ------
         KDTreeError if provided data cannot be coerced to (N,3)
     """
     data = np.atleast_2d(np.squeeze(data))
@@ -105,8 +112,7 @@ def _process_boxsize(boxsize, data_box: bbox.BoundingBox) -> bbox.BoundingBox:
 
 
 class KDTreeAPI:
-    """
-    Class to mimic the SciPy KDTree API using PackedTrees
+    """Class to mimic the SciPy KDTree API using PackedTrees
 
     Will provide identical API to SciPy's KDTree to the extent possible given
     that PackedTrees are fundamentally different. Where 1-1 matches for a
@@ -120,48 +126,49 @@ class KDTreeAPI:
     Note that multiple degenerate regions are acceptable, assuming they are
     sufficiently separated.
 
-    Args:
-        data : array_like, shape (n,m) | Dataset
-        The n m-dimensional data points to be indexed. This array is
+    Parameters
+    ----------
+    data : array_like, shape (n,m) | Dataset
+        The `n` `m`-dimensional data points to be indexed. This array is
         preferentially not copied and will be sorted in place, so modifying
         this data will result in bogus results. The data are also copied if
         the kd-tree is built with copy_data=True. Note: PackedTrees are
         intended to support 3-dimensional data, so m>3 is not supported. For
-        m<3, the data is padded with zeros (e.g. [[1, 2], [3, 4]] will become
-        [[1, 2, 0], [3, 4, 0]]). This will lead to the data being copied.
+        m<3, the data is padded with zeros (e.g. `[[1, 2], [3, 4]]` will become
+        `[[1, 2, 0], [3, 4, 0]]`). This will lead to the data being copied.
         Can also pass in a Dataset directly for improved creation time.
 
-        leafsize : positive int, optional
+    leafsize : positive int, optional
         The number of points at which the algorithm switches over to
-        brute-force.  Default: 400.
+        brute-force.  Default: `400`.
 
-        compact_nodes : bool, optional
+    compact_nodes : bool, optional
         This parameter is irrelevant for PackedTrees and is only provided
-        to match the KDTree API.
+        to match the `KDTree` API.
 
-        copy_data : bool, optional
-        If True the data is copied to protect the kd-tree against
+    copy_data : bool, optional
+        If `True` the data is copied to protect the kd-tree against
         data corruption and to prevent the original data from being sorted.
-        Default: False.
+        Default: `False`.
 
-        balanced_tree : bool, optional
-        PackedTrees are always split at the bounding box midpoint, so this
-        option is only provided to match the KDTree API
+    balanced_tree : bool, optional
+        `PackedTree`s are always split at the bounding box midpoint, so this
+        option is only provided to match the `KDTree` API
 
-        boxsize : array_like or scalar, optional
+    boxsize : array_like or scalar, optional
         Provide an explicit bounding box for the data in the form
-        [x_min, y_min, z_min, dx, dy, dz]. If len(boxsize)==3, x_min = y_min =
-        z_min = 0. If boxsize is a scalar, dx = dy = dz = boxsize. Other
-        boxsize lengths are unsupported. Scipy's KDTree will impose a toroidal
+        `[x_min, y_min, z_min, dx, dy, dz]`. If `len(boxsize)==3`, `x_min = y_min =
+        z_min = 0`. If `boxsize`` is a scalar, `dx = dy = dz = boxsize`. Other
+        `boxsize` lengths are unsupported. SciPy's `KDTree` will impose a toroidal
         topology in addition; this functionality is currently unsupported.
 
-        cubes_per_side: int, optional
+    cubes_per_side: int, optional
         Size of the top-level grid. Must be between 3 and 32 or -1 (default).
         The default uses the number of available threads to ensure there are
         more grid cells than threads.
 
-        save_dataset: bool, optional
-        If data is a dataset, save sorted positions/indices to file. Default False
+    save_dataset: bool, optional
+        If data is a dataset, save sorted positions/indices to file. Default `False`
     """
 
     _cubes: cubes.ParticleCubes
@@ -182,7 +189,7 @@ class KDTreeAPI:
     """
     data: NDArray
     """
-    The n data points of dimension m to be indexed. The data is only copied if
+    The `n` data points of dimension `m` to be indexed. The data is only copied if
     the "kd-tree" is built with copy_data=True.
     """
     n: int
@@ -195,11 +202,11 @@ class KDTreeAPI:
     """
     maxs: NDArray
     """
-    The maximum value in each dimension of the n data points
+    The maximum value in each dimension of the `n` data points
     """
     mins: NDArray
     """
-    The minimum value in each dimension of the n data points
+    The minimum value in each dimension of the `n` data points
     """
     size: int
     """
@@ -290,9 +297,7 @@ class KDTreeAPI:
 
     @property
     def sort_index(self):
-        """
-        The shuffle list for the original data, aka self.data = data[self.sort_index]
-        """
+        """Shuffle list for the original data, ie self.data = data[self.sort_index]"""
         if self._copied:
             warnings.warn(
                 """
@@ -317,8 +322,7 @@ class KDTreeAPI:
         return_data_indices: bool,
         return_sorted: bool,
     ) -> tuple[float | NDArray, int | NDArray]:
-        """
-        Private helper that wraps the PackedTree get_closest_particles method
+        """Private helper that wraps the PackedTree get_closest_particles method
 
         See query for argument definitions
         """
@@ -357,61 +361,64 @@ class KDTreeAPI:
         return_data_indices: bool | None = None,
         return_sorted: bool | None = None,
     ) -> tuple[float | NDArray, int | NDArray]:
-        """
-        Query the KDTree for nearest neighbors
+        """Query the KDTree for nearest neighbors
 
-        Args:
-            x: NDArray
+        Parameters
+        ----------
+        x: NDArray
             An array of points to query
 
-            k: int | Sequence[int], optional
+        k: int | Sequence[int], optional
             Either the number of nearest neighbors to return or a list of the
-            kth nearest neighbors to return, starting from 1. E.g., [2,3] will
+            kth nearest neighbors to return, starting from 1. E.g., `[2,3]` will
             return the 2nd and 3rd nearest neighbors
 
-            eps: nonnegative float, optional
+        eps: nonnegative float, optional
             Return approximate nearest neighbors; Note that this parameter is
             unused
 
-            p: 1<=p<=infinity, optional
+        p: 1<=p<=infinity, optional
             The Minkowski p-norm to use. 1 is the sum of absolute-values
             distance ("Manhattan" distance). 2 is the Euclidean distance.
             infinity is the maximum-coordinate-difference distance. Currently
             only p=2 is supported
 
-            distance_upper_bound: nonnegative float, optional
+        distance_upper_bound: nonnegative float, optional
             Return only neighbors from other nodes within this distance. This
             is used for tree pruning, so if you are doing a series of
             nearest-neighbor queries, it may help to supply the distance to the
             nearest neighbor of the most recent point.
 
-            workers: int, optional
+        workers: int, optional
             Number of workers to use for parallel processing. Only 1 is
             supported, for more, see Cubes
 
-            return_data_indices: bool | None, optional
+        return_data_indices: bool | None, optional
             Return indices into the sorted data if True instead of into the
             original. Specify None to have this set by the copy_data argument
             used during tree construction.
 
-            return_sorted: bool, optional
+        return_sorted: bool, optional
             Flag to return the distances and indices in distance-sorted order.
-            Set to False for a performance boost. Default True
+            Set to `False` for a performance boost. Default `True`
 
-        Returns:
-            d: float or array of floats
-            The distances to the nearest neighbors. If x has shape
-            tuple+(self.m,), then d has shape tuple+(k,). When k==1, the last
-            dimension of the output is squeezed. Missing neighbors are
+        Returns
+        -------
+        d: float or array of floats
+            The distances to the nearest neighbors. If `x` has shape
+            `tuple+(self.m,)`, then `d` has shape `tuple+(k,)`. When `k==1`,
+            the last dimension of the output is squeezed. Missing neighbors are
             indicated with infinite distances. Hits are sorted by distance
             (nearest first)
 
-            i: integer or array of integers
-            The index of each neighbor in self.data. i is the same shape as d.
-            Missing neighbors are indicated with self.n.
+        i: integer or array of integers
+            The index of each neighbor in `self.data`. `i` is the same shape as
+            `d`. Missing neighbors are indicated with `self.n`.
 
-        Raises:
-            NotImplementedError if p!=2
+        Raises
+        ------
+        NotImplementedError
+            if `p!=2`
 
         """
         x, _ = _check_data_shape(data=x, copy_data=False)
@@ -473,9 +480,7 @@ class KDTreeAPI:
         return_data_indices: bool,
         strict: bool = False,
     ) -> int | list[int] | NDArray:
-        """
-        Private method to actually compute the query after inputs validated
-        """
+        """Private method to actually compute the query after inputs validated"""
         if return_length:
             # psuedocode:
             # for center in centers:
@@ -533,67 +538,74 @@ class KDTreeAPI:
         return_data_indices: bool | None = None,
         strict: bool | None = None,
     ) -> int | list[int] | NDArray:
-        """
-        Find all points within distance r of point(s) x.
+        """Find all points within distance r of point(s) x.
 
-        Args:
-            x : array_like, shape tuple + (self.m,)
-                The point or points to search for neighbors of.
-            r : array_like, float
-                The radius of points to return, must broadcast to the length of x.
-            p : float, optional
-                Which Minkowski p-norm to use.  Should be in the range [1, inf].
-                A finite large p may cause a ValueError if overflow can occur.
-            eps : nonnegative float, optional
-                Approximate search. Branches of the tree are not explored if their
-                nearest points are further than ``r / (1 + eps)``, and branches are
-                added in bulk if their furthest points are nearer than
-                ``r * (1 + eps)``.
-            workers : int, optional
-                Number of jobs to schedule for parallel processing. If -1 is given
-                all processors are used. Default: -1. Note: SciPy's kdtree
-                parallelizes across the number of points queried. Thus, querying
-                on a single point gets no speed-up from parallelization. We
-                parallelize on single point queries, thus the different default
+        Parameters
+        ----------
+        x : array_like, shape tuple + (self.m,)
+            The point or points to search for neighbors of.
 
-            return_sorted : bool, optional
-                Sorts returned indices if True and does not sort them if False. If
-                None, does not sort single point queries, but does sort
-                multi-point queries which was the behavior before this option
-                was added. Default False.
+        r : array_like, float
+            The radius of points to return, must broadcast to the length of `x`.
 
-            return_length : bool, optional
-                Return the number of points inside the radius instead of a list
-                of the indices. Note that this is much faster for large trees.
+        p : float, optional
+            Which Minkowski `p`-norm to use.  Should be in the range `[1, inf]`.
+            A finite large `p` may cause a `ValueError` if overflow can occur.
 
-            return_lists : bool, optional
-                Force returning lists instead of arrays. PackedTrees return
-                arrays of indices by default, but this doesn't match the
-                expected query_ball_point signature. To exactly match SciPy,
-                set this to False.
+        eps : nonnegative float, optional
+            Approximate search. Branches of the tree are not explored if their
+            nearest points are further than ``r / (1 + eps)``, and branches are
+            added in bulk if their furthest points are nearer than
+            ``r * (1 + eps)``.
 
-            return_data_indices: bool | None, optional
-                Return indices into the sorted data if True instead of into the
-                original. Specify None to have this set by the copy_data argument
-                used during tree construction.
+        workers : int, optional
+            Number of jobs to schedule for parallel processing. If -1 is given
+            all processors are used. Default: -1. Note: SciPy's kdtree
+            parallelizes across the number of points queried. Thus, querying
+            on a single point gets no speed-up from parallelization. We
+            parallelize on single point queries, thus the different default
 
-            strict: bool, optional
-                If False, compare only the approximate node distance. Should be
-                significantly faster, but may include some amount of false
-                positives. Default True
+        return_sorted : bool, optional
+            Sorts returned indices if `True` and does not sort them if `False`. If
+            `None`, does not sort single point queries, but does sort
+            multi-point queries which was the behavior before this option
+            was added. Default `False`.
 
-        Returns:
-            results : list or array of lists
-                If `x` is a single point, returns a list of the indices of the
-                neighbors of `x`. If `x` is an array of points, returns an object
-                array of shape tuple containing lists of neighbors.
+        return_length : bool, optional
+            Return the number of points inside the radius instead of a list
+            of the indices. Note that this is much faster for large trees.
 
-        Notes:
+        return_lists : bool, optional
+            Force returning lists instead of arrays. `PackedTree`s return
+            arrays of indices by default, but this doesn't match the
+            expected query_ball_point signature. To exactly match SciPy,
+            set this to `True`.
+
+        return_data_indices: bool | None, optional
+            Return indices into the sorted data if `True` instead of into the
+            original. Specify `None` to have this set by the copy_data argument
+            used during tree construction.
+
+        strict: bool, optional
+            If `False`, compare only the approximate node distance. Should be
+            significantly faster, but may include some amount of false
+            positives. Default `True`
+
+        Returns
+        -------
+        results : list or array of lists
+            If `x` is a single point, returns a list of the indices of the
+            neighbors of `x`. If `x` is an array of points, returns an object
+            array of shape tuple containing lists of neighbors.
+
+        Notes
+        -----
         If you have many points whose neighbors you want to find, you may save
         substantial amounts of time by putting them in a KDTree and using
-        query_ball_tree.
+        [query_ball_tree][query_ball_tree].
 
-        Examples:
+        Examples
+        --------
         >>> import numpy as np
         >>> from scipy import spatial
         >>> x, y = np.mgrid[0:5, 0:5]
@@ -689,9 +701,7 @@ class KDTreeAPI:
         return_lists: bool,
         return_sorted: bool,
     ) -> list[list[int]] | list[NDArray[np.int64]]:
-        """
-        Private wrapper method for PackedTree's _get_pilis_tree
-        """
+        """Private wrapper method for PackedTree's _get_pilis_tree"""
         pil = self._cubes._get_pilis_cubes(
             data=self._data_container,
             odata=other._data_container,
@@ -737,52 +747,55 @@ class KDTreeAPI:
         return_lists: bool | None = None,
         return_sorted: bool | None = None,
     ) -> list[list[int]] | list[NDArray[np.int64]]:
-        """
-        Find all pairs of points between self and other whose distance is at most r.
+        """Find all pairs of points between self and other whose distance is at most r.
 
-        Args:
-            other: KDTree
+        Parameters
+        ----------
+        other: KDTree
             The tree containing points to search against
 
-            r: float
+        r: float
             The maximum distance, has to be positive
 
-            p: float, optional
-            Which Minkowski norm to use. p has to meet the condition 1 <= p <= infinity
+        p: float, optional
+            Which Minkowski norm to use. `p` has to meet the condition
+            `1 <= p <= infinity`
 
-            eps: float, optional
+        eps: float, optional
             Approximate search. Branches of the tree are not explored if their
             nearest points are further than `r/(1+eps)`, and branches are added
             in bulk if their furthest points are nearer than `r * (1+eps)`. eps
             has to be non-negative.
 
-            strict: bool, optional
-            If False, compare only the approximate node distance. Should be
+        strict: bool, optional
+            If `False`, compare only the approximate node distance. Should be
             significantly faster, but may include substantial amounts of false
-            positives. Default True
+            positives. Default `True`
 
-            return_lists: bool, optional
-            Force returning lists instead of arrays. PackedTrees return
+        return_lists: bool, optional
+            Force returning lists instead of arrays. `PackedTree`s return
             arrays of indices by default, but this doesn't match the
-            expected query_ball_point signature. For a slight performance
-            increase, set this to False
+            expected `query_ball_tree` signature. For a slight performance
+            increase, set this to `False`
 
-            return_sorted: bool, optional
-            Force returning sorted lists. If the copy_data flag was passed
+        return_sorted: bool, optional
+            Force returning sorted lists. If the `copy_data` flag was passed
             during tree construction, the data used to generate the results
             may be in a different order than originally imposed. For example,
-            results[0] = [5, 1, 2]. If order of output is important, set this
-            flag to True, at a performance penalty.
+            `results[0] = [5, 1, 2]`. If order of output is important, set this
+            flag to `True`, at a performance penalty.
 
-        Returns:
-            results: list of lists
+        Returns
+        -------
+        results: list of lists
             For each element `self.data[i]` of this tree, `results[i]` is a
             list of the indices of its neighbors in other.data
 
-        Raises:
-            NotImplementedError if p!=2
+        Raises
+        ------
+        NotImplementedError
+            if p!=2
         """
-
         if r <= 0:
             raise ValueError("r must be positive")
 
@@ -819,9 +832,7 @@ class KDTreeAPI:
     def _query_pairs(
         self, *, r: float, strict: bool, return_set: bool
     ) -> set | NDArray:
-        """
-        Private wrapper method for PackedTree's _get_pilis_tree
-        """
+        """Private wrapper method for PackedTree's _get_pilis_tree"""
         pil = self._cubes._get_pilis_cubes(
             data=self._data_container,
             odata=self._data_container,
@@ -863,39 +874,42 @@ class KDTreeAPI:
         output_type: str | None = None,
         strict: bool | None = None,
     ) -> set | NDArray:
-        """
-        Find all pairs of points in self whose distance is at most r.
+        """Find all pairs of points in self whose distance is at most r.
 
-        Args:
-            r: float
+        Parameters
+        ----------
+        r: float
             The maximum distance, has to be positive
 
-            p: float, optional
-            Which Minkowski norm to use. p has to meet the condition 1 <= p <= infinity
+        p: float, optional
+            Which Minkowski norm to use. `p` has to meet the condition
+            `1 <= p <= infinity`
 
-            eps: float, optional
+        eps: float, optional
             Approximate search. Branches of the tree are not explored if their
             nearest points are further than `r/(1+eps)`, and branches are added
             in bulk if their furthest points are nearer than `r * (1+eps)`. eps
             has to be non-negative.
 
-            output_type: str, optional
+        output_type: str, optional
             Choose the output container, 'set' or 'ndarray'. Default: 'set'
 
-            strict: bool, optional
-            If False, compare only the approximate node distance. Should be
+        strict: bool, optional
+            If `False`, compare only the approximate node distance. Should be
             significantly faster, but may include substantial amounts of false
-            positives. Default True
+            positives. Default `True`
 
-
-        Returns:
-            results: set or NDArray
-            Set of pairs (i, j) with i<j, for which the corresponding positions
+        Returns
+        -------
+        results: set or NDArray
+            Set of pairs `(i, j)` with `i<j`, for which the corresponding positions
             are close. If output_type is 'ndarray', an ndarray is returned
             instead of a set.
 
-        Raises:
-            NotImplementedError if p!=2
+        Raises
+        ------
+        NotImplementedError
+            if p!=2
         """
         if r <= 0:
             raise ValueError("r must be positive")
@@ -934,6 +948,60 @@ class KDTreeAPI:
         weights: tuple[float | None, float | None] | NDArray | None = None,
         cumulative: bool | None = None,
     ) -> int | float | NDArray:
+        """
+        Count how many nearby pairs can be formed.
+
+        Count the number of pairs `(x1, x2)` can be formed, with `x1` drawn from
+        `self` and `x2` drawn from `other`, and where `distance(x1, x2, p)`
+        `<= r`.
+
+        Data points on `self` and `other` are optionally weighted by the `weights`
+        argument. (See below)
+
+        WARNING
+        -------
+        Not currently implemented.
+
+        Parameters
+        ----------
+        other: KDTree
+            The other tree to draw points from, can be the same tree as self
+        r: float or one-dimensional array of floats
+            The radius to produce a count for. Mulltiple radii are searched
+            with a single tree traversal. If the count is non-cumulative
+            (`cumulative=False`), `r` defines the edges of the bins, and
+            must be non-decreasing
+        p: float, 1 <= p <= infinity
+            Which Minkowski p-norm to use. Default 2.0. A finite large p
+            may cause a `ValueError` if overflow can occur
+        weights: tuple, array_like, or None, optional
+            If None, the pair-counting is unweighted. If given as a tuple,
+            `weights[0]` is the weights of points in `self`, and
+            `weights[1]` is the weights of points in `other`; either can
+            be None to indicate the points are unweighted. If given as an
+            array_like, `weights` is the weights of points in `self` and
+            `other`. For this to make sense, `self` and `other` must be the
+            same tree. If `self` and `other` are two different trees, a
+            `ValueError` is raised. Default: None
+        cumulative: bool, optional
+            Whether the returned counts are cumulative. When `cumulative` is
+            set to `False` the algorithm is optimized to work with a large
+            number of bins (>10) specified by `r`. When `cumulative` is set
+            to `True`, the algorithm is optimized to work with a small
+            number of `r`. Default: True
+
+        Returns
+        -------
+        result: scalar or 1-D array
+            The number of pairs. For unweighted counts, the result is
+            integer. For weighted counts, the result is float. If
+            `cumulative` is `False`, `result[i]` contains the counts with
+            `(-inf if i == 0 else r[i-1]) < R <= r[i]`
+
+        Raises
+        ------
+        NotImplementedError
+        """
         raise NotImplementedError()
 
     def sparse_distance_matrix(
@@ -944,4 +1012,36 @@ class KDTreeAPI:
         p: float | None = None,
         output_type: str | None = None,
     ) -> dict[int, int] | NDArray:
+        """
+        Compute a sparse distance matrix
+
+        Computes a distance matrix between two KDTrees, leaving as zero any
+        distance greater than max_distance.
+
+        WARNING
+        -------
+        Not currently implemented.
+
+        Parameters
+        ----------
+        other: KDTree
+        max_distance: positive float
+        p: float, 1 <= p <= infinity
+            Which Minkowski p-norm to use. A finite large p may cause a
+            `ValueError` if overflow can occur
+        output_type: ["dok_matrix", "coo_matrix", "dict", "ndarray""]
+            Which container to use for output data. Default: "dok_matrix"
+
+        Returns
+        -------
+        result: dok_matrix, coo_matrix, dict, or ndarray
+            Sparse matrix representing the results in a "dictionary of
+            keys" format. If a dict is returned the keys are (i,j) tuples
+            of indices. If output_type is "ndarray" a record array with
+            fields "i", "j", and "v" is returned.
+
+        Raises
+        ------
+        NotImplementedError
+        """
         raise NotImplementedError()

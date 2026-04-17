@@ -1,3 +1,8 @@
+"""packed_tree Package
+
+Implementation of the Packed Octree data structure
+"""
+
 from packingcubes.packed_tree.kdtree import KDTreeAPI as KDTree
 from packingcubes.packed_tree.packed_tree import PackedTree as PackedTree
 from packingcubes.packed_tree.packed_tree_meta import (

@@ -1,3 +1,5 @@
+"""Determine configuration for packingcubes"""
+
 import logging
 import os
 import tomllib
@@ -49,6 +51,7 @@ def _get_default_cfg() -> dict:
 
 
 def update_cfg(pccfg: dict, config_file: str):
+    """Update the configuration data stored in config_file"""
     try:
         with open(config_file, "rb") as fh:
             data = tomllib.load(fh)
@@ -64,6 +67,7 @@ def update_cfg(pccfg: dict, config_file: str):
 
 
 def get_packingcubes_config() -> dict:
+    """Get the packingcubes configuration data"""
     pccfg = _get_default_cfg()
     local_config = _get_local_config_file()
     global_config = _get_global_config_file()
@@ -79,6 +83,7 @@ pccfg = get_packingcubes_config()
 
 
 def get_test_data_dir_path():
+    """Return the path to the test data directory if set"""
     p = Path(pccfg["test_data_dir"]).expanduser()
     if p.is_dir():
         return p
