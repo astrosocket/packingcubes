@@ -23,7 +23,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 class MultiCubes:
-    cubes_dict: dict[str, ParticleCubes]
+    _cubes_dict: dict[str, ParticleCubes]
     """ Mapping from particle type to ParticleCubes for this dataset """
 
     def __init__(
@@ -32,7 +32,7 @@ class MultiCubes:
         cubes_dict: dict[str, dict],
         **kwargs,
     ):
-        self.cubes_dict = {}
+        self._cubes_dict = {}
         for pt, cubes in cubes_dict.items():
             cube_indices = cast(NDArray, cubes["cube_indices"])
             cube_boxes = cast(list[bbox.BoundingBox], cubes["cube_boxes"])
@@ -40,7 +40,7 @@ class MultiCubes:
                 list[PackedTree] | list[NDArray] | list[PackedTree | NDArray],
                 cubes["cube_trees"],
             )
-            self.cubes_dict[pt] = ParticleCubes(
+            self._cubes_dict[pt] = ParticleCubes(
                 cube_indices=cube_indices,
                 cube_boxes=cube_boxes,
                 cube_trees=cube_trees,
@@ -49,13 +49,13 @@ class MultiCubes:
 
     @property
     def particle_types(self):
-        return self.cubes_dict.keys()
+        return self._cubes_dict.keys()
 
     def get_single_cubes(self, particle_type: str) -> ParticleCubes:
         """
         Return the ParticleCubes instance corresponding to the specified type.
         """
-        return self.cubes_dict[particle_type]
+        return self._cubes_dict[particle_type]
 
     def _get_particle_indices_in_shape(
         self,
@@ -86,7 +86,7 @@ class MultiCubes:
             particle_types = [particle_types]
         inds = {}
         for pt in particle_types:
-            inds[pt] = self.cubes_dict[pt]._get_particle_indices_in_shape(
+            inds[pt] = self._cubes_dict[pt]._get_particle_indices_in_shape(
                 shape,
             )
         return inds
@@ -192,7 +192,7 @@ class MultiCubes:
         data = data.data_container if isinstance(data, Dataset) else data
         inds = {}
         for pt in particle_types:
-            inds[pt] = self.cubes_dict[pt]._get_particle_index_list_in_shape(
+            inds[pt] = self._cubes_dict[pt]._get_particle_index_list_in_shape(
                 data,
                 shape,
                 use_data_indices=use_data_indices,
@@ -362,7 +362,7 @@ class MultiCubes:
         data = data.data_container if isinstance(data, Dataset) else data
         inds = {}
         for pt in particle_types:
-            inds[pt] = self.cubes_dict[pt].get_closest_particles(
+            inds[pt] = self._cubes_dict[pt].get_closest_particles(
                 data=data,
                 xyz=xyz,
                 distance_upper_bound=distance_upper_bound,
@@ -392,7 +392,7 @@ class MultiCubes:
         """
         dataset = check_overwrite(dataset, force_overwrite=force_overwrite)
 
-        for pt, cubes in self.cubes_dict.items():
+        for pt, cubes in self._cubes_dict.items():
             save_cube(
                 dataset,
                 pt=pt,
