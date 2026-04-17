@@ -7,6 +7,7 @@ from packingcubes.cubes.cubes_creation import (
 from packingcubes.cubes.cubes_creation import (
     make_cubes as make_cubes,
 )
+from packingcubes.cubes.cubes_creation import make_MultiCubes as make_MultiCubes
 from packingcubes.cubes.cubes_creation import (
     make_ParticleCubes as make_ParticleCubes,
 )
@@ -20,4 +21,5 @@ __all__ = [
     "make_ParticleCubes",
     "MultiCubes",
     "ParticleCubes",
+    "make_MultiCubes",
 ]

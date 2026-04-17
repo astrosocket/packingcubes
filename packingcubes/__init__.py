@@ -5,9 +5,6 @@ from packingcubes.cubes import (
     Cubes as Cubes,
 )
 from packingcubes.cubes import (
-    MultiCubes as MultiCubes,
-)
-from packingcubes.cubes import (
     ParticleCubes as ParticleCubes,
 )
 from packingcubes.cubes import make_cubes as make_cubes
@@ -36,7 +33,6 @@ __all__ = [
     "make_cubes",
     "Cubes",
     "ParticleCubes",
-    "MultiCubes",
     "make_ParticleCubes",
     "__version__",
 ]

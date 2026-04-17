@@ -436,7 +436,7 @@ def Cubes(
     dataset: str | NDArray | MultiParticleDataset | None = None,
     cubes_dict: dict[str, dict] | None = None,
     **kwargs,
-) -> ParticleCubes | MultiCubes:
+) -> ParticleCubes | dict[str, ParticleCubes]:
     if cubes_dict is None and dataset is None:
         raise CubesError("Must provide either a cubes_dict or dataset!")
     dataset = (
@@ -467,7 +467,7 @@ def Cubes(
     if len(cubes_dict) == 1:
         cubes = next(iter(cubes_dict.values()))
         return ParticleCubes(**cubes, **kwargs)
-    return MultiCubes(cubes_dict=cubes_dict, **kwargs)
+    return MultiCubes(cubes_dict=cubes_dict, **kwargs)._cubes_dict
 
 
 def make_ParticleCubes(**kwargs) -> ParticleCubes:
@@ -479,10 +479,29 @@ def make_ParticleCubes(**kwargs) -> ParticleCubes:
         raise CubesError(
             f"""
             Multiple particle types present. Please specify one of 
-            {cubes.particle_types} as particle_types=PARTICLE_TYPE.
+            {list(cubes.keys())} as particle_types="PARTICLE_TYPE".
             """
         )
     return cubes
+
+
+def make_MultiCubes(**kwargs) -> MultiCubes:
+    """
+    Make MultiCubes object from dataset even if there is only one particle type
+
+    Parameters
+    ----------
+    **kwargs
+        Refer to [Cubes][Cubes] documentation for a list of all posssible
+        arguments
+    """
+    cubes = Cubes(**kwargs)
+    multi = MultiCubes(cubes_dict={})
+    pt = "particles"
+    if "dataset" in kwargs and isinstance(kwargs["dataset"], MultiParticleDataset):
+        pt = kwargs["dataset"].particle_type
+    multi._cubes_dict = {pt: cubes} if isinstance(cubes, ParticleCubes) else cubes
+    return multi
 
 
 if __name__ == "__main__":
@@ -504,6 +523,6 @@ if __name__ == "__main__":
         save_dataset=not args.no_save_dataset,
     )
     LOGGER.info(cubes_dict.keys())
-    cubes = Cubes(dataset=dataset, cubes_dict=cubes_dict)
+    cubes = make_MultiCubes(dataset=dataset, cubes_dict=cubes_dict)
     if args.output:
         cubes.save(args.output)
