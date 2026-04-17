@@ -53,7 +53,7 @@ rng = np.random.default_rng(0xBA55ADE89)
 _DEFAULT_QUERY_SIZE = 100
 
 
-def get_random_data(random_size: int) -> data_objects.InMemory:
+def _get_random_data(random_size: int) -> data_objects.InMemory:
     return data_objects.InMemory(positions=rng.random((random_size, 3)) * 1000)
 
 
@@ -76,7 +76,6 @@ def _create_loading_pattern(filepath: str, loading_factor: int | None = None):
         slices: list of slices or None
         List of chunky slices or None if loading_factor is None or 1
     """
-
     if loading_factor is None or loading_factor == 1:
         return None
 
@@ -107,7 +106,7 @@ def _create_loading_pattern(filepath: str, loading_factor: int | None = None):
     return loading_pattern
 
 
-def load_data(
+def _load_data(
     snapshot: str, loading_factor: int | None
 ) -> data_objects.GadgetishHDF5Dataset:
     LOGGER.debug("Beginning data loading")
@@ -132,13 +131,13 @@ def get_data(
     snapshot: str | None, *, loading_factor: int | None, random_size: int
 ) -> data_objects.MultiParticleDataset:
     return (
-        load_data(snapshot, loading_factor)
+        _load_data(snapshot, loading_factor)
         if snapshot is not None
-        else get_random_data(random_size)
+        else _get_random_data(random_size)
     )
 
 
-def process_data(
+def _process_data(
     *,
     dataset: data_objects.MultiParticleDataset,
     number_balls: int = 100,
@@ -159,7 +158,7 @@ def set_decimation(
     )
 
 
-def reset_data(ds: data_objects.Dataset) -> data_objects.Dataset:
+def _reset_data(ds: data_objects.Dataset) -> data_objects.Dataset:
     original_inds = np.argsort(ds.index)
     ds.reorder(original_inds)
     # verify
@@ -169,7 +168,7 @@ def reset_data(ds: data_objects.Dataset) -> data_objects.Dataset:
     return ds
 
 
-def random_search_balls_constant_number(
+def random_search_balls(
     ds: data_objects.Dataset,
     *,
     centers: NDArray,
@@ -272,22 +271,21 @@ def random_search_balls_constant_number(
             f"{n_enclosed} particles after {num_iterations} iterations"
         )
         if num_iterations >= iterations_threshold:
-            LOGGER.info(f"Taking too long, skipping sphere {i}")
+            LOGGER.info(f"Taking too long on sphere {i}")
             bad_balls += 1
-            continue
         radii.append(r)
         particle_numbers.append(n_enclosed)
     if bad_balls:
-        LOGGER.debug(f"Skipped {bad_balls} spheres")
+        LOGGER.debug(f"Iteration threshold reached on {bad_balls} spheres")
     if bad_balls > len(centers) / 10:
         LOGGER.warning(
-            f"More than 10% of spheres ({bad_balls}) were skipped."
+            f"More than 10% of spheres ({bad_balls}) crossed the iteration threshold."
             " Timing stats may suffer"
         )
     return radii, particle_numbers
 
 
-def remove_problem_classes_from_state(self):
+def _remove_problem_classes_from_state(self):
     state = self.__dict__.copy()
     data_keys = [
         n
@@ -326,7 +324,7 @@ def tree_sizes(decimation_factor=10):
     # print(".Precompiling") # noqa
     # precompile()
     # print(".Loading data")  # noqa
-    ds = process_data(decimation_factor=decimation_factor)
+    ds = _process_data(decimation_factor=decimation_factor)
     b = pickle.dumps(ds.positions)
     print(f"Positions: {len(b)}")  # noqa
 
@@ -341,9 +339,11 @@ def tree_sizes(decimation_factor=10):
         match name:
             case "python":
                 for node in tree:
-                    node.__getstate__ = partial(remove_problem_classes_from_state, node)
+                    node.__getstate__ = partial(
+                        _remove_problem_classes_from_state, node
+                    )
             case "packed":
-                tree.__getstate__ = partial(remove_problem_classes_from_state, tree)
+                tree.__getstate__ = partial(_remove_problem_classes_from_state, tree)
         b = pickle.dumps(tree)
         print(f"{name}: {len(b)}")  # noqa
 
@@ -461,7 +461,7 @@ def _run_creation_perf_timer(
     # do initial run to catch any precompilation issues and to prime data loading
     creation_fun(dataset)
     # reset data
-    reset_data(dataset)
+    _reset_data(dataset)
 
     def timeit(
         creation_fun,
@@ -472,7 +472,7 @@ def _run_creation_perf_timer(
         delta = 0
         for _ in range(number):
             t1 = time.perf_counter_ns()
-            reset_data(dataset)
+            _reset_data(dataset)
             delta += time.perf_counter_ns() - t1
             creation_fun(dataset)
         tfinal = time.perf_counter_ns()
@@ -582,38 +582,36 @@ def _process_time_vec(
 
 def get_search_obj(
     *,
-    function: str,
+    name: str,
     dataset: data_objects.Dataset,
-    creation_dict: dict,
+    creation_fun: Callable[[data_objects.Dataset], TSearchObj],
     results: dict = None,
     dry_run: bool = False,
-):
-    cd = creation_dict[function]
-
+) -> TSearchObj:
     if results is not None:
-        LOGGER.debug(f"Timing {function} creation")
+        LOGGER.debug(f"Timing {name} creation")
         if not dry_run:
             number, time_vec = _run_creation_perf_timer(
-                creation_fun=cd,
+                creation_fun=creation_fun,
                 dataset=dataset,
             )
         else:
             number = -1
             time_vec = [-1, -1] * second
-        results[function] = _process_time_vec(
+        results[name] = _process_time_vec(
             time_vec=time_vec, number=number, extra_scaling=1
         )
         test_name = (
-            (function + f" ({get_num_threads()} threads)")
-            if "cubes" in function or "kdtree" in function
-            else function
+            (name + f" ({get_num_threads()} threads)")
+            if "cubes" in name or "kdtree" in name
+            else name
         )
         LOGGER.info(
             f"{test_name} creation, {number} loops, best of "
-            f"{len(time_vec)} runs: {results[function][0]:.3g}"
+            f"{len(time_vec)} runs: {results[name][0]:.3g}"
         )
 
-    so = cd(dataset)
+    so = creation_fun(dataset)
     so.data_container = dataset.data_container
     return so
 
@@ -667,9 +665,9 @@ def manual_timing(
             )
             LOGGER.debug(f"Generating {creation_name} search obj for {test} search")
             search_obj = get_search_obj(
-                function=creation_name,
+                name=creation_name,
                 dataset=ds,
-                creation_dict=creation_dict,
+                creation_fun=creation_dict[creation_name],
                 results=need_timing,
                 dry_run=dry_run,
             )
@@ -708,7 +706,7 @@ def manual_timing(
         if test in results or test in creation_cache:
             continue
         get_search_obj(
-            function=test,
+            name=test,
             dataset=ds,
             creation_dict=creation_dict,
             results=results,
@@ -719,7 +717,7 @@ def manual_timing(
 
 
 # from https://stackoverflow.com/a/27434050
-class LoadFromFile(argparse.Action):
+class _LoadFromFile(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
         with values as f:
             contents = f.read()
@@ -895,7 +893,7 @@ def parse_arguments(argv=None):
         Read in specified config file for arguments (CLI arguments will override)
         """,
         type=open,
-        action=LoadFromFile,
+        action=_LoadFromFile,
     )
     parser.add_argument(
         "-r",
@@ -1112,7 +1110,7 @@ if __name__ == "__main__":
         "particle_type": particle_type,
     }
 
-    centers = process_data(
+    centers = _process_data(
         dataset=ds_full,
         number_balls=args.number_balls,
     )
@@ -1121,7 +1119,7 @@ if __name__ == "__main__":
         for num_threads in args.number_threads:
             creation_cache = {}
             for ns in args.number_search:
-                radii, particle_numbers = random_search_balls_constant_number(
+                radii, particle_numbers = random_search_balls(
                     ds, num_particles=ns, centers=centers
                 )
                 res_name = f"out_df={df}_sb={ns}_threads={num_threads}"
