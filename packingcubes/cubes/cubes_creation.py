@@ -8,12 +8,7 @@ from typing import cast
 
 import h5py  # type: ignore
 import numpy as np
-from numba import (  # type:ignore
-    get_num_threads,
-    njit,
-    prange,
-    threading_layer,
-)
+from numba import get_num_threads  # type: ignore
 from numba.typed import List
 from numpy.typing import NDArray
 
@@ -39,32 +34,6 @@ from packingcubes.packed_tree import (
 )
 
 LOGGER = logging.getLogger(__name__)
-
-nthreads = get_num_threads()
-
-
-# need to test parallelism - have issues with using the tbb backend
-# so it's useful to print diagnostic info
-@njit(parallel=True)
-def test_parallel():
-    a = np.zeros((10,))
-    for i in prange(len(a)):
-        a[i] = i
-    return a
-
-
-test_parallel()
-layer = threading_layer()
-LOGGER.debug(f"Running on the {layer} threading layer with {nthreads} threads")
-if layer == "tbb":
-    LOGGER.warning(
-        "Parallel support for cubes is known to be flaky on the tbb threading "
-        "layer. If you are having difficulties, consider switching to the omp "
-        "layer by setting the NUMBA_THREADING_LAYER environmental variable or "
-        "by setting numba.config.THREADING_LAYER. See "
-        "https://numba.readthedocs.io/en/stable/user/threading-layer.html for "
-        "more information."
-    )
 
 
 # from https://stackoverflow.com/a/27434050
@@ -237,6 +206,7 @@ def _get_cube_boxes(
 def _process_cubes_per_side(cubes_per_side: int):
     if cubes_per_side > 0:
         return cubes_per_side
+    nthreads = get_num_threads()
     cubes_per_side = 3
     flag = cubes_per_side**3 + 1 < nthreads
     while cubes_per_side < 32 and flag:
