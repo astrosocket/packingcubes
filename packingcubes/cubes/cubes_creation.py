@@ -14,7 +14,7 @@ from numpy.typing import NDArray
 
 import packingcubes.bounding_box as bbox
 from packingcubes.bounding_box import BoundingBox, make_bounding_box
-from packingcubes.cubes.cubes_numba import cube, make_trees, prune_empty
+from packingcubes.cubes.cubes_numba import _prune_empty, cube, make_trees
 from packingcubes.cubes.multi_cubes import MultiCubes
 from packingcubes.cubes.particle_cubes import (
     ParticleCubes,
@@ -37,7 +37,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 # from https://stackoverflow.com/a/27434050
-class LoadFromFile(argparse.Action):
+class _LoadFromFile(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
         with values as f:
             contents = f.read()
@@ -117,7 +117,7 @@ def _process_args(argv=None):
             "Read in specified config file for arguments (CLI arguments will override)"
         ),
         type=open,
-        action=LoadFromFile,
+        action=_LoadFromFile,
     )
     parser.add_argument(
         "-t",
@@ -337,7 +337,7 @@ def make_cubes(
         )
 
         LOGGER.info("Removing empties")
-        cube_indices, cube_boxes = prune_empty(len(data), cube_indices, cube_boxes)
+        cube_indices, cube_boxes = _prune_empty(len(data), cube_indices, cube_boxes)
 
         LOGGER.info("Making trees")
         trees = make_trees(data, cube_indices, cube_boxes, particle_threshold)

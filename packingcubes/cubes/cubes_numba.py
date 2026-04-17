@@ -37,14 +37,14 @@ LOGGER = logging.getLogger(__name__)
 # need to test parallelism - have issues with using the tbb backend
 # so it's useful to print diagnostic info
 @njit(parallel=True)
-def test_parallel():
+def _test_parallel():
     a = np.zeros((10,))
     for i in prange(len(a)):
         a[i] = i
     return a
 
 
-test_parallel()
+_test_parallel()
 layer = threading_layer()
 LOGGER.debug(f"Running on the {layer} threading layer with {get_num_threads()} threads")
 if layer == "tbb":
@@ -59,7 +59,7 @@ if layer == "tbb":
 
 
 @njit
-def prune_empty(
+def _prune_empty(
     num_particles: int,
     cube_indices: NDArray,
     cube_boxes: List[BoundingBox],

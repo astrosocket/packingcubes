@@ -14,7 +14,7 @@ from numpy.typing import ArrayLike, NDArray
 LOGGER = logging.getLogger(__name__)
 
 
-def check_floating_point(
+def _check_floating_point(
     box: NDArray,
 ) -> tuple[BoundingBoxValidFlag, str]:
     flag = ~BoundingBoxValidFlag.VALID
@@ -56,7 +56,7 @@ class BoundingBoxValidFlag(Flag):
     NOFPERROR = (
         auto(),
         lambda box: (
-            f"Floating Point Error with box ({box}): {check_floating_point(box)[1]}"
+            f"Floating Point Error with box ({box}): {_check_floating_point(box)[1]}"
         ),
     )
     # TODO: The following (e.g. IS_BOX[0]) is hacky and I don't like it...
@@ -156,7 +156,7 @@ def check_valid(box: BoxLike, *, raise_error: bool = True) -> BoundingBoxValidFl
             flag ^= BoundingBoxValidFlag.FINITE
         if np.any(box[3:] <= 0):
             flag ^= BoundingBoxValidFlag.POSITIVE
-        flag ^= check_floating_point(box)[0]
+        flag ^= _check_floating_point(box)[0]
     if raise_error and flag != BoundingBoxValidFlag.VALID:
         raise BoundingBoxError(box=box, errortype=flag)
     return flag
