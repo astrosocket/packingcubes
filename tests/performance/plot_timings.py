@@ -10,7 +10,7 @@ import numpy as np
 
 import packingcubes
 
-from .json_parsing import as_unyt
+from ._json_parsing import as_unyt
 
 LOGGER = logging.getLogger(__name__)
 

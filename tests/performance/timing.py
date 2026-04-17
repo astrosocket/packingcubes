@@ -18,9 +18,9 @@ import packingcubes.bounding_box as bbox
 import packingcubes.data_objects as data_objects
 import packingcubes.packed_tree as optree
 
+from ._json_parsing import UnytEncoder
 from .brute import brute_force_creation, brute_force_search
 from .cubes import ParticleCubes, cubes_creation, cubes_query_ball_points
-from .json_parsing import UnytEncoder
 from .kdtree import (
     KDTree,
     packed_kdtree_creation,
