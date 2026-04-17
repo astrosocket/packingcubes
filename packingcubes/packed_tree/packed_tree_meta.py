@@ -45,7 +45,7 @@ def create_metadata(
     box: bbox.BoundingBox,
     packed: NDArray[np.uint32],
     particle_threshold: int = octree._DEFAULT_PARTICLE_THRESHOLD,
-):
+) -> TreeMeta:
     """
     Create a tree metadata object from the provided info
 

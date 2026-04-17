@@ -8,6 +8,7 @@ from pathlib import Path
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
+from numpy.typing import NDArray
 
 import packingcubes
 
@@ -90,10 +91,16 @@ def save_fig(
     fig.savefig(str(filename), bbox_inches="tight")
 
 
-def plot_raw_times(sims, **kwargs):
-    """
-    Plot raw timing results in appropriate units
-    """
+type TSims = dict[str, dict[str, NDArray | dict]]
+"""
+Dictionary containing dictionaries containing timing results, organized by simulation
+"""
+type TPlots = tuple[list[mpl.Figure], list[mpl.Axes]]
+""" Tuple of figures and axes"""
+
+
+def plot_raw_times(sims: TSims, **kwargs) -> TPlots:
+    """Plot raw timing results in appropriate units"""
     figs = []
     axs = []
 
@@ -130,10 +137,8 @@ def plot_raw_times(sims, **kwargs):
     return figs, axs
 
 
-def plot_expected_times(sims, **kwargs):
-    """
-    Plot timings in O(...) form
-    """
+def plot_expected_times(sims: TSims, **kwargs) -> TPlots:
+    """Plot timings in O(...) form"""
     figs = []
     axs = []
 
@@ -206,10 +211,8 @@ def plot_expected_times(sims, **kwargs):
     return figs, axs
 
 
-def plot_normalized_times(sims, **kwargs):
-    """
-    Plot results normalized to scipy version
-    """
+def plot_normalized_times(sims: TSims, **kwargs) -> TPlots:
+    """Plot results normalized to scipy version"""
     figs = []
     axs = []
 
@@ -257,7 +260,7 @@ def plot_normalized_times(sims, **kwargs):
     return figs, axs
 
 
-def plot_parallel_scaling(sims, **kwargs):
+def plot_parallel_scaling(sims: TSims, **kwargs) -> TPlots:
     fig, axs = plt.subplots(2, 1, sharex=True)
     fig.set_figheight(10)
     labels = {}
@@ -334,7 +337,7 @@ def plot_parallel_scaling(sims, **kwargs):
     return fig, axs
 
 
-def parse_arguments(argv=None):
+def parse_arguments(argv=None) -> dict:
     if argv is None:
         # need to skip caller or it's picked up as the snapshot file
         argv = sys.argv[1:]

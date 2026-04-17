@@ -348,9 +348,15 @@ def tree_sizes(decimation_factor=10):
         print(f"{name}: {len(b)}")  # noqa
 
 
-def get_creation_search_dicts():
-    """
-    Get functions to be timed and any additional config options
+# The NDArray is for the brute search creation method
+type TSearchObj = PackedTree | ParticleCubes | KDTree | SciTree | NDArray
+""" A search object """
+
+
+def get_creation_search_dicts() -> tuple[
+    dict[str, Callable[[data_objects.Dataset], TSearchObj]], dict
+]:
+    """Get functions to be timed and any additional config options
 
     For the search dictionary, the "fun" field is the function to be timed,
     the "tree" field is the search object needed, the "config" field contains
@@ -443,15 +449,15 @@ def _format_time(times: unyt_array | unyt_quantity) -> unyt_array:
     return times.to(units[-1])
 
 
+type TResult = tuple[unyt_quantity, unyt_array]
+""" A result tuple in the form (min(time_vector), time_vector) """
+
+
 def _run_creation_perf_timer(
-    creation_fun: Callable[
-        [data_objects.Dataset], PackedTree | ParticleCubes | KDTree | SciTree
-    ],
+    creation_fun: Callable[[data_objects.Dataset], TSearchObj],
     dataset: data_objects.MultiParticleDataset,
-) -> tuple[unyt_quantity, unyt_array]:
-    """
-    Time search object creation using perf_timer
-    """
+) -> TResult:
+    """Time search object creation using perf_timer"""
     # do initial run to catch any precompilation issues and to prime data loading
     creation_fun(dataset)
     # reset data
@@ -508,10 +514,8 @@ def _run_creation_perf_timer(
 
 def _run_search_perf_timer(
     *, search_dict: dict, search_obj, dry_run: bool = False, **kwargs
-) -> tuple[unyt_quantity, unyt_array]:
-    """
-    Time search object creation using perf_timer
-    """
+) -> TResult:
+    """Time search object creation using perf_timer"""
     if dry_run:
         return -1, [-1, -1] * second
 
@@ -568,10 +572,8 @@ def _run_search_perf_timer(
 
 def _process_time_vec(
     *, time_vec: unyt_array, number: int, extra_scaling: int = 1
-) -> tuple[unyt_quantity, unyt_array]:
-    """
-    Scale and find minimum of time vector
-    """
+) -> TResult:
+    """Scale and find minimum of time vector."""
     time_vec /= number
     time_vec /= extra_scaling
     time_vec = _format_time(time_vec)
@@ -627,7 +629,7 @@ def manual_timing(
     dry_run: bool = False,
     creation_cache: dict | None = None,
     number_threads: int | None = None,
-):
+) -> dict:
     number_threads = (
         config.NUMBA_NUM_THREADS if number_threads is None else number_threads
     )

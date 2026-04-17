@@ -217,7 +217,7 @@ def make_trees(
     cube_indices: NDArray,
     cube_boxes: List[BoundingBox],
     particle_threshold: int,
-):
+) -> List[NDArray]:
     trees = List.empty_list(types.uint32[:])
     num_cubes = len(cube_boxes)
     # pre-allocate in serial
