@@ -30,7 +30,7 @@
 # # Initial Imports and setup
 
 # %%
-# ruff: noqa: T201
+# ruff: noqa: T201, D100, D103, D205
 import matplotlib.pyplot as plt
 import numpy as np
 

@@ -41,7 +41,7 @@
 # # Initial imports and setup
 
 # %%
-# ruff: noqa: T201
+# ruff: noqa: T201, D100, D103
 from functools import partial
 from pathlib import Path
 

@@ -1,3 +1,4 @@
+# ruff: noqa: D103
 import argparse
 import json
 import logging

@@ -1,3 +1,4 @@
+# ruff: noqa: D103
 import time
 
 import numpy as np

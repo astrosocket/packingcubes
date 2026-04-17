@@ -28,6 +28,7 @@
 # be places where ruff is ignored, since the ruff rules don't apply correctly to
 # both cases.
 
+#  ruff: noqa: D100
 # %% [markdown]
 # # Initial imports and setup
 

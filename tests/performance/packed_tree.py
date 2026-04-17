@@ -1,3 +1,4 @@
+# ruff: noqa: D103
 from numba import njit
 from numba.typed import List
 from numpy.typing import NDArray

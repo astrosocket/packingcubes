@@ -1,3 +1,5 @@
+# ruff: noqa: D100, D103
+
 import logging
 
 import conftest as ct

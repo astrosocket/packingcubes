@@ -1,3 +1,4 @@
+# ruff: noqa: D103
 from numpy.typing import NDArray
 
 import packingcubes.cubes as cubes

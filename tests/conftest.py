@@ -1,3 +1,4 @@
+# ruff: noqa: D100, D103
 # File for fixtures that should be shared across the test files
 
 import copy

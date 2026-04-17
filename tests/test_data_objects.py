@@ -1,3 +1,5 @@
+# ruff: noqa: D100, D103
+
 import conftest as ct
 import numpy as np
 from hypothesis import example, given, note
