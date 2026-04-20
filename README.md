@@ -29,6 +29,7 @@ not supported, and at least some features are >Python 3.12.
 
 ### Optional packages
 Visualization (the `viz` group):
+
 * `matplotlib` - to use basic octree visualization and plotting (see
    Basic_Usage in the Examples)
 * `pygfx` - to do interactive octree visualization (see Example_PackedTree in
@@ -40,28 +41,30 @@ Visualization (the `viz` group):
    documentation for more details
 
 Jupyter (the `jupyter` group):
+
 * `jupyter-rfb` - for interactive octree visualization in a notebook (see the Visualization section, above)
 
 Benchmark (the `benchmark` group):
+
 * `scipy` - we benchmark against `scipy`'s `KDTree`
 * `unyt` - for unit-aware timing purposes
 
 The `all` group combines all of the above.
 
-## Usage
+## Basic Usage
 ### Installation
 We're on [PyPI](https://pypi.org/project/packingcubes), so installation is as
 simple as
 
-```sh
+```bash
 pip install packingcubes
 ```
 or
-```sh
+```bash
 uv pip install packingcubes
 ```
 or
-```sh
+```bash
 pixi add packingcubes --pypi
 ```
 
@@ -100,13 +103,21 @@ dataset = packingcubes.HDF5Dataset(
     "path/to/snapshot.hdf5", sorted_filepath="path/to/output.hdf5"
 )
 cubes = packingcubes.Cubes(dataset)
+```
 
-# if you already have positions_data as an Nx3 matrix, you can use
+#### From positions in memory
+If you already have `positions_data` as an Nx3 matrix, you can use
+
+``` python
 cubes = packingcubes.Cubes(positions_data)
-# Note: this data will be sorted in place! you may want to make a copy
+```
 
-# You can also do the following for easy saving. 
-# The data will still not be copied (by default)
+Note: this data will be sorted in place! You may want to make a copy first.
+
+You can also do the following for easy saving. 
+The data will still not be copied (by default)
+
+``` python
 dataset = packingcubes.InMemory(positions=positions_data)
 cubes = packingcubes.Cubes(dataset)
 dataset.save("path/to/output.hdf5")
@@ -114,6 +125,7 @@ dataset.save("path/to/output.hdf5")
 
 Several configuration options are available, see `packcubes --help` or `help(packingcubes.Cubes)` for more information.
 
+#### Loading
 You can load the saved Cubes with 
 
 ```python
@@ -123,26 +135,26 @@ cubes = packingcubes.Cubes("path/to/saved_cubes.hdf5")
 ```
 
 ### Searching
-Currently, `packingcubes` provides two public methods for searching your
+Currently, `packingcubes` provides multiple public methods for searching your
 dataset:
 
 ```python
+indices_dict = cubes.get_indices_in_sphere(particle_types, center, radius)
 # particle_types is a string or Sequence[str] that maps to a particle type in
 #   the snapshot
 # center is anything that can be converted by numpy's array method to an (3,)
 #   array, and is the sphere's center
 # radius is a float
-indices_dict = cubes.get_indices_in_sphere(particle_types, center, radius)
 ```
 
 ```python
+indices_dict = cubes.get_indices_in_box(particle_types, box)
 # particle_types is a string or Sequence[str] that maps to a particle type in
 #   the snapshot
 # box is anything that can be converted by numpy's array method to an (6,)
 #   float array where the first 3 elements are the front-left-bottom corner,
 #   and the second 3 elements are the box width, depth, and height 
 #   (aka [x, y, z, dx, dy, dz])
-indices_dict = cubes.get_indices_in_box(particle_types, box)
 ```
 
 For both methods, the returned object is a dictionary of `particle_type` keys
