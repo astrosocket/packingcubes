@@ -1,4 +1,6 @@
 # ruff: noqa: D103
+"""Creation and search methods for brute force"""
+
 import time
 
 import numpy as np

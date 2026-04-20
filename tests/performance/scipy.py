@@ -1,4 +1,6 @@
 # ruff: noqa: D103
+"""Creation and search methods for SciPy's KDTree"""
+
 from numpy.typing import NDArray
 from scipy.spatial import KDTree
 

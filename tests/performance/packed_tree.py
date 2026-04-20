@@ -1,4 +1,6 @@
 # ruff: noqa: D103
+"""Creation and search methods for PackedTrees"""
+
 from numba import njit
 from numba.typed import List
 from numpy.typing import NDArray

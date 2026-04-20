@@ -1,4 +1,6 @@
 # ruff: noqa: D103
+"""Creation and search methods for ParticleCubes objects"""
+
 from numpy.typing import NDArray
 
 import packingcubes.cubes as cubes

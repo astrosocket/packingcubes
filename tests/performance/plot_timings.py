@@ -1,4 +1,11 @@
 # ruff: noqa: D103
+"""
+Collection of functions and CLI for plotting timing test results
+
+The CLI is the intended interface for this module, however, programmatic
+access is also supported for individual plot types.
+"""
+
 import argparse
 import json
 import logging
@@ -338,6 +345,7 @@ def plot_parallel_scaling(sims: TSims, **kwargs) -> TPlots:
 
 
 def parse_arguments(argv=None) -> dict:
+    """Parse CLI arguments using argparse"""
     if argv is None:
         # need to skip caller or it's picked up as the snapshot file
         argv = sys.argv[1:]
@@ -436,9 +444,7 @@ def parse_arguments(argv=None) -> dict:
 def load_sim_results(
     output_list: list[str], *, name_map: list[str] | None = None
 ) -> dict:
-    """
-    Load list of output files into dictionary
-    """
+    """Load list of output files into dictionary"""
     sims = []
     for i, outfilepath in enumerate(output_list):
         with open(outfilepath) as outfile:
