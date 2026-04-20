@@ -113,14 +113,16 @@ select = [
     "C90",
     # numpy
     "NPY",
-    # Docstrings - not yet ready
-    # "D",
+    # Docstrings
+    "D",
+    # "DOC", # only available in ruff preview for now
 ]
-ignore = ["F841", "SIM300"]
+ignore = ["F841", "SIM300", "D400",]
 unfixable = ["B"]
 
+
 [tool.ruff.lint.pydocstyle]
-convention = "google"
+convention = "numpy"
 
 [tool.coverage.run]
 source = [

@@ -3717,8 +3717,8 @@ packages:
   timestamp: 1769093650580
 - pypi: ./
   name: packingcubes
-  version: 0.3.1
-  sha256: 087404ee664160b897e52443833c6086410694e828bb470cb7fddfb4264e1230
+  version: 0.3.2.dev38+dirty
+  sha256: a6708ec975458b1c503a8bd71f7bd5c0a067f41c2cfc9ef23fd2404d3429a98c
   requires_dist:
   - numpy
   - h5py
