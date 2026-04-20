@@ -3,7 +3,7 @@
 Implementation of the Packed Octree data structure
 """
 
-from packingcubes.packed_tree.kdtree import KDTreeAPI as KDTree
+from packingcubes.packed_tree.optree import OpTree as OpTree
 from packingcubes.packed_tree.packed_tree import PackedTree as PackedTree
 from packingcubes.packed_tree.packed_tree_meta import (
     TreeMeta as PackedTreeMeta,
@@ -19,7 +19,7 @@ from packingcubes.packed_tree.packed_tree_meta import (
 )
 
 __all__ = [
-    "KDTree",
+    "OpTree",
     "PackedTree",
     "PackedTreeMeta",
     "create_metadata",

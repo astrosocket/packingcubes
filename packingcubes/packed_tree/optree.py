@@ -24,13 +24,13 @@ LOGGER = logging.getLogger(__name__)
 logging.captureWarnings(capture=True)
 
 
-class KDTreeWarning(octree.OctreeWarning):
+class OpTreeWarning(octree.OctreeWarning):
     """Warning for differences in API"""
 
     pass
 
 
-class KDTreeError(octree.OctreeError):
+class OpTreeError(octree.OctreeError):
     """Error for irreconcilable differences in API"""
 
     pass
@@ -57,13 +57,13 @@ def _check_data_shape(*, data: ArrayLike, copy_data: bool) -> tuple[NDArray, boo
 
     Raises
     ------
-        KDTreeError if provided data cannot be coerced to (N,3)
+        OpTreeError if provided data cannot be coerced to (N,3)
     """
     data = np.atleast_2d(np.squeeze(data))
     data_shape = data.shape
     if len(data_shape) != 2 or data_shape[1] > 3:
-        raise KDTreeError(
-            "PackedTrees only support (N,m) data. Provided data "
+        raise OpTreeError(
+            "OpTrees only support (N,m) data. Provided data "
             + (
                 f"was {data_shape}."
                 if len(data_shape) >= 2
@@ -83,7 +83,7 @@ def _process_boxsize(boxsize, data_box: bbox.BoundingBox) -> bbox.BoundingBox:
     if boxsize is not None:
         boxsize = np.atleast_1d(boxsize)
         box_warning = """
-        PackedTrees do not need or expect data points to be normalized to the
+        OpTrees do not need or expect data points to be normalized to the
         [0, 1) interval. We will assume that the data is within [0, L_i] with
         no wrapping. If you have negative or overly-large data values, simply
         use the full 6 terms and provide the full bounding box or pass None to
@@ -93,15 +93,15 @@ def _process_boxsize(boxsize, data_box: bbox.BoundingBox) -> bbox.BoundingBox:
         """
         match len(boxsize):
             case 1:
-                warnings.warn(box_warning, KDTreeWarning, stacklevel=1)
+                warnings.warn(box_warning, OpTreeWarning, stacklevel=1)
                 box = np.array([0, 0, 0, boxsize, boxsize, boxsize])
             case 3:
-                warnings.warn(box_warning, KDTreeWarning, stacklevel=1)
+                warnings.warn(box_warning, OpTreeWarning, stacklevel=1)
                 box = np.hstack(([0, 0, 0], boxsize.flatten()))
             case 6:
                 box = boxsize
             case _:
-                raise KDTreeError(
+                raise OpTreeError(
                     f"Cannot handle boxsize argument with length {len(boxsize)}. "
                     "Supported options are 1, 3, and 6."
                 )
@@ -111,13 +111,13 @@ def _process_boxsize(boxsize, data_box: bbox.BoundingBox) -> bbox.BoundingBox:
     return bounding_box
 
 
-class KDTreeAPI:
+class OpTree:
     """Class to mimic the SciPy KDTree API using PackedTrees
 
     Will provide identical API to SciPy's KDTree to the extent possible given
     that PackedTrees are fundamentally different. Where 1-1 matches for a
     requested method, argument, or functionality are not possible, raise an
-    KDTreeError if there is nothing similar and emit a KDTreeWarning explaining
+    OpTreeError if there is nothing similar and emit a OpTreeWarning explaining
     the replacement otherwise.
 
     Warning! PackedTrees are not robust against large amounts of degenerate
@@ -132,7 +132,7 @@ class KDTreeAPI:
         The `n` `m`-dimensional data points to be indexed. This array is
         preferentially not copied and will be sorted in place, so modifying
         this data will result in bogus results. The data are also copied if
-        the kd-tree is built with copy_data=True. Note: PackedTrees are
+        the `OpTree` is built with copy_data=True. Note: OpTrees are
         intended to support 3-dimensional data, so m>3 is not supported. For
         m<3, the data is padded with zeros (e.g. `[[1, 2], [3, 4]]` will become
         `[[1, 2, 0], [3, 4, 0]]`). This will lead to the data being copied.
@@ -143,7 +143,7 @@ class KDTreeAPI:
         brute-force.  Default: `400`.
 
     compact_nodes : bool, optional
-        This parameter is irrelevant for PackedTrees and is only provided
+        This parameter is irrelevant for `OpTree`s and is only provided
         to match the `KDTree` API.
 
     copy_data : bool, optional
@@ -152,7 +152,7 @@ class KDTreeAPI:
         Default: `False`.
 
     balanced_tree : bool, optional
-        `PackedTree`s are always split at the bounding box midpoint, so this
+        `OpTree`s are always split at the bounding box midpoint, so this
         option is only provided to match the `KDTree` API
 
     boxsize : array_like or scalar, optional
@@ -234,22 +234,22 @@ class KDTreeAPI:
             else:
                 extra = f"which has been manually set to {boxsize}."
             warnings.warn(
-                "Node sizes in PackedTrees are set by the geometry of the"
+                "Node sizes in OpTrees are set by the geometry of the"
                 "total bounding box, " + extra,
-                KDTreeWarning,
+                OpTreeWarning,
                 stacklevel=1,
             )
         if leafsize is None:
             LOGGER.info(
-                "Using the default PackedTree leaf size "
+                "Using the default OpTree leaf size "
                 f"({octree._DEFAULT_PARTICLE_THRESHOLD}) instead of the KDTree's (10)"
             )
         if balanced_tree is not None and balanced_tree:
             warnings.warn(
-                "PackedTree nodes are split at the middle of the bounding box, "
+                "OpTree nodes are split at the middle of the bounding box, "
                 "independent of the data contained. Setting balanced_tree does "
                 "nothing.",
-                KDTreeWarning,
+                OpTreeWarning,
                 stacklevel=1,
             )
 
@@ -262,7 +262,7 @@ class KDTreeAPI:
             if save_dataset:
                 warnings.warn(
                     "Can only save sorted positions when data is a Dataset",
-                    KDTreeWarning,
+                    OpTreeWarning,
                     stacklevel=1,
                 )
                 save_dataset = False
@@ -304,7 +304,7 @@ class KDTreeAPI:
                 Since the data was copied, the effective shuffle list is simply
                 0:len(data) and this property is superfluous.
                 """,
-                KDTreeWarning,
+                OpTreeWarning,
                 stacklevel=1,
             )
             return np.arange(len(self.dataset))
@@ -361,7 +361,7 @@ class KDTreeAPI:
         return_data_indices: bool | None = None,
         return_sorted: bool | None = None,
     ) -> tuple[float | NDArray, int | NDArray]:
-        """Query the KDTree for nearest neighbors
+        """Query the OpTree for nearest neighbors
 
         Parameters
         ----------
@@ -435,22 +435,22 @@ class KDTreeAPI:
                 warnings.warn(
                     (
                         """
-                        PackedTrees do not quantify the distance between points/nodes
+                        OpTrees do not quantify the distance between points/nodes
                         in the same way as KDTrees and setting this parameter has no
                         effect
                         """
                     ),
-                    KDTreeWarning,
+                    OpTreeWarning,
                     stacklevel=1,
                 )
 
         if workers is not None and workers != 1:
             warnings.warn(
                 """
-                PackedTrees are single-threaded. For multi-threading consider
+                OpTrees are single-threaded. For multi-threading consider
                 switching to the Cubes API. Proceeding with workers=1.
                 """,
-                KDTreeWarning,
+                OpTreeWarning,
                 stacklevel=1,
             )
 
@@ -576,7 +576,7 @@ class KDTreeAPI:
             of the indices. Note that this is much faster for large trees.
 
         return_lists : bool, optional
-            Force returning lists instead of arrays. `PackedTree`s return
+            Force returning lists instead of arrays. `OpTree`s return
             arrays of indices by default, but this doesn't match the
             expected query_ball_point signature. To exactly match SciPy,
             set this to `True`.
@@ -601,16 +601,16 @@ class KDTreeAPI:
         Notes
         -----
         If you have many points whose neighbors you want to find, you may save
-        substantial amounts of time by putting them in a KDTree and using
+        substantial amounts of time by putting them in a OpTree and using
         [query_ball_tree][query_ball_tree].
 
         Examples
         --------
         >>> import numpy as np
-        >>> from scipy import spatial
+        >>> from packingcubes import OpTree
         >>> x, y = np.mgrid[0:5, 0:5]
         >>> points = np.c_[x.ravel(), y.ravel()]
-        >>> tree = spatial.KDTree(points)
+        >>> tree = OpTree(points)
         >>> sorted(tree.query_ball_point([2, 0], 1))
         [5, 10, 11, 15]
 
@@ -632,10 +632,10 @@ class KDTreeAPI:
         if p != 2:
             warnings.warn(
                 (
-                    "PackedTrees currently only support the Minkowski 2-norm "
+                    "OpTrees currently only support the Minkowski 2-norm "
                     f"(requested {p}). Continuing with p=2."
                 ),
-                KDTreeWarning,
+                OpTreeWarning,
                 stacklevel=1,
             )
 
@@ -646,12 +646,12 @@ class KDTreeAPI:
                 warnings.warn(
                     (
                         """
-                        PackedTrees do not quantify the distance between points/nodes
+                        OpTrees do not quantify the distance between points/nodes
                         in the same way as KDTrees. Setting eps>0 is equivalent to
                         strict=False (default).
                         """
                     ),
-                    KDTreeWarning,
+                    OpTreeWarning,
                     stacklevel=1,
                 )
             else:
@@ -670,7 +670,7 @@ class KDTreeAPI:
                 To reduce the number of threads used, run with the NUMBA_NUM_THREADS=N
                 environmental variable set. Proceeding with workers=-1.
                 """,
-                KDTreeWarning,
+                OpTreeWarning,
                 stacklevel=1,
             )
 
@@ -694,7 +694,7 @@ class KDTreeAPI:
     def _query_ball_tree(
         self,
         *,
-        other: KDTreeAPI,
+        other: OpTree,
         r: float,
         p: float,
         strict: bool,
@@ -738,7 +738,7 @@ class KDTreeAPI:
 
     def query_ball_tree(
         self,
-        other: KDTreeAPI,
+        other: OpTree,
         r,
         p: float = 2,
         eps: float | None = None,
@@ -751,7 +751,7 @@ class KDTreeAPI:
 
         Parameters
         ----------
-        other: KDTree
+        other: OpTree
             The tree containing points to search against
 
         r: float
@@ -773,7 +773,7 @@ class KDTreeAPI:
             positives. Default `True`
 
         return_lists: bool, optional
-            Force returning lists instead of arrays. `PackedTree`s return
+            Force returning lists instead of arrays. `OpTree`s return
             arrays of indices by default, but this doesn't match the
             expected `query_ball_tree` signature. For a slight performance
             increase, set this to `False`
@@ -807,11 +807,11 @@ class KDTreeAPI:
             if eps > 0:
                 warnings.warn(
                     """
-                    PackedTrees approximates search differently than KDTrees.
+                    OpTrees approximates search differently than KDTrees.
                     As such, numeric values for eps are not applicable. To skip
                     this warning, pass strict=False instead of a positive eps.
                     """,
-                    KDTreeWarning,
+                    OpTreeWarning,
                     stacklevel=1,
                 )
                 strict = False
@@ -922,11 +922,11 @@ class KDTreeAPI:
             if eps > 0:
                 warnings.warn(
                     """
-                    PackedTrees approximates search differently than KDTrees.
+                    OpTrees approximates search differently than KDTrees.
                     As such, numeric values for eps are not applicable. To skip
                     this warning, pass strict=False instead of a positive eps.
                     """,
-                    KDTreeWarning,
+                    OpTreeWarning,
                     stacklevel=1,
                 )
                 strict = False
@@ -942,7 +942,7 @@ class KDTreeAPI:
     def count_neighbors(
         self,
         *,
-        other: KDTreeAPI,
+        other: OpTree,
         r: float | NDArray,
         p: float | None = None,
         weights: tuple[float | None, float | None] | NDArray | None = None,
@@ -964,7 +964,7 @@ class KDTreeAPI:
 
         Parameters
         ----------
-        other: KDTree
+        other: OpTree
             The other tree to draw points from, can be the same tree as self
         r: float or one-dimensional array of floats
             The radius to produce a count for. Mulltiple radii are searched
@@ -1007,7 +1007,7 @@ class KDTreeAPI:
     def sparse_distance_matrix(
         self,
         *,
-        other: KDTreeAPI,
+        other: OpTree,
         max_distance: float,
         p: float | None = None,
         output_type: str | None = None,
@@ -1015,7 +1015,7 @@ class KDTreeAPI:
         """
         Compute a sparse distance matrix
 
-        Computes a distance matrix between two KDTrees, leaving as zero any
+        Computes a distance matrix between two OpTrees, leaving as zero any
         distance greater than max_distance.
 
         WARNING
@@ -1024,7 +1024,7 @@ class KDTreeAPI:
 
         Parameters
         ----------
-        other: KDTree
+        other: OpTree
         max_distance: positive float
         p: float, 1 <= p <= infinity
             Which Minkowski p-norm to use. A finite large p may cause a

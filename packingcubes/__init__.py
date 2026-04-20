@@ -27,7 +27,7 @@ InMemory
 PackedTree
     Actual Octree implementation.
 
-KDTree
+OpTree
     Use as a drop-in replacement for SciPy's KDTree. Not all functionality is
     implemented, but `query` and `query_ball_point` are. Tree creation and the
     `query_ball_point` implementation should be **significantly** faster than
@@ -67,7 +67,7 @@ from packingcubes.data_objects import (
 from packingcubes.data_objects import (
     InMemory as InMemory,
 )
-from packingcubes.packed_tree import KDTree as KDTree
+from packingcubes.packed_tree import OpTree as OpTree
 from packingcubes.packed_tree import PackedTree as PackedTree
 
 try:
@@ -79,7 +79,7 @@ __all__ = [
     "PackedTree",
     "GadgetishHDF5Dataset",
     "InMemory",
-    "KDTree",
+    "OpTree",
     "make_cubes",
     "Cubes",
     "ParticleCubes",

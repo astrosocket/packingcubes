@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from scipy.spatial import KDTree as SciTree
 
-from packingcubes import KDTree
+from packingcubes import OpTree
 
 
 # The following are modified from the scipy.KDTree.query example
@@ -16,7 +16,7 @@ def scipy_query_example():
     # we return indices into the modified/sorted dataset by default
     # unless copy_data=True. So we could change all of the query calls,
     # or copy the data (which is acceptable for small datasets)
-    return KDTree(data=data, copy_data=True, leafsize=10)
+    return OpTree(data=data, copy_data=True, leafsize=10)
 
 
 def test_query_example1(scipy_query_example):
@@ -78,7 +78,7 @@ def scipy_query_ball_point_example():
     # we return indices into the modified/sorted dataset by default
     # unless copy_data=True. So we could change all of the query_ball calls,
     # or copy the data (which is acceptable for small datasets)
-    return KDTree(data=data, copy_data=True, leafsize=10)
+    return OpTree(data=data, copy_data=True, leafsize=10)
 
 
 def test_query_ball_point_example1(scipy_query_ball_point_example):
@@ -112,11 +112,11 @@ def scipy_query_ball_tree_example_unwrapped():
     points1 = rng.random((15, 2))
     points2 = rng.random((15, 2))
     # our kdtree has a different leafsize by default than scipy's
-    tree1 = KDTree(
+    tree1 = OpTree(
         data=points1,
         leafsize=10,
     )
-    tree2 = KDTree(
+    tree2 = OpTree(
         data=points2,
         leafsize=10,
     )
@@ -168,7 +168,7 @@ def plot_query_ball_tree_example():
         for i, xy in enumerate(points2):
             ax.annotate(f"{i}", xy=xy + 0.01, color="g")
         indexes = t1.query_ball_tree(t2, r=0.2)
-        if isinstance(t1, KDTree):
+        if isinstance(t1, OpTree):
             indexes = [sorted(inds) for inds in indexes]
         for i in range(len(indexes)):
             for j in indexes[i]:
@@ -187,7 +187,7 @@ def scipy_query_pairs_example_unwrapped():
     rng = np.random.default_rng()
     points = rng.random((20, 2))
     # our kdtree has a different leafsize by default than scipy's
-    tree = KDTree(
+    tree = OpTree(
         data=points,
         leafsize=10,
     )
@@ -227,7 +227,7 @@ def plot_query_pairs_example():
         for i, xy in enumerate(points):
             ax.annotate(f"{i}", xy=xy + 0.01, color="k")
         pairs = t1.query_pairs(r=0.2)
-        if isinstance(t1, KDTree):
+        if isinstance(t1, OpTree):
             pass
         for i, j in pairs:
             ax.annotate(

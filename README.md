@@ -250,7 +250,7 @@ notably the `query_ball_point` method (This is also what the benchmarks compare
 against). Example usage modified from the `scipy.spatial.KDTree` [documentation](https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.KDTree.query_ball_point.html):
 ```python
 >>> import numpy as np
->>> from packingcubes import KDTree # this is the only change you need to make
+>>> from packingcubes import OpTree as KDTree # this is the only change you need to make
 >>> x, y = np.mgrid[0:5, 0:5]
 >>> points = np.c_[x.ravel(), y.ravel()]
 >>> tree = KDTree(points)
@@ -259,14 +259,12 @@ against). Example usage modified from the `scipy.spatial.KDTree` [documentation]
 ```
 
 #### Caveats:
-* The provided dataset may be sorted in-place. See the `KDTree` constructor's
+* The provided dataset may be sorted in-place. See the `OpTree` constructor's
   `data` and `copy_data` arguments for more information on when that occurs. 
-* Only `query`, `query_ball_point`, and `query_ball_tree` are fully supported.
-  `query_pairs` and `count_neighbors` are a work in progress (`query_pairs` may
-  not provide completely correct output, `count_neighbors` does not yet have
-  the `KDTree` API portion implemented and may not be correct).
-  `sparse_distance_matrix` is not planned. Both `count_neighbors` and
-  `sparse_distance_matrix` will raise `NotImplementedErrors`.
+* Only `query` and `query_ball_point` are fully supported. `query_ball_tree`,
+  `query_pairs` and `count_neighbors` are a work in progress and will raise
+  `NotImplementedErrors` until fully implemented. `sparse_distance_matrix` is
+  not planned and will always raise `NotImplementedErrors`.
 * Only `query_ball_point` has been benchmarked and is guaranteed to be
   performant. We are currently working on `query`'s performance, but will not
   plan on beating `scipy`.

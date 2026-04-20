@@ -58,13 +58,13 @@ import packingcubes.packed_tree as optree
 from ._json_parsing import UnytEncoder
 from .brute import brute_force_creation, brute_force_search
 from .cubes import ParticleCubes, cubes_creation, cubes_query_ball_points
-from .kdtree import (
-    KDTree,
-    packed_kdtree_creation,
-    packed_kdtree_query,
-    packed_kdtree_query_ball_point,
-)
 from .octree import python_octree_creation, python_octree_query_ball_point
+from .optree import (
+    OpTree,
+    optree_creation,
+    optree_query,
+    optree_query_ball_point,
+)
 from .packed_tree import _NUM_REPS as _NUM_PACKED_QUERY_REPS
 from .packed_tree import (
     PackedTree,
@@ -74,12 +74,10 @@ from .packed_tree import (
     packed_octree_query_ball_point_indices,
 )
 from .scipy import (
-    KDTree as SciTree,
-)
-from .scipy import (
-    scipy_kdtree_creation,
-    scipy_kdtree_query,
-    scipy_kdtree_query_ball_point,
+    KDTree,
+    kdtree_creation,
+    kdtree_query,
+    kdtree_query_ball_point,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -289,7 +287,7 @@ def random_search_balls(
         )
         return radii, particle_numbers
 
-    kdtree = optree.KDTree(data=ds.positions, copy_data=True)
+    tree = optree.OpTree(data=ds.positions, copy_data=True)
     box = ds.bounding_box
     bad_balls = 0
     radii = []
@@ -305,7 +303,7 @@ def random_search_balls(
         r = min(ds.bounding_box.size) / 10
         LOGGER.debug(f"Starting search for ball {i} with center {center} and r0={r}")
         n_enclosed = len(
-            kdtree.query_ball_point(
+            tree.query_ball_point(
                 center,
                 r,
                 strict=True,
@@ -323,7 +321,7 @@ def random_search_balls(
             rlower = r
             r *= 2
             n_enclosed = len(
-                kdtree.query_ball_point(
+                tree.query_ball_point(
                     center,
                     r,
                     strict=True,
@@ -345,7 +343,7 @@ def random_search_balls(
                 f"Have {n_enclosed} particles ({error=:.3g}). Checking {r=:.4g}"
             )
             n_enclosed = len(
-                kdtree.query_ball_point(
+                tree.query_ball_point(
                     center,
                     r,
                     strict=True,
@@ -426,7 +424,7 @@ def tree_sizes(decimation_factor=10):
     tcf_dict = {
         "python": python_octree_creation,
         "packed": packed_octree_creation,
-        "kdtree": scipy_kdtree_creation,
+        "kdtree": kdtree_creation,
     }
     # print(".Creating trees and computing memory usage")  # noqa
     for name, tree_creation_func in tcf_dict.items():
@@ -444,7 +442,7 @@ def tree_sizes(decimation_factor=10):
 
 
 # The NDArray is for the brute search creation method
-type TSearchObj = PackedTree | ParticleCubes | KDTree | SciTree | NDArray
+type TSearchObj = PackedTree | ParticleCubes | OpTree | KDTree | NDArray
 """ A search object """
 
 
@@ -464,8 +462,8 @@ def get_creation_search_dicts() -> tuple[
         "pyoct": python_octree_creation,
         "packed": packed_octree_creation,
         "cubes": cubes_creation,
-        "kdtree": packed_kdtree_creation,
-        "scipy": scipy_kdtree_creation,
+        "optree": optree_creation,
+        "kdtree": kdtree_creation,
         "brute": brute_force_creation,
     }
     search_dict = {
@@ -497,13 +495,13 @@ def get_creation_search_dicts() -> tuple[
             "fun": cubes_query_ball_points,
             "tree": "cubes",
         },
-        "kdtree": {
-            "fun": packed_kdtree_query_ball_point,
-            "tree": "kdtree",
+        "optree": {
+            "fun": optree_query_ball_point,
+            "tree": "optree",
         },
-        "kdq": {
-            "fun": packed_kdtree_query,
-            "tree": "kdtree",
+        "opq": {
+            "fun": optree_query,
+            "tree": "optree",
             "config": {"k": _DEFAULT_QUERY_SIZE},
             "extended_description": f"""
             Returns k(={_DEFAULT_QUERY_SIZE})-closest particles, equivalent to 
@@ -514,13 +512,13 @@ def get_creation_search_dicts() -> tuple[
             "fun": brute_force_search,
             "tree": "brute",
         },
-        "scipy": {
-            "fun": scipy_kdtree_query_ball_point,
-            "tree": "scipy",
+        "kdtree": {
+            "fun": kdtree_query_ball_point,
+            "tree": "kdtree",
         },
-        "sciq": {
-            "fun": scipy_kdtree_query,
-            "tree": "scipy",
+        "kdq": {
+            "fun": kdtree_query,
+            "tree": "kdtree",
             "config": {"k": _DEFAULT_QUERY_SIZE},
             "extended_description": f"""
             Returns k(={_DEFAULT_QUERY_SIZE})-closest particles.
@@ -849,7 +847,7 @@ def manual_timing(
         )
         test_name = (
             (test + f" ({get_num_threads()} threads)")
-            if "cubes" in test or "kdtree" in test
+            if "cubes" in test or "optree" in test
             else test
         )
         LOGGER.info(
@@ -963,7 +961,7 @@ def parse_arguments(argv=None):
         "--number-threads",
         default=[get_num_threads()],
         help=f"""
-        For those tests which can benefit from parallelization (cubes, KDTree),
+        For those tests which can benefit from parallelization (cubes, optree),
         specify the number of threads to run on (e.g. for use in scaling 
         benchmarks). Note that this number must be less than the maximum number
         of threads available ({config.NUMBA_NUM_THREADS}). Can be provided as
@@ -1009,12 +1007,12 @@ def parse_arguments(argv=None):
         ),
     )
 
-    group_list_const = ["pyoct", "packed", "cubes", "kdtree", "scipy"]
+    group_list_const = ["pyoct", "packed", "cubes", "optree", "kdtree"]
     group_list_names = [
         "PythonOctree",
         "PackedTree",
         "Cubes",
-        "Packed KDTree",
+        "OpTree",
         "SciPy KDTree",
     ]
     for const, name in zip(group_list_const, group_list_names, strict=True):
@@ -1037,7 +1035,7 @@ def parse_arguments(argv=None):
         "--most",
         help="""
         Run most of the tests. Specifically, this is the equivalent of 
-        `--packed --kdtree --scipy --kdq-search --sciq-search`
+        `--packed --optree --kdtree --opq-search --kdq-search`
         """,
         dest="combined_list",
         action="append_const",
