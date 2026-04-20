@@ -313,11 +313,42 @@ link = "https://github.com/astrosocket"
 # Markdown extension settings
 # ----------------------------------------------------------------------------
 
-# Uncomment to enable MathJax sitewide
-# [project.markdown_extensions.pymdownx.arithmatex]
-# generic = true
-
+[project.markdown_extensions.abbr]
+[project.markdown_extensions.admonition]
+[project.markdown_extensions.attr_list]
+[project.markdown_extensions.def_list]
+[project.markdown_extensions.footnotes]
+[project.markdown_extensions.md_in_html]
+[project.markdown_extensions.toc]
+permalink = true
+[project.markdown_extensions.pymdownx.arithmatex]
+generic = true
+[project.markdown_extensions.pymdownx.betterem]
+[project.markdown_extensions.pymdownx.caret]
+[project.markdown_extensions.pymdownx.details]
+[project.markdown_extensions.pymdownx.emoji]
+emoji_generator = "zensical.extensions.emoji.to_svg"
+emoji_index = "zensical.extensions.emoji.twemoji"
+[project.markdown_extensions.pymdownx.highlight]
+anchor_linenums = true
+line_spans = "__span"
+pygments_lang_class = true
+[project.markdown_extensions.pymdownx.inlinehilite]
+[project.markdown_extensions.pymdownx.keys]
+[project.markdown_extensions.pymdownx.magiclink]
+[project.markdown_extensions.pymdownx.mark]
+[project.markdown_extensions.pymdownx.smartsymbols]
 [project.markdown_extensions.pymdownx.snippets]
+[project.markdown_extensions.pymdownx.superfences]
+custom_fences = [
+  { name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format" }
+]
+[project.markdown_extensions.pymdownx.tabbed]
+alternate_style = true
+combine_header_slug = true
+[project.markdown_extensions.pymdownx.tasklist]
+custom_checkbox = true
+[project.markdown_extensions.pymdownx.tilde]
 
 # ----------------------------------------------------------------------------
 # mkdocstrings configuration
@@ -329,6 +360,16 @@ paths = ["packingcubes"]
 [project.plugins.mkdocstrings.handlers.python.options]
 docstring_style = "numpy"
 inherited_members = true
+signature_crossrefs = true
 show_source = false
-docstring_section_style = "spacy"
+docstring_section_style = "list"
+backlinks = true
+parameter_headings = false
+scoped_crossrefs = true
+show_symbol_type_heading = true
+show_symbol_type_toc = true
+separate_signature = true
+show_signature_annotations = false
+merge_init_into_class = true
+docstring_options = {"ignore_init_summary" = true}
 extensions = {"griffe_pydantic" = {"schema" = true}}
