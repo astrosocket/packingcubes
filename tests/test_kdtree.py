@@ -149,9 +149,7 @@ def test_query_ball_tree_example(scipy_query_ball_tree_example):
 
 
 def plot_query_ball_tree_example():
-    """
-    Diagnostic method for test_query_ball_tree_example
-    """
+    """Diagnostic method for test_query_ball_tree_example."""
     tree1, tree2, stree1, stree2, points1, points2 = (
         scipy_query_ball_tree_example_unwrapped()
     )
@@ -217,9 +215,7 @@ def test_query_pairs_example(scipy_query_pairs_example):
 
 
 def plot_query_pairs_example():
-    """
-    Diagnostic method for test_query_pairs_example
-    """
+    """Diagnostic method for test_query_pairs_example."""
     tree, stree, points = scipy_query_ball_tree_example_unwrapped()
     import matplotlib.pyplot as plt
 

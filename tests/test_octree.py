@@ -336,11 +336,9 @@ def test_PythonOctreeNode_empty_data(make_basic_data):
 
 
 def make_worst_case_duplicate() -> Dataset:
-    """
-    Worst case duplicate would be some sort of 3D Cantor dust-like fractal
-    structure but we don't have time to test that, so we'll just do the lop
-    layer -> 8 vertices of the unit cube that are duplicated
-    """
+    # Worst case duplicate would be some sort of 3D Cantor dust-like fractal
+    # structure but we don't have time to test that, so we'll just do the top
+    # layer -> 8 vertices of the unit cube that are duplicated
     data = Dataset(filepath="")
 
     positions = []
