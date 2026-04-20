@@ -1,0 +1,3 @@
+# The `packingcubes` package
+
+::: packingcubes
