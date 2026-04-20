@@ -75,7 +75,7 @@ m_expected_label = {
 ignore_metrics = ["search:brute"]
 
 
-def save_fig(
+def _save_fig(
     fig: mpl.Figure,
     fig_type: str,
     *,
@@ -133,7 +133,7 @@ def plot_raw_times(sims: TSims, **kwargs) -> TPlots:
         ax.legend()
 
     for t, fig in zip(metrics, figs, strict=True):
-        save_fig(fig, f"raw-{t}", **kwargs)
+        _save_fig(fig, f"raw-{t}", **kwargs)
     return figs, axs
 
 
@@ -207,7 +207,7 @@ def plot_expected_times(sims: TSims, **kwargs) -> TPlots:
         ax.legend()
 
     for t, fig in zip(metrics, figs, strict=True):
-        save_fig(fig, f"expected-{t}", **kwargs)
+        _save_fig(fig, f"expected-{t}", **kwargs)
     return figs, axs
 
 
@@ -256,7 +256,7 @@ def plot_normalized_times(sims: TSims, **kwargs) -> TPlots:
         ax.legend()
 
     for t, fig in zip(metrics, figs, strict=True):
-        save_fig(fig, f"normalized-{t}", **kwargs)
+        _save_fig(fig, f"normalized-{t}", **kwargs)
     return figs, axs
 
 
@@ -333,7 +333,7 @@ def plot_parallel_scaling(sims: TSims, **kwargs) -> TPlots:
     axs[0].legend()
     axs[1].legend()
 
-    save_fig(fig, "parallel", **kwargs)
+    _save_fig(fig, "parallel", **kwargs)
     return fig, axs
 
 
