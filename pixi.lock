@@ -3717,8 +3717,8 @@ packages:
   timestamp: 1769093650580
 - pypi: ./
   name: packingcubes
-  version: 0.3.2.dev38+dirty
-  sha256: a6708ec975458b1c503a8bd71f7bd5c0a067f41c2cfc9ef23fd2404d3429a98c
+  version: 0.3.2.dev48+dirty
+  sha256: 4ce6d3ae2c0bfb169f0bf229a04d5f46b09ade20a8341f74b654d4627b300efe
   requires_dist:
   - numpy
   - h5py
@@ -3731,6 +3731,7 @@ packages:
   - jupyter-rfb ; extra == 'jupyter'
   - scipy ; extra == 'benchmark'
   - unyt ; extra == 'benchmark'
+  - matplotlib ; extra == 'benchmark'
   - packingcubes[viz] ; extra == 'all'
   - packingcubes[jupyter] ; extra == 'all'
   - packingcubes[benchmark] ; extra == 'all'

@@ -47,7 +47,7 @@ viz = [
 jupyter = [
     "jupyter-rfb",
 ]
-benchmark = ["scipy", "unyt"]
+benchmark = ["scipy", "unyt", "matplotlib"]
 all = ["packingcubes[viz]", "packingcubes[jupyter]", "packingcubes[benchmark]"]
 
 
