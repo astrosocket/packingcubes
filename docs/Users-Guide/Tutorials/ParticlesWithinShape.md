@@ -173,6 +173,13 @@ for start, stop, partial in index_array:
 
 ```
 
+!!! warning "Fragile Data!"
+    You may notice that the order of the data in `positions` has changed (occurred
+    when we made `cubes`). This is by design! But it also means if you modify 
+    `positions` you will break the linkage between search results and the data.
+    For more on this, see [Working with Datasets](../Recipes/Working_with_datasets)
+    for more robust ways to interact with data.
+
 
 <script id="MathJax-script" src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
 <script>
