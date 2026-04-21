@@ -515,6 +515,11 @@ def Cubes(
                 if isinstance(dataset, str)
                 else dataset
             )
+            kwargs["save_dataset"] = (
+                kwargs["save_dataset"]
+                if "save_dataset" in kwargs
+                else not isinstance(dataset, InMemory)
+            )
             cubes_dict = make_cubes(dataset=dataset, **kwargs)
     else:
         if not _has_trees(cubes_dict):
