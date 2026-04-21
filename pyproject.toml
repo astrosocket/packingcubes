@@ -157,6 +157,10 @@ docs = { features = ["docs", "jupyter"], solve-group = "default" }
 
 [tool.pixi.tasks]
 
+[tool.pixi.feature.docs.tasks]
+zserve = "zensical serve"
+zbuild = "zensical build"
+
 [tool.pixi.feature.dev.tasks]
 test = "pytest --cov=packingcubes"
 
@@ -195,7 +199,7 @@ jupyter-rfb = ">=0.5.4,<0.6"
 twine = ">=6.2.0,<7"
 
 [tool.pixi.feature.docs.dependencies]
-zensical = ">=0.0.32,<0.0.33"
+zensical = ">=0.0.34,<0.0.35"
 mkdocstrings = ">=1.0.3,<2"
 mkdocstrings-python = ">=2.0.2,<3"
 griffe-pydantic = ">=1.3.1,<2"
