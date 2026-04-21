@@ -5,7 +5,7 @@ implementation, specialized for use in astronomical/astrophysical contexts.
 It's written in pure python, with [Numba](https://numba.pydata.org/)-based
 acceleration of the critical code paths.
 
-The `packingcubes` can be used from the command line, via the `packcubes`
+`packingcubes` can be used from the command line, via the `packcubes`
 command, but will generally be used programmatically.
 
 The following classes and methods represent the primary public interface of
