@@ -1,3 +1,92 @@
+## [0.4.0] - 2026-04-24
+
+### 🚀 Features
+
+- Allow setting the initial particle type ([ffa687e](https://github.com/astrosocket/packingcubes/commit/ffa687e3faf7ad4c141bb2ffabaace68b64711bb))
+- Add explicit __init__ ([2fae868](https://github.com/astrosocket/packingcubes/commit/2fae86873b96c41afd0b941b044d54cdbf2b44fe))
+- Change default sorted_filepath name ([d26db2a](https://github.com/astrosocket/packingcubes/commit/d26db2aec6a9c5d804bd0c83798cc8e5d3ca343e))
+- Add sorted_filepath and data_slices to public properties ([45b3f11](https://github.com/astrosocket/packingcubes/commit/45b3f1103ba1aafd303228a6c7e8fae51b135760))
+- Allow specifying initial particle type to load ([4c87748](https://github.com/astrosocket/packingcubes/commit/4c87748206569b19d27d1acadad83e41a30e130a))
+- Add options to dataset saving ([800fe80](https://github.com/astrosocket/packingcubes/commit/800fe809b6611f3f7c5f504b5a63575f3a7d9afc))
+- Allow specifying the sorted filepath on cubes call ([4fe6f14](https://github.com/astrosocket/packingcubes/commit/4fe6f14f8d8670d7827bd8a4e1e088dc7a88bd1f))
+- Allow specifying only a single particle type to load ([8bfe1e6](https://github.com/astrosocket/packingcubes/commit/8bfe1e68e5d6854a4cf5fca7bf2980c3fdd4e6fa))
+- Change default for save_dataset ([74f00fa](https://github.com/astrosocket/packingcubes/commit/74f00fa5fb8f26b3cd200d86952b77c29f3c7cc6))
+
+### 🐛 Bug Fixes
+
+- Fix attempting to load cubes from non-hdf5 files ([ad280ae](https://github.com/astrosocket/packingcubes/commit/ad280aede2bc1fe34b3733db08d0f0a2e4488adf))
+- Scripts not generated correctly ([81b1b44](https://github.com/astrosocket/packingcubes/commit/81b1b44c8755102f7e4f06c81f0a0b5d8aaa0661))
+- Don't save InMemory datasets by default ([66c0268](https://github.com/astrosocket/packingcubes/commit/66c0268109af60194cc1de1edd3ca490009ed28f))
+
+### 🚜 Refactor
+
+- Switch KDTree to OpTree in code ([8626893](https://github.com/astrosocket/packingcubes/commit/8626893a21b5b246a6b44557da40b5c0921c89ee))
+- Rename kdtree.py to optree.py in performance tests ([9cea29a](https://github.com/astrosocket/packingcubes/commit/9cea29a451521d5feef8729ced1ebf53a94a6619))
+- Rename test_kdtree.py to test_optree.py ([76ada83](https://github.com/astrosocket/packingcubes/commit/76ada83f9f6ffa2389a44e3a847f9c1255ce300d))
+- Rename kdtree.py to optree.py ([d8659af](https://github.com/astrosocket/packingcubes/commit/d8659af1908eac1a2c2b8840c4740591f2814278))
+- Add missing typing ([4ba4f50](https://github.com/astrosocket/packingcubes/commit/4ba4f50cab49196c0d208584f5d089b3d31f6510))
+- Remove json_parsing.py ([7695160](https://github.com/astrosocket/packingcubes/commit/7695160c307b9e7aee063971ac88a5b091b1ee80))
+- Make save_fig private ([773982f](https://github.com/astrosocket/packingcubes/commit/773982fd79a8b940e8fa3e3424a7d35638bb8f54))
+- Add _json_parse.py ([425c5ea](https://github.com/astrosocket/packingcubes/commit/425c5ea8e86277ec56bf092b1bc9086e024c0761))
+- Make internal functions private, simplify name, signature ([a1cbf27](https://github.com/astrosocket/packingcubes/commit/a1cbf2777726414c27a990759af891122ca9addc))
+- Make cubes_dict private ([259a6ae](https://github.com/astrosocket/packingcubes/commit/259a6aef65a69ddc41ec2bdb7c2547712d59661a))
+- Add missing typing ([56fee08](https://github.com/astrosocket/packingcubes/commit/56fee08566e7d88862c546c1256cb2bb5be72442))
+- Move several internal functions to private ([5740d1c](https://github.com/astrosocket/packingcubes/commit/5740d1c18d902715b1da354ca9d32b5be2329d9d))
+- Exposse create_metadata ([f7309ec](https://github.com/astrosocket/packingcubes/commit/f7309ecda69c558110f5057fbad11e45ee0c31b2))
+- Change multiparticle type Cubes behavior ([3ca1c30](https://github.com/astrosocket/packingcubes/commit/3ca1c3023c649920fb15ad8662bf7540bde084ae))
+- Remove duplicate parallelism test, only check thread number ([b407d60](https://github.com/astrosocket/packingcubes/commit/b407d60e39d7faf18462494a9e1f636190aa096e))
+- Make json_parsing module private ([5143c94](https://github.com/astrosocket/packingcubes/commit/5143c945753294655a13e401a3c12a3babfd0ecd))
+- Change exported names ([3aa1af9](https://github.com/astrosocket/packingcubes/commit/3aa1af9de5b0c06cf2a5cf2829359ae28f4bd55e))
+
+### 📚 Documentation
+
+- Clean up docstrings ([bac216c](https://github.com/astrosocket/packingcubes/commit/bac216c91b0032c0a28e28518114ab3add831eb7))
+- Fix reference to MultiCubes ([24ac21c](https://github.com/astrosocket/packingcubes/commit/24ac21c1f9be5559fe5b1c639e23d858aec281ca))
+- Add link to documentation ([635c094](https://github.com/astrosocket/packingcubes/commit/635c094d16030acc2642cf5fbea3162445e8f835))
+- Add initial Working With Datasets tutorial ([5cafbed](https://github.com/astrosocket/packingcubes/commit/5cafbede548a316b2be2ef66464e9b4ba40195e5))
+- Improve Getting Started page ([9e27523](https://github.com/astrosocket/packingcubes/commit/9e27523a2b8bf074169d2ec8f5fee888824699ca))
+- Improve Getting Started page ([92038ac](https://github.com/astrosocket/packingcubes/commit/92038acc2b2e8bd43ab159f3d287e8d412d698ed))
+- Mention ParticleCubes in OpTree docstrings ([d9e57a7](https://github.com/astrosocket/packingcubes/commit/d9e57a79984c3de3e284f9e630e525f4350e3da9))
+- Remove DataContainer from general Data Objects section ([bdf7161](https://github.com/astrosocket/packingcubes/commit/bdf716173883c4f0591e025e1bdd728b0748312b))
+- Break up monolithic bounding_box import ([77c959f](https://github.com/astrosocket/packingcubes/commit/77c959f55c3035a0a2660cb6c357b104edcbe9f2))
+- Provide numba placeholder information ([5e41283](https://github.com/astrosocket/packingcubes/commit/5e412837363267fdffff36bb75abff116cd0df88))
+- Break up monolithic CONTRIBUTING snipped ([b181eb6](https://github.com/astrosocket/packingcubes/commit/b181eb63aef06b5b2a9138700599fbd92cb6c0ff))
+- Remove installation instructions from Getting Started ([88eb88d](https://github.com/astrosocket/packingcubes/commit/88eb88d1bbffad5c7b86d80124d60f0ae8255482))
+- Tweaks to Citations.md ([91afa6b](https://github.com/astrosocket/packingcubes/commit/91afa6b039dd99290fef3dd2c35b66410327e38b))
+- Manually set navigation in zensical.toml ([c445aae](https://github.com/astrosocket/packingcubes/commit/c445aae9143eb632319446a0af3e400695909a8c))
+- Update missing icons/links/pages on indices ([141b82b](https://github.com/astrosocket/packingcubes/commit/141b82b7b79b7115ecb79e7167f13f9fa731d275))
+- Add missing icons and page titles ([9085c2a](https://github.com/astrosocket/packingcubes/commit/9085c2a6f0670a8e80385dec8085fd19eff7d4b4))
+- Add missing doc files ([9379448](https://github.com/astrosocket/packingcubes/commit/9379448f0bc442c414bf699561a8513ee959c38d))
+- Change layout and section index pages ([aff0e0f](https://github.com/astrosocket/packingcubes/commit/aff0e0fe9095d120c4085dae9cff6de9a016866f))
+- Add warning about data fragility ([8df602a](https://github.com/astrosocket/packingcubes/commit/8df602a6a7e0f8485fb8ed7cf4c6e3465df34dbd))
+- Upload initial versions of several docs pages ([2ce961a](https://github.com/astrosocket/packingcubes/commit/2ce961ad867cde567055664860715fcb4e943301))
+- Update the welcome page ([8b0d703](https://github.com/astrosocket/packingcubes/commit/8b0d7039bf27f44f7745817a4bb6be5d608449a9))
+- Improve numba section ([aa75cf7](https://github.com/astrosocket/packingcubes/commit/aa75cf7659d0059ea1e7c61311f5dd7f64ebc0f4))
+- Remove 'The' ([70f0670](https://github.com/astrosocket/packingcubes/commit/70f0670d3c2792f20d88c56fb5309f58589a718c))
+- Update README to match Cubes changes, add snippet marks ([037bcda](https://github.com/astrosocket/packingcubes/commit/037bcda66c332fb03ec03310eb6c6ce208652b23))
+- Add basic Code and Contributing ([3786ad7](https://github.com/astrosocket/packingcubes/commit/3786ad73a025d63f58cb41a5a1baba8e613fe666))
+- Reorganizing documentation ([fc96ca0](https://github.com/astrosocket/packingcubes/commit/fc96ca073f052fecf26f9f56665fd867ba981aa6))
+- Remove spaces from file names ([f6ac9f4](https://github.com/astrosocket/packingcubes/commit/f6ac9f409ae90f9a1dc4bd71dfb18ea5ed05fa58))
+- Improve README readability ([83a8a3b](https://github.com/astrosocket/packingcubes/commit/83a8a3bb72b646cc98c3e52fc4359f1e9667794d))
+- Add basic API pages ([0ee8286](https://github.com/astrosocket/packingcubes/commit/0ee8286b62ac916b5da7df4e095aadbc689f9a6a))
+- Update zensical config ([d13041f](https://github.com/astrosocket/packingcubes/commit/d13041fe613ecf045296cf5801d083af130ef738))
+- Add missing module docstrings, __init__.py ([c4b62ad](https://github.com/astrosocket/packingcubes/commit/c4b62ad8115ae5801c35efefbba1e9e4f979feb9))
+- Convert to Numpy style and add missing documentation ([32cb38b](https://github.com/astrosocket/packingcubes/commit/32cb38b6b74fb6c6c3a835937740597cfd8f8146))
+- Add missing ruff flags in prep for docstrings linting ([25b8a0d](https://github.com/astrosocket/packingcubes/commit/25b8a0ddfa96c20b8cf68269ac36b20a06a3b056))
+- Downgrade packed format version ([654ac2d](https://github.com/astrosocket/packingcubes/commit/654ac2d8a1c882aea2f87804690a56c05445b74c))
+
+### 🎨 Styling
+
+- Turn on docstrings checking, switch to numpy style ([cf27eb3](https://github.com/astrosocket/packingcubes/commit/cf27eb3ef2188a82cc175b9ca72513ce6ed58b03))
+- Minor style fixes from ruff ([8817bbe](https://github.com/astrosocket/packingcubes/commit/8817bbec2cbb932f6147740632f7eacd84331c95))
+
+### ⚙️ Miscellaneous Tasks
+
+- Update zensical and add zensical tasks to docs feature ([fb3c675](https://github.com/astrosocket/packingcubes/commit/fb3c675cab7c3e5a4b4e3ea56f4d61e186adb39d))
+- Fix typo in .readthedocs.yaml ([#19](https://github.com/astrosocket/packingcubes/issues/19)) ([0ef3e14](https://github.com/astrosocket/packingcubes/commit/0ef3e1492f359b031494428f179249e6ae8bc361))
+- Run zensical in docs pixi environment ([271a228](https://github.com/astrosocket/packingcubes/commit/271a22817d31ae07a1a2df69fc4a3b0231416424))
+- Run zensical in pixi environment ([5fd9f26](https://github.com/astrosocket/packingcubes/commit/5fd9f2666a02c2c442c45bc6eeb61c0b8f61208b))
+- Fix typo in .readthedocs.yaml ([9aaade2](https://github.com/astrosocket/packingcubes/commit/9aaade23362b04bdf2bd3bdb395339bb2d5286ff))
 ## [0.3.1] - 2026-04-15
 
 ### 🚀 Features
@@ -121,6 +210,10 @@
 - Use new slice lists to load chunks of dataset instead of striding ([a1be6db](https://github.com/astrosocket/packingcubes/commit/a1be6db72e50161608afd8a0f5946a7529fafb7e))
 - Add test for just the numba search portion ([eb9f60e](https://github.com/astrosocket/packingcubes/commit/eb9f60e1b33c3676e99907d709420b2b96925b4b))
 - Add custom scaling to tests ([e5c45d8](https://github.com/astrosocket/packingcubes/commit/e5c45d82929580f02ef67ec8f7cce6c607de9cb3))
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* Update CHANGELOG ([2429944](https://github.com/astrosocket/packingcubes/commit/24299444524e53546036c9ffe56296dfa9976153))
 ## [0.2.3] - 2026-03-25
 
 ### 🚀 Features
