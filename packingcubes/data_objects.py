@@ -711,6 +711,49 @@ class GadgetishHDF5Dataset(HDF5Dataset):
     header specification [here](https://wwwmpa.mpa-garching.mpg.de/gadget/html/structio__header.html)
     """
 
+    def __init__(
+        self,
+        *,
+        name: str | None = None,
+        filepath: str | Path,
+        sorted_filepath: str | Path | None = None,
+        initial_particle_type: str | None = None,
+        data_slices=None,
+    ):
+        """Initialize an Gadget-like HDF5Dataset
+
+        Parameters
+        ----------
+        filepath: str | Path
+            The path to the file
+
+        name: str, optional
+            A name for this dataset. Defaults to filepath
+
+        sorted_filepath: str | Path, optional
+            Optional file to store sorted position and shuffle-list data.
+            Will also search for positions data from this file before
+            searching filepath. Defaults to `filepath.parent/filepath.stem +
+            "_sorted.hdf5"`
+
+        initial_particle_type: str, optional
+            Initial particle type to (eagerly) load. Defaults to the first HDF5
+            group that starts with "Part".
+
+        data_slices: np.s_ | dict[str, np.s_], optional
+            A numpy slice object or dictionary of slice objects per particle
+            type. This can be used to load only a portion of the dataset.
+            Effectively, the dataset will be loaded as
+            `data = data[data_slice[0]:data_slice[1]:data_slice[3]]`
+        """
+        super().__init__(
+            name=name,
+            filepath=filepath,
+            sorted_filepath=sorted_filepath,
+            initial_particle_type=initial_particle_type,
+            data_slices=data_slices,
+        )
+
     def _preload(
         self,
         sorted_filepath: str | Path | None,
