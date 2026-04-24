@@ -2,7 +2,7 @@
 icon: lucide/book-search
 ---
 
-# Citing packingcubes
+# Citing `packingcubes`
 
 Please cite `packincubes` using the paper:
 
@@ -10,8 +10,3 @@ Please cite `packincubes` using the paper:
 # WIP
 ```
 
-and the Zenodo citation:
-
-``` bibtex
-# Also WIP :)
-```
