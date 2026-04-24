@@ -427,7 +427,7 @@ def has_cubes(dataset: str | Path | MultiParticleDataset):
         raise ValueError("Need a dataset to check!")
     if isinstance(dataset, HDF5Dataset):
         return "cubes" in dataset._top_level_groups
-    if isinstance(dataset, (str, Path)):
+    if isinstance(dataset, (str, Path)) and h5py.is_hdf5(dataset):
         with h5py.File(dataset) as file:
             return "cubes" in file
     return False
