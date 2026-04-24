@@ -508,6 +508,7 @@ class HDF5Dataset(MultiParticleDataset):
         name: str | None = None,
         filepath: str | Path,
         sorted_filepath: str | Path | None = None,
+        initial_particle_type: str | None = None,
         data_slices=None,
     ):
         """Initialize an HDF5Dataset
@@ -525,6 +526,9 @@ class HDF5Dataset(MultiParticleDataset):
             Will also search for positions data from this file before
             searching filepath.
 
+        initial_particle_type: str, optional
+            Initial particle type to (eagerly) load.
+
         data_slices: np.s_ | dict[str, np.s_], optional
             A numpy slice object or dictionary of slice objects per particle
             type. This can be used to load only a portion of the dataset.
@@ -534,7 +538,7 @@ class HDF5Dataset(MultiParticleDataset):
         """
         super().__init__(name=name, filepath=filepath)
 
-        self._preload(sorted_filepath)
+        self._preload(sorted_filepath, initial_particle_type)
 
         self._process_slices(data_slices)
 
@@ -542,7 +546,11 @@ class HDF5Dataset(MultiParticleDataset):
         self._load_positions()
         self._set_bounding_box()
 
-    def _preload(self, sorted_filepath: str | Path | None):
+    def _preload(
+        self,
+        sorted_filepath: str | Path | None,
+        initial_particle_type: str | None = None,
+    ):
         """Load certain attributes at initialization
 
         Must set _positions_field, _particle_types, _particle_numbers,
@@ -681,7 +689,11 @@ class GadgetishHDF5Dataset(HDF5Dataset):
     header specification [here](https://wwwmpa.mpa-garching.mpg.de/gadget/html/structio__header.html)
     """
 
-    def _preload(self, sorted_filepath: str | Path | None):
+    def _preload(
+        self,
+        sorted_filepath: str | Path | None,
+        initial_particle_type: str | None = None,
+    ):
         # TODO handle case where particles are split across multiple files...
         particle_types = []
         groups = []
@@ -698,6 +710,7 @@ class GadgetishHDF5Dataset(HDF5Dataset):
                 "No particle types found in dataset. Looking for groups named Part*",
             )
         self._particle_types = particle_types
+
         self._sorted_file_name = Path(
             self.filepath.parent / ("." + str(self.filepath.name) + "_sorted.hdf5")
             if sorted_filepath is None
@@ -708,8 +721,12 @@ class GadgetishHDF5Dataset(HDF5Dataset):
                 f"{self._sorted_file_name} already exists but is not an hdf5 file!",
             )
 
-        # set initial particle type and load data
-        self._particle_type = particle_types[0]
+        # set initial particle type
+        self._particle_type = (
+            particle_types[0]
+            if initial_particle_type is None
+            else initial_particle_type
+        )
         _particle_numbers = self._header["NumPart_Total"]
         _particle_numbers = _particle_numbers[_particle_numbers > 0]
         self._particle_numbers = dict(
