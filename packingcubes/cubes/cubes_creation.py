@@ -391,6 +391,8 @@ def make_cubes(
 
 def load_cubes(
     dataset: str | MultiParticleDataset,
+    particle_types: str | Collection[str] | None = None,
+    **kwargs,
 ) -> dict[str, dict]:
     """Load cubes data from a dataset. See make_cubes for a description of the output"""
     cubes_dict = {}
@@ -404,6 +406,16 @@ def load_cubes(
     ) as file:
         cubes_group = file["cubes"]
         pts = list(cubes_group.keys())
+        if particle_types is not None:
+            particle_types = (
+                [particle_types] if isinstance(particle_types, str) else particle_types
+            )
+            for pt in particle_types:
+                if pt not in pts:
+                    raise ValueError(
+                        f"{pt} is not contained in {filepath}. Only {pts} are present."
+                    )
+            pts = list(particle_types)
         for pt in pts:
             cubes = cubes_group[pt]
             cube_indices = cubes["indices"]
@@ -508,7 +520,7 @@ def Cubes(
     if cubes_dict is None:
         assert dataset is not None
         try:
-            cubes_dict = load_cubes(dataset)
+            cubes_dict = load_cubes(dataset, **kwargs)
         except (NotImplementedError, ValueError):
             dataset = (
                 GadgetishHDF5Dataset(filepath=dataset)
