@@ -15,6 +15,8 @@ implementation, specialized for use in astronomical/astrophysical contexts.
 It's written in pure python, with [Numba](https://numba.pydata.org/)-based
 acceleration of the critical code paths.
 
+View the documentation at [packingcubes.readthedocs.io](packingcubes.readthedocs.io)!
+
 ## Requirements
 [![Supported Python Versions](https://img.shields.io/pypi/pyversions/packingcubes)](https://pypi.org/project/packingcubes/) 
 is required. Python versions outside this range may work, but their usage is
