@@ -44,10 +44,54 @@ Copyright &copy; 2026 The astrosocket project
 # can be defined using TOML syntax.
 #
 # Read more: https://zensical.org/docs/setup/navigation/
-# nav = [
-#   { "Get started" = "index.md" },
-#   { "Markdown in 5min" = "markdown.md" },
-# ]
+nav = [
+  { "PackingCubes" = "index.md" },
+  { "Installation" = "Installation.md" },
+  { "Users-Guide" = [
+      "Users-Guide/index.md",
+      { "Tutorials" = [
+          "Users-Guide/Tutorials/index.md",
+          "Users-Guide/Tutorials/ParticlesWithinShape.md",
+          "Users-Guide/Tutorials/Working_with_datasets.md",
+          ]
+      },
+      { "Recipes" = [
+              "Users-Guide/Recipes/index.md",
+              "Users-Guide/Recipes/TempVsRadii_Direct.md",
+              "Users-Guide/Recipes/TempVsRadii_SearchObj.md",
+              "Users-Guide/Recipes/JittedCode.md",
+          ]
+      },
+      { "Reference" = [
+              "Users-Guide/Reference/index.md",
+              "Users-Guide/Reference/Cubes.md",
+              "Users-Guide/Reference/Data-Objects.md",
+              "Users-Guide/Reference/Packed-Trees.md",
+              "Users-Guide/Reference/packed_format.md",
+              "Users-Guide/Reference/CLI.md",
+              "Users-Guide/Reference/Tree-Visualization.md",
+              {"Numba" = [
+                  "Users-Guide/Reference/Numba/Bounding-Volumes.md",
+                  "Users-Guide/Reference/Numba/Cubes.md",
+                  "Users-Guide/Reference/Numba/DataContainers.md",
+                  "Users-Guide/Reference/Numba/PackedTree.md",
+                  ]
+              },
+          ]
+      },
+      { "Explanations" = [
+              "Users-Guide/Explanations/index.md",
+              "Users-Guide/Explanations/Octrees.md",
+              "Users-Guide/Explanations/ParallelChunking.md",
+              "Users-Guide/Explanations/HeapQueries.md",
+              "Users-Guide/Explanations/Benchmarks.md",
+          ]
+      },
+  ]
+  },
+  "Citations.md",
+  "Developer-Guide.md",
+]
 
 # With the "extra_css" option you can add your own CSS styling to customize
 # your Zensical project according to your needs. You can add any number of
