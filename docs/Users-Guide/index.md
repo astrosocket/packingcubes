@@ -3,48 +3,10 @@ icon: lucide/rocket
 ---
 # Getting Started
 
-## Requirements
---8<---- "README.md:19:53"
+--8<--- "docs/Installation.md:basic-install"
 
 
-## Installation
-We're on [PyPI](https://pypi.org/project/packingcubes), so installation is simple:
 
-=== "pip"
-
-    ``` bash
-    pip install packingcubes
-    ```
-    
-=== "uv"
-    ``` bash
-    uv pip install packingcubes
-    ```
-
-=== "pixi"
-    ``` bash
-    pixi add packingcubes --pypi
-    ```
-
-Additional package requirements can be installed via optional dependencies (see [Optional Packages](#Optional-Packages)). Example:
-
-=== "pip"
-
-    ``` bash
-    pip install "packingcubes[viz, jupyter]"
-    ```
-
-=== "uv"
-
-    ``` bash
-    uv pip install packingcubes --extra viz --extra jupyter
-    ```
-
-=== "pixi"
-
-    ``` bash
-    pixi add packingcubes[viz, jupyter] --pypi
-    ```
 
 ## Basic Usage
 
@@ -146,30 +108,3 @@ will generate the `ParticleCubes` data structure for each particle type found in
 context, a particle type is any top-level group in the snapshot whose name starts
 with the string `Part`. See [The Command Line Interface](#) for more details.
 
-## Dev Environment
-To setup the code for development, first clone the latest master from the repository:
-``` bash
-git clone https://github.com/astrosocket/packingcubes.git
-```
-install as an editable:
-
-=== "pip"
-    ```bash
-    cd packingcubes
-    pip install -e .[dev, docs]
-    ```
-
-=== "pixi"
-
-    ``` bash
-    cd packingcubes
-    pixi install -e dev
-    ```
-
-    !!! note
-    You don't need to run `pixi install` if you are planning on running tests 
-    (`pixi run test`), building documentation (`pixi run -e docs zensical serve`),
-    or working in the shell (via `pixi shell`), since those commands will install the
-    relevant environment under the hood.
-
-and then install the pre-commit hooks: `pre-commit install`.
