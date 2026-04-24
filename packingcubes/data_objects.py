@@ -293,8 +293,31 @@ class MultiParticleDataset(Dataset, ABC):
         ...
 
     @abstractmethod
-    def save(self):
-        """Save this dataset to disk"""
+    def save(
+        self,
+        *,
+        output_file: str | Path | None = None,
+        force_overwrite: bool | None = None,
+        particle_type: str | None = None,
+    ):
+        """Save this dataset to disk
+
+        It will be up to the subclass to decide what that means
+
+        Parameters
+        ----------
+        output_file: str | Path, optional
+            The name of the output file. Note this field is optional because
+            there might be an obvious default.
+
+        force_overwrite: bool, optional
+            Force overwriting position and index data if the output file
+            already contains it under the specified particle type
+
+        particle_type: str, optional
+            Save positions under a different particle type than
+            `self.particle_type`
+        """
         ...
 
 
@@ -306,9 +329,16 @@ class InMemory(MultiParticleDataset):
     consist solely of positions data.
     """
 
-    _particle_type: str = "PartType0"
+    _particle_type: str
 
-    def __init__(self, *, positions: NDArray, name: str = "", filepath: str = ""):
+    def __init__(
+        self,
+        *,
+        positions: NDArray,
+        name: str = "",
+        filepath: str = "",
+        particle_type: str | None = None,
+    ):
         """
         Initialize an InMemory Dataset
 
@@ -316,6 +346,9 @@ class InMemory(MultiParticleDataset):
         ----------
         positions: NxM NDArray
             Array containing particle position data.
+
+        particle_type: str, optional
+            Particle type these positions belong to. Default is `"PartTypeIM"`
 
         """
         positions = np.atleast_2d(positions)
@@ -334,6 +367,7 @@ class InMemory(MultiParticleDataset):
         super().__init__(name=name, filepath=filepath)
         self._set_bounding_box()
         self._setup_index()
+        self._particle_type = "PartTypeIM" if particle_type is None else particle_type
 
     @property
     def particle_type(self) -> str:
@@ -356,7 +390,10 @@ class InMemory(MultiParticleDataset):
 
     def save(
         self,
+        *,
         output_file: str | Path | None = None,
+        force_overwrite: bool | None = None,
+        particle_type: str | None = None,
     ):
         """Save sorted particle data and shuffle-list to disk in an HDF5 file
 
@@ -364,19 +401,44 @@ class InMemory(MultiParticleDataset):
         ----------
         output_file: str | Path, optional
             The name of the output file. Note this field is optional to match
-            the superclass, however, specifying None is equivalent to a NOOP.
+            the superclass, however, specifying None will raise a ValueError.
+
+        force_overwrite: bool, optional
+            Force overwriting position and index data if the output file
+            already contains it under the specified particle type
+
+        particle_type: str, optional
+            Save positions under a different particle type than
+            `self.particle_type`
+
+        Raises
+        ------
+            ValueError
+                If no output_file is specified
         """
         if output_file is None:
-            LOGGER.warning(
+            raise ValueError(
                 "InMemory datasets have no default output file. Please specify"
                 " output_file."
             )
-            return
+
+        particle_type = self.particle_type if particle_type is None else particle_type
 
         with h5py.File(output_file, "a") as output:
-            output["PartType0/positions"] = self._positions
-            output["PartType0/index"] = self._index
-            output["PartType0"].attrs["use_sorted"] = True
+            for field, array in zip(
+                ["Coordinates", "index"], [self._positions, self._index], strict=True
+            ):
+                name = f"{particle_type}/{field}"
+                if name in output:
+                    if force_overwrite:
+                        del output[name]
+                    else:
+                        raise DatasetError(
+                            f"{output_file} already contains {particle_type} "
+                            "and force_overwrite=False"
+                        )
+                output[name] = array
+            output[particle_type].attrs["use_sorted"] = True
 
 
 def _load_data_from_slices(dataset: h5py.Dataset, slices: list | None) -> NDArray:
@@ -542,7 +604,8 @@ class HDF5Dataset(MultiParticleDataset):
             if self._prefer_cache:
                 pt = self._particle_type + "/"
                 self._positions = _load_data_from_slices(
-                    file[pt + "positions"], self._data_slices[self._particle_type]
+                    file[pt + self._positions_field],
+                    self._data_slices[self._particle_type],
                 )
                 self._index = file[pt + "index"]
             else:
@@ -562,22 +625,44 @@ class HDF5Dataset(MultiParticleDataset):
         self,
         *,
         output_file: str | Path | None = None,
+        force_overwrite: bool | None = None,
+        particle_type: str | None = None,
     ):
         """Save sorted particle positions and shuffle list to provided file
-
-        If no output file is specified, will save to the cache file
 
         Parameters
         ----------
         output_file: str | Path |None, optional
-            File to save information to. Default is `self._sorted_file_name`
+            File to save information to. Default is `self.sorted_filepath`
+
+        force_overwrite: bool, optional
+            Force overwriting position and index data if the output file
+            already contains it under the specified particle type
+
+        particle_type: str, optional
+            Save positions under a different particle type than
+            `self.particle_type`
         """
         output_file = self._sorted_file_name if output_file is None else output_file
-        pt = self.particle_type
+
+        particle_type = self.particle_type if particle_type is None else particle_type
+
         with h5py.File(output_file, "a") as output:
-            output[f"{pt}/positions"] = self._positions
-            output[f"{pt}/index"] = self._index
-            output[pt].attrs["use_sorted"] = True
+            for field, array in zip(
+                [self._positions_field, "index"],
+                [self._positions, self._index],
+                strict=True,
+            ):
+                name = f"{particle_type}/{field}"
+                if name in output and force_overwrite:
+                    del output[name]
+                else:
+                    raise DatasetError(
+                        f"{output_file} already contains {particle_type} "
+                        "and force_overwrite=False"
+                    )
+                output[name] = array
+            output[particle_type].attrs["use_sorted"] = True
 
 
 class GadgetishHDF5Dataset(HDF5Dataset):
