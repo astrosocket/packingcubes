@@ -614,6 +614,28 @@ class HDF5Dataset(MultiParticleDataset):
         """Map of particle types to numbers in this dataset"""
         return self._particle_numbers
 
+    @property
+    def sorted_filepath(self):
+        """Path to the sorted data"""
+        return self._sorted_file_name
+
+    @sorted_filepath.setter
+    def sorted_filepath(self, sorted_filepath):
+        if sorted_filepath.exists() and not h5py.is_hdf5(sorted_filepath):
+            raise DatasetError(
+                f"{sorted_filepath} already exists but is not an hdf5 file!",
+            )
+        self._sorted_file_name = sorted_filepath
+
+    @property
+    def data_slices(self):
+        """Slices of data to load. A value of None means load all data"""
+        return self._data_slices
+
+    @data_slices.setter
+    def data_slices(self, data_slices):
+        self._data_slices = data_slices
+
     def _load_positions(self):
         """Load particle positions from file for the current particle type"""
         filepath = self._sorted_file_name if self._prefer_cache else self.filepath
