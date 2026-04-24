@@ -243,7 +243,7 @@ def make_cubes(
     cube_box: bbox.BoxLike | None = None,
     particle_threshold: int | None = None,
     particle_types: str | Collection[str] | None = None,
-    save_dataset: bool = True,
+    save_dataset: bool = False,
     **kwargs,
 ) -> dict[str, dict[str, NDArray | list[bbox.BoundingBox] | list[PackedTree]]]:
     """
@@ -278,7 +278,7 @@ def make_cubes(
 
     save_dataset: bool, optional
         Whether to save the sorted dataset positions out to a file. The data
-        will be sorted in memory either way. Default `True`.
+        will be sorted in memory either way. Default `False`.
 
     Returns
     -------
@@ -514,11 +514,6 @@ def Cubes(
                 GadgetishHDF5Dataset(filepath=dataset)
                 if isinstance(dataset, str)
                 else dataset
-            )
-            kwargs["save_dataset"] = (
-                kwargs["save_dataset"]
-                if "save_dataset" in kwargs
-                else not isinstance(dataset, InMemory)
             )
             cubes_dict = make_cubes(dataset=dataset, **kwargs)
     else:
