@@ -1,3 +1,8 @@
+---
+icon: lucide/message-square-text
+---
+
+# Explanations
 
 <div class="grid cards" markdown>
     

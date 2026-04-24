@@ -1,3 +1,7 @@
+---
+icon: lucide/package-search
+---
+
 # Finding Particles Within a Shape
 
 

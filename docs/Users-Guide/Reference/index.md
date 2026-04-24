@@ -1,4 +1,8 @@
-# Package API Overview
+---
+icon: lucide/library
+---
+
+# Reference
 
 ::: packingcubes
 

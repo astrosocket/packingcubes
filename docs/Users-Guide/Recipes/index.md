@@ -1,3 +1,9 @@
+---
+icon: lucide/cooking-pot
+---
+
+# Recipes
+
 Here's a simple cookbook for working with `packingcubes`
 
 ## Beginner

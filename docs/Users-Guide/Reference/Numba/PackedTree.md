@@ -1,4 +1,8 @@
-# Packed Tree
+---
+icon: lucide/network
+---
+
+# Numba Packed Trees
 
 ::: packingcubes.packed_tree.packed_tree_numba
     options:

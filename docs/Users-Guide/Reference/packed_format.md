@@ -1,3 +1,7 @@
+---
+icon: lucide/binary
+---
+
 # Packed Format Design Specification
 
 Version 1.0.0

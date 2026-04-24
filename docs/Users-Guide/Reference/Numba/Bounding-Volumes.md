@@ -1,3 +1,7 @@
+---
+icon: lucide/cuboid
+---
+
 # Bounding Volumes
 
 ::: packingcubes.bounding_box

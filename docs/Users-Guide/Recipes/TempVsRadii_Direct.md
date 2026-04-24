@@ -1,3 +1,7 @@
-# Temperature vs Radii of a Halo
+---
+icon: lucide/chart-line
+---
+
+# Temperature vs Radii of a Halo - Direct Search
 
 WIP

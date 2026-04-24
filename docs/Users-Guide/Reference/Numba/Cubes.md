@@ -1,4 +1,8 @@
-# Cubes
+---
+icon: lucide/boxes
+---
+
+# Numba Cubes
 
 ::: packingcubes.cubes.cubes_numba
     options:
