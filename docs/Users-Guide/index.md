@@ -17,10 +17,16 @@ The steps for searching data are pretty straightforward:
 2. Search object
 
 #### Creating a ParticleCubes object
-##### From already loaded data
-If you already have the data loaded in memory, the creation is trivial. 
+Basic steps to creating a `ParticleCubes` object.
 
-In the following, assume `positions_data` is an `NxM` numpy matrix, where `M<=3`.
+Of course, there are a number of optional arguments that you can specify, along
+with more complicated paths if you want to reuse information, save out data, etc.
+See the [tutorials](Tutorials) and [package overview](Reference) for more information.
+
+##### From already loaded data
+If you already have the data loaded in memory, creation is trivial. 
+
+In the following, assume `positions_data` is an `Nx3` numpy matrix.
 
 ``` python
 import packingcubes
@@ -29,9 +35,13 @@ cubes = packingcubes.Cubes(positions_data)
 
 That's it, move on to [Searching](#searching-a-particlecubes-object).
 
-Of course, there are a number of optional arguments that you can specify, along
-with more complicated paths if you want to reuse information, save out data, etc.
-See the [User's guide](Users-Guide/Tutorials/Creation) for more information.
+??? info "1D/2D and ND matrices"
+    For technical reasons, direct `ParticleCubes` creation from 1D and 2D
+    matrices are not supported. See 
+    [:lucide-package-search: Finding Particles Within a Shape](Tutorials/ParticlesWithinShape#create-positions-data)
+    for an example of converting 2D data to 3D. 4D and higher dimensional
+    matrices are not supported.
+
 
 ##### From a snapshot
 Creation is _slightly_ more complicated from a snapshot, since there's the potential
@@ -41,25 +51,31 @@ for multiple particle types. Here we'll assume we only want the gas particles
 ``` python
 import packingcubes
 cubes = packingcubes.Cubes(
-    "path/to/IllustrisTNG/snapshot.hdf5", particle_type="PartType0"
+    "path/to/IllustrisTNG/snapshot.hdf5", particle_types="PartType0"
 )
 ```
 
 
 #### Searching a ParticleCubes object
-We'll assume we want to grab the particle indices in a sphere centered on `(500, 23, 7654.4)`, with radius `600`.
+Let's say we want to grab the particle indices in a sphere centered on 
+`(500, 23, 7654.4)`, with radius `600`.
 
 ```python
+center = [500, 23, 7654.4]
+radius = 600
 index_array = cubes.get_indices_in_sphere(center, radius)
 ```
 
-`index_array` will be an `Nx3` integer array where each row corresponds a chunk of
+`index_array` will be an `Nx3` integer array where each row corresponds to a chunk of
 data in the form `[start, stop, partial]`. `start` and `stop` are the start/stop 
 indices of the chunk (e.g. `data[start:stop]`) and `partial` denotes whether the
 chunk was partially (`1`) or entirely (`0`) contained within the sphere.
 
-For performance reasons, these data chunks may contain particles nearby the sphere, but not actually contained inside. If you want stricter control, see 
-[get_particle_index_list_in_sphere](Users-Guide/API/packingcubes#packingcubes.ParticleCubes.get_particle_index_list_in_sphere).
+For performance reasons, these data chunks may contain particles nearby the sphere,
+but not actually contained inside (for an example, see 
+[:lucide-package-search: Finding Particles within a Shape](Tutorials/ParticlesWithinShape#actually-do-the-search_1)).
+If you want stricter control, see 
+[get_particle_index_list_in_sphere](Reference#packingcubes.ParticleCubes.get_particle_index_list_in_sphere).
 
 ??? note "Data wrapping"
     `packingcubes` does not (yet!) support toroidal topology for snapshots. Meaning 
@@ -89,12 +105,24 @@ cubes = packingcubes.Cubes("path/to/output.hdf5", particle_type="gas")
 
 ??? info "Data saving"
     Saving cubes information **only** saves information about the cubes. If you want
-    to save the sorted dataset information, see [Saving sorted datasets](#). Note
-    that this does require som initial setup.
+    to save the sorted dataset information, see 
+    [Saving sorted datasets](Tutorials/Working_with_datasets#). Note
+    that this does require more initial setup.
+
+#### Specifying Number of Threads
+Both the `ParticleCubes` creation and search operate in parallel using `numba`'s
+[threading layers](https://numba.readthedocs.io/en/stable/user/threading-layer.html).
+
+By default we automatically use all threads available, but you can set a lower
+number (if e.g. your code also does work in parallel) by either setting the
+`NUMBA_NUM_THREADS` environment variable or `#!python numba.set_num_threads(num_threads)`, 
+where `num_threads <= numba.config.NUMBA_NUM_THREADS`.
 
 ### Substituting SciPy's KDTree
 --8<-- "README.md:KDTree"
 
+More information can be found in the 
+[Optrees Documentation](Reference/Packed-Trees#OpTree).
 
 ### Command Line Interface
 
@@ -106,5 +134,5 @@ packcubes SNAPSHOT.hdf5 OUTPUT.hdf5
 will generate the `ParticleCubes` data structure for each particle type found in the
 `snapshot` file and store it in the `OUTPUT` file, creating if necessary. In this
 context, a particle type is any top-level group in the snapshot whose name starts
-with the string `Part`. See [The Command Line Interface](#) for more details.
+with the string `Part`. See [The Command Line Interface](Reference/CLI) for more details.
 
