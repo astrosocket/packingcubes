@@ -112,13 +112,13 @@ def _process_boxsize(boxsize, data_box: bbox.BoundingBox) -> bbox.BoundingBox:
 
 
 class OpTree:
-    """Class to mimic the SciPy KDTree API using PackedTrees
+    """Class to mimic the SciPy KDTree API using ParticleCubes and PackedTrees
 
     Will provide identical API to SciPy's KDTree to the extent possible given
-    that PackedTrees are fundamentally different. Where 1-1 matches for a
-    requested method, argument, or functionality are not possible, raise an
-    OpTreeError if there is nothing similar and emit a OpTreeWarning explaining
-    the replacement otherwise.
+    that ParticleCubes and PackedTrees are fundamentally different. Where 1-1
+    matches for a requested method, argument, or functionality are not possible,
+    raise an OpTreeError if there is nothing similar and emit an OpTreeWarning
+    explaining the replacement otherwise.
 
     Warning! PackedTrees are not robust against large amounts of degenerate
     input data! Please sanitize data prior to usage if expecting data
