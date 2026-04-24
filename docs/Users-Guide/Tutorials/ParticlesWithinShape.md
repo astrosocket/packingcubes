@@ -20,6 +20,22 @@ can be done in 1D & 3D as well[^1].
 [^1]: The `packingcubes` portions are actually much simpler in 3D, as will 
     become obvious shortly, but the plotting becomes a lot harder.
 
+??? info "Code cells and the terminal"
+    The code cells in this tutorial are intended for use in/copying to python
+    notebook (`.ipynb`) or ipython inputs and so have many plot commands that
+    would be unnecessary or require `plt.show()` constantly for someone 
+    experimenting from e.g. the terminal. If you are such a user, we'll denote
+    a cell with plot commands that you may want to use like so:
+
+    ``` python
+    plt.plot(...) # (1)!
+    ```
+
+    1. Run `plt.show()` after these commands
+
+    And any cell that does not have such an annotation you can ignore all lines
+    starting with `plt`.
+
 
 ## Install and Import Dependencies
 
@@ -41,7 +57,7 @@ Since we'll be using `matplotlib` for visualization, we'll want to include the
 Now import the modules we need
 
 ```python
-import numpy as np # for generating data
+import numpy as np
 import matplotlib.pyplot as plt
 
 import packingcubes
@@ -53,7 +69,7 @@ import packingcubes
 We'll start by generating some random data. We'll make 1000 particles with $x$ and $y$
 coordinates ranging from 0 to 100.
 
-```python
+``` python
 xy = np.random.uniform(size=(1000,2)) * 100
 
 plt.plot(xy[:,0], xy[:,1] , "k.")
@@ -67,10 +83,12 @@ positions = np.zeros_like(xy, shape=(len(xy),3))
 positions[:, :2] = xy
 ```
 
-??? tip
+??? tip "1D/2D data and OpTrees"
     [OpTrees](../Reference/Packed-Trees#Optree) will do this padding for you
     at the cost of being a little more opaque, and *only* working with position
-    data.
+    data. Note that `packingcubes` will be 4x/2x slower creating the tree than
+    a dedicated binary- or quad-tree would be. Search should still be
+    comparable, however.
 
 ## Create a ParticleCubes object
 
@@ -78,9 +96,12 @@ positions[:, :2] = xy
 We don't need anything fancy, so creating a `ParticleCubes` is pretty simple:
 
 ```python
-cubes = packingcubes.Cubes(dataset=positions, particle_threshold=10)
+cubes = packingcubes.Cubes(dataset=positions, particle_threshold=10) # (1)!
 cubes
 ```
+
+1. You normally wouldn't specify the `#!python particle_threshold`. It's only done here
+   to create multiple data chunks for the plots.
 
 ## Find all particles in a square
 
@@ -105,12 +126,12 @@ Unfortunately, `ParticleCubes` do not currently support 1D or 2D search shapes.
 Luckily, making our square 3D is easy, just set the $z$ position to 0:
 
 ```python
-box = [bx, by, 0, side, side, side]
+box = [bx, by, 0, side, side, side] # (1)!
 ```
 
-Having 3D search volume with 2D data is fine, `packingcubes` will effectively
-just ignore the third dimension. You just need to ensure the box actually has
-a volume. Setting `dz=0` would raise an error.
+1. Having a 3D search volume with 2D data is fine, `packingcubes` will effectively
+just ignore the third dimension. The only caveat is you need to ensure the box 
+actually has a volume. Setting `dz=0` would raise an error.
 
 
 ### Actually do the search
@@ -124,14 +145,18 @@ data chunk in the form `[start, stop, partial]`. `partial` just specifies if
 the entire chunk is contained (`0`) or if it's only _partially_ contained (`1`).
 
 ```python
-plt.plot(xy[:,0], xy[:,1] , "k.")
+plt.plot(xy[:,0], xy[:,1] , "k.") # (1)!
 plt.plot(bx + np.array([0, side, side, 0, 0]), by + np.array([0, 0, side, side, 0]), lw=2)
 
 for start, stop, partial in index_array:
     # plot each chunk of data
     chunk = positions[start:stop, :2]
-    plt.plot(chunk[:,0], chunk[:, 1], "*" if partial else "o")
+    plt.plot(chunk[:,0], chunk[:, 1], "*" if partial else "o") # (2)!
 ```
+
+1. Run `plt.show()` after these commands
+2. Using different markers for the different `partial` values is purely for
+   visual effect, there's no difference between the chunks.
 
 ## Find all particles in a circle
 
@@ -166,16 +191,20 @@ index_array = cubes.get_particle_indices_in_sphere(center=center, radius=radius)
 ```
 
 ```python
-plt.plot(xy[:,0], xy[:,1] , "k.")
+plt.plot(xy[:,0], xy[:,1] , "k.") # (1)!
 circle = plt.Circle(center[:2], radius, color='tab:blue', lw=2, clip_on=False, fill=False)
 plt.gca().add_patch(circle)
 
 for start, stop, partial in index_array:
     # plot each chunk of data
     chunk = positions[start:stop, :2]
-    plt.plot(chunk[:,0], chunk[:, 1], "*" if partial else "o")
+    plt.plot(chunk[:,0], chunk[:, 1], "*" if partial else "o") # (2)!
 
 ```
+
+1. Run `plt.show()` after these commands
+2. Just like above, using different markers for the different `partial` values
+   is purely for visual effect, there's no difference between the chunks.
 
 !!! warning "Fragile Data!"
     You may notice that the order of the data in `positions` has changed (occurred
