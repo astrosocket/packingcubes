@@ -19,5 +19,7 @@ icon: lucide/message-square-text
 
 - [:lucide-git-fork:{ .lg .middle } **Querying from the Heap**](HeapQueries)
 
+- [:lucide-zap:{ .lg .middle } **Benchmarking `packingcubes`**](Benchmarks)
+
 
 </div>

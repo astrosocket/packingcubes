@@ -14,7 +14,7 @@ icon: lucide/box
     Install `packingcubes` from [PyPI](https://pypi.org/project/packingcubes/) and start cubing :lucide-boxes:!
 
   
-    [:octicons-arrow-right-24: Getting started](GettingStarted){ .md-button .md-button--primary }
+    [:octicons-arrow-right-24: Getting started](Users-Guide){ .md-button .md-button--primary }
 
 - :lucide-book-open:{ .lg .middle } **User's Guide**
 
@@ -22,10 +22,10 @@ icon: lucide/box
 
     Want to learn more?
 
-    [:lucide-info: Tutorials](Users-Guide/Tutorials/TutorialList){ .md-button .md-button--primary }
-    [:lucide-cooking-pot: Recipes](Users-Guide/Recipes/Cookbook){ .md-button .md-button--primary }
-    [:lucide-library: API Reference](API/packingcubes){ .md-button .md-button--primary }
-    [:lucide-message-square-text: Explanations](Explanations/Digressions){ .md-button .md-button--primary }
+    [:lucide-info: Tutorials](Users-Guide/Tutorials){ .md-button .md-button--primary }
+    [:lucide-cooking-pot: Recipes](Users-Guide/Recipes){ .md-button .md-button--primary }
+    [:lucide-library: API Reference](Users-Guide/Reference){ .md-button .md-button--primary }
+    [:lucide-message-square-text: Explanations](Users-Guide/Explanations){ .md-button .md-button--primary }
     
 
 - :lucide-square-code:{ .lg .middle } **Contributing**

@@ -9,15 +9,22 @@ icon: lucide/library
 ## Additional API
 Additional module level information can be found at the following links
 
-[Cubes](API/cubes){.md-button .md-button--primary}
-[Packed Trees](API/Packed-Trees){.md-button .md-button--primary}
-[Data Objects](API/Data-Objects){.md-button .md-button--primary}
-[Bounding Volumes](API/Bounding-Volumes){ .md-button }
-[Tree Visualization](Tree-Visualization){.md-button}
+[:lucide-boxes: Cubes](cubes){.md-button .md-button--primary}
+[:lucide-network: PackedTrees & OpTrees](Packed-Trees){.md-button .md-button--primary}
+[:lucide-grid-3x2: Data Objects](Data-Objects){.md-button .md-button--primary}
+[:lucide-trees: Tree Visualization](Tree-Visualization){.md-button}
 
 
 ### :lucide-zap: Performance
 For the Numba-based modules, see
 
-[Numba Cubes](API/Numba/Cubes){ .md-button }
-[Numba Packed Trees](API/Numba/PackedTree){ .md-button }
+[:lucide-grid-3x2: DataContainers](Data-Objects#DataContainer){.md-button}
+[:lucide-boxes: Numba Cubes](Numba/Cubes){ .md-button }
+[:lucide-cuboid: Bounding Volumes](Numba/Bounding-Volumes){ .md-button }
+[:lucide-network: Numba Packed Trees](Numba/PackedTree){ .md-button }
+
+## Binary Layout
+The PackedTree format can be found [here](packed_format).
+
+## Command Line Interface
+Instructions on the CLI can be found [here](CLI).
