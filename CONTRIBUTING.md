@@ -1,5 +1,6 @@
 # Contributing to packingcubes
 
+<!-- --8<-- [start:contributing] -->
 
 Contributions for `packingcubes` should come as pull requests submitted through our [GitHub repository](https://github.com/astrosocket/packingcubes).
 
@@ -15,6 +16,11 @@ Contributions are always welcome, but you should make sure of the following:
 You should also abide by the [code of conduct](https://github.com/astrosocket/packingcubes/CODE_OF_CONDUCT.md).
 
 Some brief quickstart-style notes are included below, but are not intended to replace consulting the documentation of each relevant toolset. We recognize that this can seem daunting to users new to collaborative development. Don't hesitate to get in touch for help if you want to contribute!
+
+<!-- --8<-- [end:contributing] -->
+
+
+<!-- --8<-- [start:dev-tools] -->
 
 ## Installing the toolkit
 The tools in the following sections are all included in the `dev` dependency group, installed
@@ -56,11 +62,14 @@ added to this command if desired.
 
 Ruff currently has limited support for [numpydoc](https://numpydoc.readthedocs.io)-style docstrings. To run additional checks on docstrings use `numpydoc` (not provided), like `numpydoc lint **/*.py` in the same directory as the `pyproject.toml` file. This should not be necessary, however.
 
+<!-- --8<-- [end:dev-tools]  -->
+
 ## Documentation
 > [!NOTE]
 > The documentation building tools are in the `docs` dependency group
 > and are **not** part of `dev`!
 
+<!-- --8<-- [start:documentation]  -->
 The API documentation is built automatically from the docstrings of classes, functions, etc. in the source files. These follow the NumPy-style format. All public (i.e. not starting in `_`) modules, functions, classes, methods, etc. should have an appropriate docstring. Tests should also have descriptive docstrings, but full descriptions (e.g. of all parameters) are not required.
 
 In addition to this there is "narrative documentation" that should describe the 
@@ -68,6 +77,8 @@ features of the code. The docs are built with `zensical` and `mkdocstrings` and
 use the "ReadTheDocs" theme. If you have the dependencies installed, you can build
 the documentation locally with `zensical serve` (e.g. `pixi run zserve`). This will then open your browser, allowing you to browse the documentation
 and check your contributions.
+
+<!-- --8<-- [end:documentation] -->
 
 This contributing guide has been adapted from the 
 [swiftsimio CONTRIBUTING guide](https://github.com/SWIFTSIM/swiftsimio/blob/master/CONTRIBUTING.md).

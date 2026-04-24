@@ -37,4 +37,14 @@ and then install the pre-commit hooks: `pre-commit install`.
 
 ## Contributing
 
---8<--- "CONTRIBUTING.md:2:"
+--8<--- "CONTRIBUTING.md:contributing"
+
+--8<--- "CONTRIBUTING.md:dev-tools"
+
+## Documentation
+
+!!! warning
+    The documentation building tools are in the `docs` dependency group
+    and are **not** part of `dev`!
+
+--8<--- "CONTRIBUTING.md:documentation"
