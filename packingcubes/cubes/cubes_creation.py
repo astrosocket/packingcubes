@@ -577,7 +577,8 @@ def make_MultiCubes(**kwargs) -> MultiCubes:
     return multi
 
 
-if __name__ == "__main__":
+def cli():
+    """Run the CLI for cubes generation"""
     logging.basicConfig()
     args = _process_args()
     if args.output and has_cubes(args.output) and not args.force_overwrite:
@@ -599,3 +600,8 @@ if __name__ == "__main__":
     cubes = make_MultiCubes(dataset=dataset, cubes_dict=cubes_dict)
     if args.output:
         cubes.save(args.output)
+    return
+
+
+if __name__ == "__main__":
+    sys.exit(cli())

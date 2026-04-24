@@ -1224,7 +1224,8 @@ def save_results(
         )
 
 
-if __name__ == "__main__":
+def cli():
+    """Run the CLI for timing"""
     args = parse_arguments()
     logging.basicConfig()
     LOGGER.info(f"Running with packingcubes v{packingcubes.__version__}")
@@ -1292,3 +1293,8 @@ if __name__ == "__main__":
                         snapshot_info=snapshot_info,
                     )
     print(collate_results(results=results))  # noqa: T201
+    return
+
+
+if __name__ == "__main__":
+    sys.exit(cli())

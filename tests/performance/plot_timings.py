@@ -472,7 +472,8 @@ def load_sim_results(
     return sims
 
 
-if __name__ == "__main__":
+def cli():
+    """Run the CLI for plot_timings"""
     args = parse_arguments()
     logging.basicConfig()
     LOGGER.info(f"Running with packingcubes v{packingcubes.__version__}")
@@ -494,3 +495,8 @@ if __name__ == "__main__":
 
     if args.save_dir is None:
         plt.show()
+    return
+
+
+if __name__ == "__main__":
+    sys.exit(cli())
