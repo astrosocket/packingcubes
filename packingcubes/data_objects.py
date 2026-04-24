@@ -344,7 +344,7 @@ class InMemory(MultiParticleDataset):
 
         Parameters
         ----------
-        positions: NxM NDArray
+        positions: Nx3 NDArray
             Array containing particle position data.
 
         particle_type: str, optional
@@ -480,7 +480,7 @@ class HDF5Dataset(MultiParticleDataset):
     entire dataset since this is for purely spatial sorting.
 
     Note that for simplicity, only one particle type is available at a time.
-    You can use the particle_type and particle_types attributes to change
+    You can use the `particle_type` and `particle_types` attributes to change
     particle type and get a list of valid particle types.
     """
 
@@ -514,14 +514,23 @@ class HDF5Dataset(MultiParticleDataset):
 
         Parameters
         ----------
+        filepath: str | Path
+            The path to the file
+
+        name: str, optional
+            A name for this dataset. Defaults to filepath
+
         sorted_filepath: str | Path, optional
-            Optional file to store sorted position and shuffle-list data
+            Optional file to store sorted position and shuffle-list data.
+            Will also search for positions data from this file before
+            searching filepath.
 
         data_slices: np.s_ | dict[str, np.s_], optional
             A numpy slice object or dictionary of slice objects per particle
             type. This can be used to load only a portion of the dataset.
             Effectively, the dataset will be loaded as
-            `data = data[data_slice[0]:data_slice[1]:data_slice[3]]`
+            `data = data[data_slice[0]:data_slice[1]:data_slice[3]]`.
+            Note: this is true even if loading from the sorted data!
         """
         super().__init__(name=name, filepath=filepath)
 
@@ -670,7 +679,6 @@ class GadgetishHDF5Dataset(HDF5Dataset):
 
     Represents an HDF5 dataset that at least has the fields from the Gadget-2
     header specification [here](https://wwwmpa.mpa-garching.mpg.de/gadget/html/structio__header.html)
-
     """
 
     def _preload(self, sorted_filepath: str | Path | None):
