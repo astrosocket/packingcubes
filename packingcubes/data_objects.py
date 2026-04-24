@@ -734,7 +734,7 @@ class GadgetishHDF5Dataset(HDF5Dataset):
         self._particle_types = particle_types
 
         self._sorted_file_name = Path(
-            self.filepath.parent / ("." + str(self.filepath.name) + "_sorted.hdf5")
+            self.filepath.parent / (str(self.filepath.stem) + "_sorted.hdf5")
             if sorted_filepath is None
             else sorted_filepath
         )
