@@ -484,8 +484,9 @@ def Cubes(
     dataset: str | NDArray | MultiParticleDataset, optional
         Dataset containing positional data. Will be used to create a new
         ParticleCubes (if array or Dataset with only one particle type) or
-        MultiCubes (otherwise) object, including sorting. Must provide either
-        this or cubes_dict, below.
+        dictionary (otherwise) object, including sorting. Must provide either
+        this or cubes_dict, below. Assumes strings are filepaths to
+        [GadgetishHDF5Datasets][GadgetishHDF5Dataset].
 
     cubes_dict: dict[str, dict], optional
         Dictionary of particle type -> dictionary elements. Each
