@@ -467,6 +467,7 @@ def Cubes(
     *,
     dataset: str | NDArray | MultiParticleDataset | None = None,
     cubes_dict: dict[str, dict] | None = None,
+    sorted_filepath: str | None = None,
     **kwargs,
 ) -> ParticleCubes | dict[str, ParticleCubes]:
     """Create Cubes objects
@@ -497,6 +498,11 @@ def Cubes(
          2. cube_boxes - containes the `BoundingBox` for each cube
          3. cube_trees - contains the `PackedTree` for each cube
 
+    sorted_filepath: str, optional
+        Location of sorted dataset data. See [HDF5Dataset][HDF5Dataset]
+        for more information. Mostly only useful if you are passing
+        `save_dataset=True` and an HDF5Dataset as well.
+
     **kwargs
         Extra arguments to `make_cubes` and `ParticleCubes`. See
         [make_cubes][make_cubes] and [ParticleCubes][ParticleCubes] for a
@@ -524,7 +530,10 @@ def Cubes(
             cubes_dict = load_cubes(dataset, **kwargs)
         except (NotImplementedError, ValueError):
             dataset = (
-                GadgetishHDF5Dataset(filepath=dataset)
+                GadgetishHDF5Dataset(
+                    filepath=dataset,
+                    sorted_filepath=sorted_filepath,
+                )
                 if isinstance(dataset, str)
                 else dataset
             )
@@ -534,7 +543,10 @@ def Cubes(
             if dataset is None:
                 raise CubesError("cubes_dict has no trees and dataset not provided")
             dataset = (
-                GadgetishHDF5Dataset(filepath=dataset)
+                GadgetishHDF5Dataset(
+                    filepath=dataset,
+                    sorted_filepath=sorted_filepath,
+                )
                 if isinstance(dataset, str)
                 else dataset
             )
