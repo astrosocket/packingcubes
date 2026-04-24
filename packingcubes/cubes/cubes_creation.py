@@ -523,7 +523,16 @@ def Cubes(
     dataset = (
         InMemory(positions=dataset) if isinstance(dataset, np.ndarray) else dataset
     )
+
     # we only want to load the dataset if we need to
+    # and we don't want to load a particle type that's not specified
+    initial_particle_type = kwargs.get("particle_types")
+    initial_particle_type = (
+        next(iter(initial_particle_type))
+        if initial_particle_type and not isinstance(initial_particle_type, str)
+        else initial_particle_type
+    )
+
     if cubes_dict is None:
         assert dataset is not None
         try:
@@ -533,6 +542,7 @@ def Cubes(
                 GadgetishHDF5Dataset(
                     filepath=dataset,
                     sorted_filepath=sorted_filepath,
+                    initial_particle_type=initial_particle_type,
                 )
                 if isinstance(dataset, str)
                 else dataset
@@ -546,6 +556,7 @@ def Cubes(
                 GadgetishHDF5Dataset(
                     filepath=dataset,
                     sorted_filepath=sorted_filepath,
+                    initial_particle_type=initial_particle_type,
                 )
                 if isinstance(dataset, str)
                 else dataset
