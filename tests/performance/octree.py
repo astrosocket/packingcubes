@@ -1,3 +1,6 @@
+# ruff: noqa: D103
+"""Creation and search methods for PythonOctrees"""
+
 from numpy.typing import NDArray
 
 import packingcubes.octree as octree

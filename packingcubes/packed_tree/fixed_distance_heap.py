@@ -1,3 +1,5 @@
+"""FixedDistance Heap Implementation"""
+
 from __future__ import annotations
 
 import collections
@@ -17,15 +19,11 @@ LOGGER = logging.getLogger(__name__)
 logging.captureWarnings(capture=True)
 
 
-"""
-Module for implementation of a custom, fixed-size max-heap that explicitly
-stores distance/index tuples
-"""
-
-
 @jitclass([("distances", float64[:]), ("indices", int64[:])])
 class FixedDistanceHeap:
     """
+    Custom, fixed-size max-heap that explicitly stores distance/index tuples
+
     An array-based implementation of a data structure similar to a max-heap,
     with a few modifications:
      - Each node in the heap represents a (distance, index) tuple. These are
@@ -41,7 +39,7 @@ class FixedDistanceHeap:
        afterwards, so we'll need to store the root at the **right** of the tree
        This will reduce the number of comparison/swap operations.
 
-    We'll base the algorithm on the heapq library.
+    The algorithm is based on the heapq library.
     """
 
     distances: NDArray[np.float64]
@@ -57,9 +55,7 @@ class FixedDistanceHeap:
         self.max_distance = np.inf
 
     def _siftdown(self, pos: int):
-        """
-        Max-, fixed-length-heap variant of sift-down
-        """
+        """Max-, fixed-length-heap variant of sift-down"""
         newdist = self.distances[pos]
         newind = self.indices[pos]
         # Follow the path to the root, moving parents down until finding a place
@@ -78,9 +74,7 @@ class FixedDistanceHeap:
         self.indices[pos] = newind
 
     def _siftup(self):
-        """
-        Max-, fixed-length-heap variant of sift-up.
-        """
+        """Max-, fixed-length-heap variant of sift-up."""
         # Note we don't need start pos because pos is **always** initialized to 0
         pos = 0
         endpos = len(self.distances)
@@ -108,17 +102,18 @@ class FixedDistanceHeap:
         self._siftdown(pos)
 
     def try_replace(self, new_dist: float, new_ind: np.int_) -> bool:
-        """
-        Try to add a new distance/index pair to the heap
+        """Try to add a new distance/index pair to the heap
 
-        Args:
+        Parameters
+        ----------
             new_dist: float
             The distance to try adding
 
             new_ind: int
             The corresponding index
 
-        Returns:
+        Returns
+        -------
             outcome: bool
             1 if the distance replaced an element, 0 otherwise
         """
@@ -133,9 +128,7 @@ class FixedDistanceHeap:
         return True
 
     def sorted(self) -> tuple[NDArray[np.float64], NDArray[np.int_]]:
-        """
-        Return sorted distance-index pairs
-        """
+        """Return sorted distance-index pairs"""
         # If we just did distances.sort, we'd break the coupling...
         # In numba, both sort and argsort use a median of three quicksort by
         # default, with insertion sort if n is small (15 currently)
@@ -163,12 +156,13 @@ zero = types.intp(0)
 
 @njit
 def _insertion_sort(A, Ap, low, high):
-    """
-    Insertion sort A[low:high + 1]. Note the inclusive bounds.
+    """Insertion sort A[low:high + 1].
+
+    Note the inclusive bounds.
 
     This is modified from the numba quicksort implementation to preserve the
     A[i], Ap[i] coupling and to skip the genericity
-    """
+    """  # noqa: D401 # because it *is* imperative...
     assert low >= 0
     if high <= low:
         return
@@ -189,9 +183,7 @@ def _insertion_sort(A, Ap, low, high):
 
 @njit
 def _partition(A, Ap, low, high):
-    """
-    Partition A[low:high + 1] around a chosen pivot.  The pivot's index
-    is returned.
+    """Partition A[low:high + 1] around a chosen pivot and return index.
 
     This is modified from the numba quicksort implementation to preserve the
     A[i], Ap[i] coupling and to skip the genericity
@@ -242,10 +234,7 @@ def _partition(A, Ap, low, high):
 
 @njit
 def _quicksort1(A: NDArray, Ap: NDArray) -> tuple[NDArray, NDArray]:
-    """
-    Quicksort a 1D-array A, coupled to 1D-array Ap, using insertion sort if A is small
-    """
-
+    """Quicksort a 1D-array A, coupled to array Ap, using insertion sort if A small"""
     if len(A) < 2:
         return A, Ap
 

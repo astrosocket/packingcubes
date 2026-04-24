@@ -1,3 +1,11 @@
+"""Jitclass version of PackedTree and supporting functions
+
+Underlying jitclass of a PackedTree that contains the actual implementation
+of most of the functions along with several supporting functions. While not
+strictly a private module, the functions contained here are not intended for
+use generally, but for extensions.
+"""
+
 from __future__ import annotations
 
 import logging
@@ -40,6 +48,7 @@ logging.captureWarnings(capture=True)
 
 @njit
 def euclidean_distance(xyz: NDArray, pxyz: NDArray) -> NDArray:
+    """Compute the Euclidean distance between two arrays"""
     return np.sqrt(np.sum(np.atleast_2d((xyz - pxyz) ** 2), axis=1))
 
 
@@ -47,6 +56,7 @@ def euclidean_distance(xyz: NDArray, pxyz: NDArray) -> NDArray:
 def euclidean_distance_particle(
     x: float, y: float, z: float, px: float, py: float, pz: float
 ) -> float:
+    """Compute the Euclidean distance between two points"""
     return np.sqrt(euclidean_d2(x, y, z, px, py, pz))
 
 
@@ -54,6 +64,7 @@ def euclidean_distance_particle(
 def euclidean_d2(
     x: float, y: float, z: float, px: float, py: float, pz: float
 ) -> float:
+    """Compute the squared Euclidean distance between two points"""
     return (x - px) ** 2 + (y - py) ** 2 + (z - pz) ** 2
 
 
@@ -67,9 +78,7 @@ def _process_slice_against_heap(
     end: int,
     use_shuffle: bool,  # noqa: FBT001, FBT002
 ):
-    """
-    Iteratively try every particle in slice against distance heap
-    """
+    """Try every particle in slice against distance heap iteratively"""
     x, y, z = xyz
     positions = data._positions[start:end, 0:3]
     if use_shuffle:
@@ -87,9 +96,7 @@ def _process_slice_against_heap(
 
 @njit
 def _my_pack_bits(bool_array: NDArray) -> int:
-    """
-    Private numba-compatible implementation of numpy's packbits
-    """
+    """Private numba-compatible implementation of numpy's packbits"""
     if bool_array.shape != (8,):
         raise ValueError("Only (8,) arrays are supported.")
     out = 0
@@ -102,20 +109,20 @@ def _my_pack_bits(bool_array: NDArray) -> int:
 def _update_current_node(
     tree: Sequence, index: int, node: CurrentNode, child_index: int
 ):
-    """
-    Update the parameters of the node based on the new position
+    """Update the parameters of the node based on the new position
 
     Note we do no checking for invalid arguments here. This method should
     **not** be called externally.
 
-    Args:
-        index: int
+    Parameters
+    ----------
+    index: int
         Position in the packed tree
 
-        node: CurrentNode
+    node: CurrentNode
         Node to update
 
-        child_index: int
+    child_index: int
         Which node to transition to: 0 for parent, 1-8 for the requested
         child.
     """
@@ -160,18 +167,19 @@ def _update_current_node(
 
 @njit
 def _move_to_child(tree: Sequence, node: CurrentNode, child_ind: int) -> int:
-    """
-    Move pointer to specified child node and return offset
+    """Move pointer to specified child node and return offset
 
-    Args:
-        node: CurrentNode
+    Parameters
+    ----------
+    node: CurrentNode
         Node to update
 
-        child_index: int
+    child_index: int
         Which (0-based) child node to move to
 
-    Returns:
-        offset: int
+    Returns
+    -------
+    offset: int
         The number of fields moved or zero if the child DNE
     """
     # currently at a node boundary
@@ -201,9 +209,7 @@ def _move_to_child(tree: Sequence, node: CurrentNode, child_ind: int) -> int:
 
 @njit
 def _move_to_parent(tree: Sequence, node: CurrentNode):
-    """
-    Move pointer to parent node and return offset (0 if at root)
-    """
+    """Move pointer to parent node and return offset (0 if at root)"""
     # currently at node boundary
     # amount to move back is at end of node, or skip_length-1 fields from
     # self.current
@@ -258,29 +264,33 @@ def _construct_tree(
     box: bbox.BoundingBox | None = None,
     particle_threshold: int = octree._DEFAULT_PARTICLE_THRESHOLD,
 ) -> NDArray:
-    """
-    Construct a packed tree, generating a node at a time recursively
+    """Construct a packed tree, generating a node at a time recursively
 
-    Functions as the initial entry point into _construct_node_recursive.
+    Functions as the initial entry point into
+    [_construct_node_recursive][_construct_node_recursive].
 
-    Tip: if you know that all the particles are in a subregion of the data's
+    Tip
+    ---
+    If you know that all the particles are in a subregion of the data's
     bounding box, specifying a smaller box can significantly speed up tree
     construction and especially search.
 
-    Args:
-        data: DataContainer
+    Parameters
+    ----------
+    data: DataContainer
         The backing data of this tree
 
-        box: BoundingBox | None, optional
+    box: BoundingBox | None, optional
         Bounding box of the tree. Defaults to the data's bounding box
 
-        particle_threshold: int, optional
+    particle_threshold: int, optional
         The maximum number of particles a leaf node can hold before splitting
-        Defaults to octree._DEFAULT_PARTICLE_THRESHOLD
+        Defaults to `octree._DEFAULT_PARTICLE_THRESHOLD`
 
-    Returns:
-        tree: NDArray[uint32]
-        Array of uint32s representing the packed tree.
+    Returns
+    -------
+    tree: NDArray[uint32]
+        Array of `uint32`s representing the packed tree.
     """
     # TODO: Ideally this would be kwargs-only, but the mix of kwargs and
     # default arguments is unsupported still per
@@ -330,35 +340,37 @@ def _construct_node_recursive(
     max_depth: int,
     particle_threshold: int = octree._DEFAULT_PARTICLE_THRESHOLD,
 ) -> int:
-    """
-    Construct a packed tree, generating a node at a time recursively
+    """Construct a packed tree, generating a node at a time recursively
 
-    Args:
-        data: DataContainer
+    Parameters
+    ----------
+    data: DataContainer
         The backing data of this tree
 
-        tree: list[uint32]
-        List of uint32s representing the in-progress packed tree. Initial
+    tree: list[uint32]
+        List of `uint32`s representing the in-progress packed tree. Initial
         call should pass an empty list.
 
-        node: CurrentNode
+    node: CurrentNode
         Pointer to the node this invocation is constructing. Initial call
         should pass a node corresponding to the root
 
-        parent_index: int
+    parent_index: int
         Index of the current node's parent in the in-progress tree. Initial
-        call should pass 0
+        call should pass `0`
 
-        max_depth: int
+    max_depth: int
         The maximum depth supported by the bounding box of the data before
-        floating point errors will occur. A node with level >=max_depth is
+        floating point errors will occur. A node with `level >=max_depth` is
         required/guaranteed to be a leaf node
 
-        particle_threshold: int, optional
-        The maximum number of particles a leaf node can hold before splitting
-        Defaults to octree._DEFAULT_PARTICLE_THRESHOLD
+    particle_threshold: int, optional
+        The maximum number of particles a leaf node can hold before splitting.
+        Defaults to `octree._DEFAULT_PARTICLE_THRESHOLD`
 
-    Returns:
+    Returns
+    -------
+    :
         The index of the next node in the tree at the same level or higher
     """
     # we need to cache various properties for when we recurse
@@ -433,26 +445,24 @@ _list_index_tuple = types.ListType(_index_tuple_type)
 
 @jitclass([("data", dc_type), ("tree", uint32[:]), ("particle_threshold", int64)])
 class PackedTreeNumba:
-    """
-    Private jitted octree interface
+    """Private jitted octree interface
 
     This interface defines the methods for manipulating and traversing a
     packingcubes octree.
-
-    Attributes:
-        data: Dataset
-        The backing dataset
-
-        tree: array
-        The actual tree in memory
-
     """
 
     box: bbox.BoundingBox
-    """ Backing dataset """
+    """ 
+    Bounding box for the tree
+
+    Effectively the root level bounding box
+    """
     tree: NDArray
     """ 
     Tree representation in memory
+
+    Note that this does not include any of the metadata. `tree[0]` should the
+    start of the root node data in packed tree format.
     """
     particle_threshold: int
     """
@@ -470,13 +480,11 @@ class PackedTreeNumba:
         self.particle_threshold = particle_threshold
 
     def __len__(self):
-        """The number particles in the tree"""
+        """Return the number of particles in the tree"""
         return self.tree[2] - self.tree[1] + 1
 
     def _make_root_node(self) -> CurrentNode:
-        """
-        Return a CurrentNode pointer at the tree root
-        """
+        """Return a CurrentNode pointer at the tree root"""
         # child flag located at field 3
         child_flag, my_index, level, empty = octree.unpack_node_metadata(self.tree[3])
         # return CurrentNode(
@@ -538,9 +546,7 @@ class PackedTreeNumba:
     # Note this is not well documented - I think it's the same reasoning as
     # why we can't return a range object, but it's not specified as such
     def _get_nodes_numba(self) -> list[PackedNodeNumba]:
-        """
-        Return a list containing a "copy" of all nodes in the tree
-        """
+        """Return a list containing a "copy" of all nodes in the tree"""
         node = self._make_root_node()
         nodes = List([_create_from_current_node(node)])
 
@@ -569,8 +575,7 @@ class PackedTreeNumba:
     # return map(_create_from_current_node, filter(is_leaf, self._iterate_nodes()))
 
     def get_leaves(self) -> list[PackedNodeNumba]:
-        """
-        Return the list of PackedNodeNumba leaves
+        """Return the list of PackedNodeNumba leaves
 
         Note that the node objects are generated on the fly and are not backed
         by the tree; any modifications will not propagate.
@@ -578,9 +583,7 @@ class PackedTreeNumba:
         return [n for n in self._get_nodes_numba() if n.is_leaf]
 
     def _get_current_node(self, tag: str) -> CurrentNode | None:  # noqa: C901
-        """
-        Get the CurrentNode object represented by tag or None if non-existent
-        """
+        """Get the CurrentNode object represented by tag or None if non-existent"""
         node = self._make_root_node()
         for child_str in tag:
             # ideally we'd just do int(child_str), but that's not supported
@@ -609,11 +612,21 @@ class PackedTreeNumba:
         return node
 
     def get_node(self, tag: str) -> PackedNodeNumba | None:
-        """
-        Get a PackedNodeNumba object represented by tag or None if non-existent
+        """Get a PackedNodeNumba object represented by tag or None if non-existent
 
         Note that this object is effectively a copy; any modifications will not
         propagate.
+
+        Parameters
+        ----------
+        tag:
+            The name of the node to search for. Nodes are named by child order,
+            in z-order so e.g. "012" is the front-mid-left-bottom grandchild.
+
+        Returns
+        -------
+        :
+            A copy of the node in the tree or `None` if it DNE
         """
         node = self._get_current_node(tag)
         return _create_from_current_node(node)
@@ -621,9 +634,7 @@ class PackedTreeNumba:
     def _top_down_containing_node(
         self, node: CurrentNode | None, xyz: NDArray
     ) -> CurrentNode | None:
-        """
-        For a given point, return the smallest child node that contains point or None
-        """
+        """Given point, return the smallest child node that contains point or None"""
         if node is None:
             node = self._make_root_node()
         if not node.box.contains_point(xyz[0], xyz[1], xyz[2]):
@@ -642,9 +653,7 @@ class PackedTreeNumba:
     def _bottom_up_containing_node(
         self, node: CurrentNode, xyz: NDArray
     ) -> CurrentNode | None:
-        """
-        For a given point, return the smallest parent node that contains point or None
-        """
+        """Given point, return the smallest parent node that contains point or None"""
         while not is_root(node):
             if node.box.contains_point(xyz[0], xyz[1], xyz[2]):
                 return node
@@ -657,8 +666,7 @@ class PackedTreeNumba:
         start_node: CurrentNode | None = None,
         top_down: bool = True,  # noqa: FBT001, FBT002
     ) -> CurrentNode | None:
-        """
-        Return smallest node containing point
+        """Return smallest node containing point
 
         Defaults to a top-down approach from root. Can provide a start_node to
         short-cut search. Can also go bottom-up; requires start_node.
@@ -682,8 +690,7 @@ class PackedTreeNumba:
         start_node: CurrentNode | None = None,
         top_down: bool = True,  # noqa: FBT001, FBT002
     ) -> CurrentNode:
-        """
-        Return smallest node containing all points in array or root
+        """Return smallest node containing all points in array or root
 
         Defaults to a top-down approach from root. Can provide a start_node to
         short-cut search. Can also go bottom-up; requires start_node.
@@ -710,8 +717,7 @@ class PackedTreeNumba:
         bounding_box: bbox.BoundingBox,
         containment_obj: bbox.BoundingVolume,
     ) -> tuple[list[PackedNodeNumba], list[PackedNodeNumba]]:
-        """
-        Return lists of all nodes entirely inside and partially inside shape
+        """Return lists of all nodes entirely inside and partially inside shape
 
         Both node lists will be in z-index order, but are likely to be
         interleaved, i.e.
@@ -720,26 +726,28 @@ class PackedTreeNumba:
                 < entirely_in[i + 1].z_order
                     < partial_leaves[j + 1].z_order
 
-        Args:
-            bounding_box: BoundingBox
+        Parameters
+        ----------
+        bounding_box: BoundingBox
             Shape bounding box
 
-            containment_obj: BoundingVolume
+        containment_obj: BoundingVolume
             Object with bounding box specified by bounding_box. Provides
             a more exact containment test (e.g. contained within a sphere).
 
-        Returns:
-            entirely_in: Iterable[OctreeNode]
+        Returns
+        -------
+        entirely_in: Iterable[OctreeNode]
             Nodes that are entirely within shape. Nodes may be internal nodes
 
-            partial_leaves: Iterable[OctreeNode]
+        partial_leaves: Iterable[OctreeNode]
             Leaf nodes that are only partially within shape.
 
-        Raises:
-            IndexError:
+        Raises
+        ------
+        IndexError
             When there are unexpected issues with the queue system.
         """
-
         bbox_center = bounding_box.get_box_center()
         node = self._make_root_node()
 
@@ -791,27 +799,29 @@ class PackedTreeNumba:
         center: NDArray,
         radius: float,
     ) -> tuple[list[PackedNodeNumba], list[PackedNodeNumba]]:
-        """
-        Return lists of all nodes entirely inside and nodes partially inside sphere
+        """Return lists of all nodes entirely inside and nodes partially inside sphere
 
         Calls _get_nodes_in_shape using a BoundingSphere
 
-        Args:
-            center: NDArray
+        Parameters
+        ----------
+        center: NDArray
             Coordinates of sphere center
 
-            radius: float
+        radius: float
             Sphere radius
 
-        Returns:
-            entirely_in: List[OctreeNode]
+        Returns
+        -------
+        entirely_in: List[OctreeNode]
             List of nodes that are entirely within shape. Nodes may be internal nodes
 
-            partial_leaves: List[OctreeNode]
+        partial_leaves: List[OctreeNode]
             List of leaf nodes that are only partially within shape.
 
-        Raises:
-            IndexError
+        Raises
+        ------
+        IndexError
             When there are unexpected issues with the queue system.
         """
         # sphere bounding box
@@ -827,21 +837,23 @@ class PackedTreeNumba:
         self,
         containment_obj: bbox.BoundingVolume,
     ) -> list[tuple[int, int, int]]:
+        """Return all particles contained within a shape
+
+        Parameters
+        ----------
+        containment_obj: BoundingVolume
+            Object to test containment in
+
+        Returns
+        -------
+        indices: list[tuple[int, int, int]]
+            List of particle start-stop indices contained within shape.
+            Each tuple describes a chunk/slice of data in the form
+            `(start, stop, partial)`, where partial is a flag:
+
+             - `1` if the data chunk is entirely contained within shape,
+             - `0` otherwise.
         """
-        Return all particles contained within a shape
-
-        Args:
-            containment_obj: BoundingVolume
-            Object with bounding box specified by bounding_box. Provides
-            a more exact containment test (e.g. contained within a sphere).
-
-        Returns:
-            indices: list[tuple[int, int, int]]
-            List of particle start-stop indices contained within shape
-            Third element of each tuple is a flag for whether only some
-            particles (1) among the start-stop indices are contained or all (0)
-        """
-
         node = self._make_root_node()
 
         indices = List.empty_list(_index_tuple_type)
@@ -893,18 +905,22 @@ class PackedTreeNumba:
         self,
         box: bbox.BoxLike,
     ) -> list[tuple[int, int, int]]:
-        """
-        Return all particles contained within the box
+        """Return all particles contained within the box
 
-        Args:
-            box: BoxLike
+        Parameters
+        ----------
+        box: BoxLike
             Box to check
 
-        Returns:
-            indices: list[tuple[int, int, int]]
-            List of particle start-stop indices contained within sphere
-            Third element of each tuple is a flag for whether only some
-            particles (1) among the start-stop indices are contained or all (0)
+        Returns
+        -------
+        indices: list[tuple[int, int, int]]
+            List of particle start-stop indices contained within `box`.
+            Each tuple describes a chunk/slice of data in the form
+            `(start, stop, partial)`, where partial is a flag:
+
+             - `1` if the data chunk is entirely contained within `box`,
+             - `0` otherwise.
         """
         with objmode(numba_box=bbox.bbn_type):
             numba_box = bbox.make_bounding_box(box)
@@ -915,21 +931,25 @@ class PackedTreeNumba:
         center: NDArray,
         radius: float,
     ) -> list[tuple[int, int, int]]:
-        """
-        Return all particles contained within the sphere defined by center and radius
+        """Return all particles contained within the sphere defined by center and radius
 
-        Args:
-            center: NDArray
+        Parameters
+        ----------
+        center: NDArray
             Center point of the sphere
 
-            radius: float
+        radius: float
             Radius of the sphere
 
-        Returns:
-            indices: list[tuple[int, int]]
-            List of particle start-stop indices contained within sphere
-            Third element of each tuple is a flag for whether only some
-            particles (1) among the start-stop indices are contained or all (0)
+        Returns
+        -------
+        indices: list[tuple[int, int, int]]
+            List of particle start-stop indices contained within sphere.
+            Each tuple describes a chunk/slice of data in the form
+            `(start, stop, partial)`, where partial is a flag:
+
+             - `1` if the data chunk is entirely contained within the sphere,
+             - `0` otherwise.
         """
         with objmode(sph=bbox.bs_type):
             sph = bbox.make_bounding_sphere(center=center, radius=radius)
@@ -980,6 +1000,7 @@ class PackedTreeNumba:
         return query
 
     def count_neighbors(self, other: PackedTreeNumba, r: float) -> int:
+        """Compute the number of particles within r of particles in other"""
         node = self._make_root_node()
         num_pairs = 0
         with objmode(sph=bbox.bs_type):
@@ -1028,23 +1049,24 @@ class PackedTreeNumba:
         data: DataContainer | None,
         containment_obj: bbox.BoundingVolume,
     ) -> NDArray[np.int64]:
-        """
-        Return all particles contained within a shape
+        """Return all particles contained within a shape
 
-        If the data argument is specified, will do additional containment-checks at
-        the particle level
+        If the data argument is specified, will do additional
+        containment-checks at the particle level
 
-        Args:
-            data: DataContainer | None
-            Particle positions information. If None, only check whether node is
-            within shape, which is equivalent to expanding the node start/stops
-            from _get_particle_indices_in_shape
+        Parameters
+        ----------
+        data: DataContainer | None
+            Particle positions information. If `None`, only check whether node
+            is within shape, which is equivalent to expanding the node
+            start/stops from `_get_particle_indices_in_shape`
 
-            containment_obj: BoundingVolume
+        containment_obj: BoundingVolume
             Provides an exact containment test (e.g. contained within a sphere).
 
-        Returns:
-            indices: NDArray[int]]
+        Returns
+        -------
+        indices: NDArray[int]]
             List of particle indices contained within shape. Will contain
             any additional particles that can be found in the same nodes if
             data is not provided
@@ -1094,27 +1116,28 @@ class PackedTreeNumba:
         d2_function: Callable[[float, float, float, float, float, float], float],
         strict: bool,  # noqa: FBT001, FBT002
     ) -> List[NDArray[np.int64]]:
-        """
-        Compute list of all pairs of points in data/odata whose distance < r
+        """Compute list of all pairs of points in data/odata whose distance < r
 
-        Args:
-            data, odata: DataContainer
+        Parameters
+        ----------
+        data, odata: DataContainer
             The actual particle data for self and other
 
-            r: float
+        r: float
             The maximum distance
 
-            d2_function: JITted Callable
+        d2_function: JITted Callable
             Function to compute the squared distance between 2 points. Expected
             signature [[float, float, float, float, float, float], float]
 
-            strict: bool
+        strict: bool
             If False, compare only the approximate node distance. Should be
             significantly faster, but may include substantial amounts of false
             positives
 
-        Return:
-            results: list of arrayss
+        Returns
+        -------
+        results: list of arrayss
             For every point data[i], results[i] is the array of indices of points
             within r in odata
 
@@ -1173,52 +1196,54 @@ class PackedTreeNumba:
         use_shuffle: bool = False,  # noqa: FBT001, FBT002
         return_sorted: bool = False,  # noqa: FBT001, FBT002
     ) -> tuple[NDArray[np.float64], NDArray[np.int_]]:
-        """
-        Get kth nearest particle distances and indices to point
+        """Get kth nearest particle distances and indices to point
 
-        Args:
-            data: DataContainer
+        Parameters
+        ----------
+        data: DataContainer
             Source of particle position data
 
-            xyz: ArrayLike
+        xyz: ArrayLike
             Coordinates of point to check
 
-            distance_function: Callable[NDArray, NDArray]
+        distance_function: Callable[[float, float, float, float, float, float], float]
             Function to compute distance. **Must be njit compatible!**
-            Needs to accept a length 3 vector and an Nx2 array and return a
-            length N vector of the distances as float64
+            Needs to accept 6 coordinates: `x, y, z` and `px, py, pz` and return
+            the distance as float64
 
-            distance_upper_bound: nonnegative float, optional
+        distance_upper_bound: nonnegative float, optional
             Return only neighbors from other nodes within this distance. This
             is used for tree pruning, so if you are doing a series of
             nearest-neighbor queries, it may help to supply the distance to the
             nearest neighbor of the most recent point.
 
-            k: int, optional
+        k: int, optional
             Number of closest particles to return. Default 1
 
-            use_shuffle: bool, optional
+        use_shuffle: bool, optional
             Flag to return shuffle indices instead of sorted data indices.
             Default False.
 
-            return_sorted: bool, optional
+        return_sorted: bool, optional
             Return output in order by distance. Default False
 
-        Returns:
-            distances: NDArray[float]
+        Returns
+        -------
+        distances: NDArray[float]
             Distances to the kth nearest neighbors. Has shape (min(N,k),),
             where N is the number of particles in the sphere bounded by
             distance_upper_bound
 
-            indices: NDArray[int]
+        indices: NDArray[int]
             Indices in data of the kth nearest neighbors. Has same shape as
             distances
 
-        Raises:
-            OctreeError if something goes wrong with the search process
+        Raises
+        ------
+        OctreeError
+            if something goes wrong with the search process
 
         """
-
         # ensure point is in octree, project if not
         x, y, z = xyz
         px, py, pz = self.box.project_point_on_box(xyz)
@@ -1288,9 +1313,7 @@ except TypingError:
 
 
 def _print_packed(packed: memoryview | array, *, expected_node_start=0):
-    """
-    Attempt to print a packed tree for debugging
-    """
+    """Attempt to print a packed tree for debugging"""
     if isinstance(packed, memoryview) and packed.format != FIELD_FORMAT:
         packed.cast("b").cast(FIELD_FORMAT)
     position = 0

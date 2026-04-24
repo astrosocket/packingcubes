@@ -1,3 +1,5 @@
+"""Implementation of multiple-particle-type packingcubes"""
+
 from __future__ import annotations
 
 import logging
@@ -23,7 +25,9 @@ LOGGER = logging.getLogger(__name__)
 
 
 class MultiCubes:
-    cubes_dict: dict[str, ParticleCubes]
+    """The cubes for multiple particle types"""
+
+    _cubes_dict: dict[str, ParticleCubes]
     """ Mapping from particle type to ParticleCubes for this dataset """
 
     def __init__(
@@ -32,7 +36,7 @@ class MultiCubes:
         cubes_dict: dict[str, dict],
         **kwargs,
     ):
-        self.cubes_dict = {}
+        self._cubes_dict = {}
         for pt, cubes in cubes_dict.items():
             cube_indices = cast(NDArray, cubes["cube_indices"])
             cube_boxes = cast(list[bbox.BoundingBox], cubes["cube_boxes"])
@@ -40,7 +44,7 @@ class MultiCubes:
                 list[PackedTree] | list[NDArray] | list[PackedTree | NDArray],
                 cubes["cube_trees"],
             )
-            self.cubes_dict[pt] = ParticleCubes(
+            self._cubes_dict[pt] = ParticleCubes(
                 cube_indices=cube_indices,
                 cube_boxes=cube_boxes,
                 cube_trees=cube_trees,
@@ -49,13 +53,12 @@ class MultiCubes:
 
     @property
     def particle_types(self):
-        return self.cubes_dict.keys()
+        """Return the list of particle types with cubes"""
+        return self._cubes_dict.keys()
 
     def get_single_cubes(self, particle_type: str) -> ParticleCubes:
-        """
-        Return the ParticleCubes instance corresponding to the specified type.
-        """
-        return self.cubes_dict[particle_type]
+        """Return the ParticleCubes instance corresponding to the specified type."""
+        return self._cubes_dict[particle_type]
 
     def _get_particle_indices_in_shape(
         self,
@@ -63,22 +66,28 @@ class MultiCubes:
         *,
         particle_types: str | Collection[str] | None = None,
     ) -> dict[str, NDArray[np.int_]]:
-        """
-        Return all particles contained within the shape
+        """Return all particles contained within the shape
 
-        Args:
-            particle_types: str | Collection[str]
+        Parameters
+        ----------
+        particle_types: str | Collection[str]
             Particle type(s) to include
 
-            shape: BoundingVolume
+        shape: BoundingVolume
             The shape to check
 
-            particle_types: str | Collection[str], optional
+        particle_types: str | Collection[str], optional
             Particle type(s) to include. Defaults to self.particle_types
-        Returns:
-            indices: dict[str, NDArray[int]]
+
+        Returns
+        -------
+        indices: dict[str, NDArray[int]]
             Dictionary of arrays of particle start-stop indices plus partiality
             flag contained within shape, organized by particle type
+
+        See Also
+        --------
+        [ParticleCubes._get_particle_indices_in_shape][ParticleCubes._get_particle_indices_in_shape]
         """
         if particle_types is None:
             particle_types = self.particle_types
@@ -86,7 +95,7 @@ class MultiCubes:
             particle_types = [particle_types]
         inds = {}
         for pt in particle_types:
-            inds[pt] = self.cubes_dict[pt]._get_particle_indices_in_shape(
+            inds[pt] = self._cubes_dict[pt]._get_particle_indices_in_shape(
                 shape,
             )
         return inds
@@ -97,19 +106,25 @@ class MultiCubes:
         *,
         particle_types: str | Collection[str] | None = None,
     ) -> dict[str, NDArray[np.int_]]:
-        """
-        Return all particles contained within the box
+        """Return all particles contained within the box
 
-        Args:
-            box: BoxLike
+        Parameters
+        ----------
+        box: BoxLike
             Box to check
 
-            particle_types: str | Collection[str], optional
+        particle_types: str | Collection[str], optional
             Particle type(s) to include. Defaults to self.particle_types
-        Returns:
-            indices: dict[str, NDArray[int]]
+
+        Returns
+        -------
+        indices: dict[str, NDArray[int]]
             Dictionary of arrays of particle start-stop indices plus partiality
             flag contained within box, organized by particle type
+
+        See Also
+        --------
+        [ParticleCubes.get_particle_indices_in_box][ParticleCubes.get_particle_indices_in_box]
         """
         numba_box = bbox.make_bounding_box(box)
         return self._get_particle_indices_in_shape(
@@ -123,25 +138,31 @@ class MultiCubes:
         *,
         particle_types: str | Collection[str] | None = None,
     ) -> dict[str, NDArray[np.int_]]:
-        """
-        Return all particles contained within the sphere defined by center and radius
+        """Return all particles contained within the sphere defined by center and radius
 
-        Args:
-            particle_types: str | Collection[str]
+        Parameters
+        ----------
+        particle_types: str | Collection[str]
             Particle type(s) to include
 
-            center: NDArray
+        center: NDArray
             Center point of the sphere
 
-            radius: float
+        radius: float
             Radius of the sphere
 
-            particle_types: str | Collection[str], optional
+        particle_types: str | Collection[str], optional
             Particle type(s) to include. Defaults to self.particle_types
-        Returns:
-            indices: dict[str, NDArray[int]]
+
+        Returns
+        -------
+        indices: dict[str, NDArray[int]]
             Dictionary of arrays of particle start-stop indices plus partiality
             flag contained within sphere, organized by particle type
+
+        See Also
+        --------
+        [ParticleCubes.get_particle_indices_in_sphere][ParticleCubes.get_particle_indices_in_sphere]
         """
         sph = bbox.make_bounding_sphere(radius, center=center, unsafe=True)
         return self._get_particle_indices_in_shape(sph, particle_types=particle_types)
@@ -155,34 +176,35 @@ class MultiCubes:
         strict: bool = True,
         use_data_indices: bool = True,
     ) -> dict[str, NDArray[np.int_]]:
-        """
-        Return all particles contained within the sphere defined by center and radius
+        """Return all particles contained within the sphere defined by center and radius
 
-        Args:
-            data: DataContainer | Dataset
+        Parameters
+        ----------
+        data: DataContainer | Dataset
             Dataset containing the particle positions. Pass a DataContainer
             object for a slight performance increase
 
-            center: NDArray
+        center: NDArray
             Center point of the sphere
 
-            radius: float
+        radius: float
             Radius of the sphere
 
-            particle_types: str | Collection[str], optional
-            Particle type(s) to include. Defaults to self.particle_types
+        particle_types: str | Collection[str], optional
+            Particle type(s) to include. Defaults to `self.particle_types`
 
-            strict: bool, optional
+        strict: bool, optional
             Flag to specify whether only particles inside the sphere will
-            be returned. If False (default), additional nearby particles may be
+            be returned. If `False` (default), additional nearby particles may be
             included for signficantly increased performance
 
-            use_data_indices: bool, optional
-            Flag to return indices into the sorted dataset (True, default) or
-            into the shuffle list (False)
+        use_data_indices: bool, optional
+            Flag to return indices into the sorted dataset (`True`, default) or
+            into the shuffle list (`False`)
 
-        Returns:
-            indices: NDArray[int]
+        Returns
+        -------
+        indices: NDArray[int]
             List of original particle indices contained within sphere
         """
         if particle_types is None:
@@ -192,7 +214,7 @@ class MultiCubes:
         data = data.data_container if isinstance(data, Dataset) else data
         inds = {}
         for pt in particle_types:
-            inds[pt] = self.cubes_dict[pt]._get_particle_index_list_in_shape(
+            inds[pt] = self._cubes_dict[pt]._get_particle_index_list_in_shape(
                 data,
                 shape,
                 use_data_indices=use_data_indices,
@@ -208,31 +230,32 @@ class MultiCubes:
         strict: bool = True,
         use_data_indices: bool = True,
     ) -> dict[str, NDArray[np.int_]]:
-        """
-        Return all particles contained within the sphere defined by center and radius
+        """Return all particles contained within the sphere defined by center and radius
 
-        Args:
-            data: DataContainer | Dataset
-            Dataset containing the particle positions. Pass a DataContainer
+        Parameters
+        ----------
+        data: DataContainer | Dataset
+            Dataset containing the particle positions. Pass a `DataContainer`
             object for a slight performance increase
 
-            box: BoxLike
+        box: BoxLike
             Box to check
 
-            particle_types: str | Collection[str], optional
-            Particle type(s) to include. Defaults to self.particle_types
+        particle_types: str | Collection[str], optional
+            Particle type(s) to include. Defaults to `self.particle_types`
 
-            strict: bool, optional
+        strict: bool, optional
             Flag to specify whether only particles inside the sphere will
-            be returned. If False (default), additional nearby particles may be
+            be returned. If `False` (default), additional nearby particles may be
             included for signficantly increased performance
 
-            use_data_indices: bool, optional
-            Flag to return indices into the sorted dataset (True, default) or
-            into the shuffle list (False)
+        use_data_indices: bool, optional
+            Flag to return indices into the sorted dataset (`True`, default) or
+            into the shuffle list (`False`)
 
-        Returns:
-            indices: NDArray[int]
+        Returns
+        -------
+        indices: NDArray[int]
             List of original particle indices contained within sphere
         """
         bbn = bbox.make_bounding_box(box)
@@ -254,34 +277,35 @@ class MultiCubes:
         strict: bool = True,
         use_data_indices: bool = True,
     ) -> dict[str, NDArray[np.int_]]:
-        """
-        Return all particles contained within the sphere defined by center and radius
+        """Return all particles contained within the sphere defined by center and radius
 
-        Args:
-            data: DataContainer | Dataset
-            Dataset containing the particle positions. Pass a DataContainer
+        Parameters
+        ----------
+        data: DataContainer | Dataset
+            Dataset containing the particle positions. Pass a `DataContainer`
             object for a slight performance increase
 
-            center: NDArray
+        center: NDArray
             Center point of the sphere
 
-            radius: float
+        radius: float
             Radius of the sphere
 
-            particle_types: str | Collection[str], optional
-            Particle type(s) to include. Defaults to self.particle_types
+        particle_types: str | Collection[str], optional
+            Particle type(s) to include. Defaults to `self.particle_types`
 
-            strict: bool, optional
+        strict: bool, optional
             Flag to specify whether only particles inside the sphere will
-            be returned. If False (default), additional nearby particles may be
+            be returned. If `False` (default), additional nearby particles may be
             included for signficantly increased performance
 
-            use_data_indices: bool, optional
-            Flag to return indices into the sorted dataset (True, default) or
-            into the shuffle list (False)
+        use_data_indices: bool, optional
+            Flag to return indices into the sorted dataset (`True`, default) or
+            into the shuffle list (`False`)
 
-        Returns:
-            indices: NDArray[int]
+        Returns
+        -------
+        indices: NDArray[int]
             List of original particle indices contained within sphere
         """
         sph = bbox.make_bounding_sphere(radius, center=center, unsafe=True)
@@ -305,55 +329,57 @@ class MultiCubes:
         return_shuffle_indices: bool | None = None,
         return_sorted: bool | None = None,
     ):
-        """
-        Get kth nearest particle distances and indices to point
+        """Get kth nearest particle distances and indices to point
 
-        Args:
-            data: DataContainer | Dataset
+        Parameters
+        ----------
+        data: DataContainer | Dataset
             Source of particle position data
 
-            xyz: ArrayLike
+        xyz: ArrayLike
             Coordinates of point to check
 
-            particle_types: str | Collection[str], optional
+        particle_types: str | Collection[str], optional
             Particle type(s) to include. Defaults to self.particle_types
 
-            distance_upper_bound: nonnegative float, optional
+        distance_upper_bound: nonnegative float, optional
             Return only neighbors from other nodes within this distance. This
             is used for tree pruning, so if you are doing a series of
             nearest-neighbor queries, it may help to supply the distance to the
             nearest neighbor of the most recent point.
 
-            p: float, optional
+        p: float, optional
             Which Minkowski p-norm to use. 1 is the sum of absolute-values
             distance ("Manhattan" distance). 2 is the usual Euclidean distance.
             Infinity is the maximum-coordinate-difference distance. Currently,
             only p=2 is supported.
 
-            k: int, optional
+        k: int, optional
             Number of closest particles to return. Default 1
 
-            return_shuffle_indices: bool, optional
+        return_shuffle_indices: bool, optional
             Flag to return the shuffle indices instead of the data indices.
             Default False.
 
-            return_sorted: bool, optional
+        return_sorted: bool, optional
             Flag to return the distances and indices in distance-sorted order.
             Set to False for a performance boost. Default True
 
-        Returns:
-            distances: NDArray[float]
+        Returns
+        -------
+        distances: NDArray[float]
             Distances to the kth nearest neighbors. Has shape (min(N,k),),
             where N is the number of particles in the sphere bounded by
             distance_upper_bound
 
-            indices: NDArray[int]
+        indices: NDArray[int]
             Indices in data of the kth nearest neighbors. Has same shape as
             distances
 
-        Raises:
-            NotImplementedError
-            If a p value of then 2 is provided
+        Raises
+        ------
+        NotImplementedError
+            If a p value of other then 2 is provided
         """
         if particle_types is None:
             particle_types = self.particle_types
@@ -362,7 +388,7 @@ class MultiCubes:
         data = data.data_container if isinstance(data, Dataset) else data
         inds = {}
         for pt in particle_types:
-            inds[pt] = self.cubes_dict[pt].get_closest_particles(
+            inds[pt] = self._cubes_dict[pt].get_closest_particles(
                 data=data,
                 xyz=xyz,
                 distance_upper_bound=distance_upper_bound,
@@ -379,20 +405,25 @@ class MultiCubes:
         *,
         force_overwrite: bool = False,
     ) -> Path:
-        """
-        Save cubes information to specified file
+        """Save cubes information to specified file
 
-        Args:
-            dataset: str | HDF5Dataset
+        Parameters
+        ----------
+        dataset: str | HDF5Dataset
             Location to store cubes data.
 
-            force_overwrite: bool, optional
+        force_overwrite: bool, optional
             If dataset already contains cubes data, overwrite if True.
             Default False
+
+        Returns
+        -------
+        :
+            Path to the saved cubes information
         """
         dataset = check_overwrite(dataset, force_overwrite=force_overwrite)
 
-        for pt, cubes in self.cubes_dict.items():
+        for pt, cubes in self._cubes_dict.items():
             save_cube(
                 dataset,
                 pt=pt,

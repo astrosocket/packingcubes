@@ -44,10 +44,54 @@ Copyright &copy; 2026 The astrosocket project
 # can be defined using TOML syntax.
 #
 # Read more: https://zensical.org/docs/setup/navigation/
-# nav = [
-#   { "Get started" = "index.md" },
-#   { "Markdown in 5min" = "markdown.md" },
-# ]
+nav = [
+  { "PackingCubes" = "index.md" },
+  { "Installation" = "Installation.md" },
+  { "Users-Guide" = [
+      "Users-Guide/index.md",
+      { "Tutorials" = [
+          "Users-Guide/Tutorials/index.md",
+          "Users-Guide/Tutorials/ParticlesWithinShape.md",
+          "Users-Guide/Tutorials/Working_with_datasets.md",
+          ]
+      },
+      { "Recipes" = [
+              "Users-Guide/Recipes/index.md",
+              "Users-Guide/Recipes/TempVsRadii_Direct.md",
+              "Users-Guide/Recipes/TempVsRadii_SearchObj.md",
+              "Users-Guide/Recipes/JittedCode.md",
+          ]
+      },
+      { "Reference" = [
+              "Users-Guide/Reference/index.md",
+              "Users-Guide/Reference/Cubes.md",
+              "Users-Guide/Reference/Data-Objects.md",
+              "Users-Guide/Reference/Packed-Trees.md",
+              "Users-Guide/Reference/packed_format.md",
+              "Users-Guide/Reference/CLI.md",
+              "Users-Guide/Reference/Tree-Visualization.md",
+              {"Numba" = [
+                  "Users-Guide/Reference/Numba/Bounding-Volumes.md",
+                  "Users-Guide/Reference/Numba/Cubes.md",
+                  "Users-Guide/Reference/Numba/DataContainers.md",
+                  "Users-Guide/Reference/Numba/PackedTree.md",
+                  ]
+              },
+          ]
+      },
+      { "Explanations" = [
+              "Users-Guide/Explanations/index.md",
+              "Users-Guide/Explanations/Octrees.md",
+              "Users-Guide/Explanations/ParallelChunking.md",
+              "Users-Guide/Explanations/HeapQueries.md",
+              "Users-Guide/Explanations/Benchmarks.md",
+          ]
+      },
+  ]
+  },
+  "Citations.md",
+  "Developer-Guide.md",
+]
 
 # With the "extra_css" option you can add your own CSS styling to customize
 # your Zensical project according to your needs. You can add any number of
@@ -313,11 +357,42 @@ link = "https://github.com/astrosocket"
 # Markdown extension settings
 # ----------------------------------------------------------------------------
 
-# Uncomment to enable MathJax sitewide
-# [project.markdown_extensions.pymdownx.arithmatex]
-# generic = true
-
+[project.markdown_extensions.abbr]
+[project.markdown_extensions.admonition]
+[project.markdown_extensions.attr_list]
+[project.markdown_extensions.def_list]
+[project.markdown_extensions.footnotes]
+[project.markdown_extensions.md_in_html]
+[project.markdown_extensions.toc]
+permalink = true
+[project.markdown_extensions.pymdownx.arithmatex]
+generic = true
+[project.markdown_extensions.pymdownx.betterem]
+[project.markdown_extensions.pymdownx.caret]
+[project.markdown_extensions.pymdownx.details]
+[project.markdown_extensions.pymdownx.emoji]
+emoji_generator = "zensical.extensions.emoji.to_svg"
+emoji_index = "zensical.extensions.emoji.twemoji"
+[project.markdown_extensions.pymdownx.highlight]
+anchor_linenums = true
+line_spans = "__span"
+pygments_lang_class = true
+[project.markdown_extensions.pymdownx.inlinehilite]
+[project.markdown_extensions.pymdownx.keys]
+[project.markdown_extensions.pymdownx.magiclink]
+[project.markdown_extensions.pymdownx.mark]
+[project.markdown_extensions.pymdownx.smartsymbols]
 [project.markdown_extensions.pymdownx.snippets]
+[project.markdown_extensions.pymdownx.superfences]
+custom_fences = [
+  { name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format" }
+]
+[project.markdown_extensions.pymdownx.tabbed]
+alternate_style = true
+combine_header_slug = true
+[project.markdown_extensions.pymdownx.tasklist]
+custom_checkbox = true
+[project.markdown_extensions.pymdownx.tilde]
 
 # ----------------------------------------------------------------------------
 # mkdocstrings configuration
@@ -329,6 +404,16 @@ paths = ["packingcubes"]
 [project.plugins.mkdocstrings.handlers.python.options]
 docstring_style = "numpy"
 inherited_members = true
+signature_crossrefs = true
 show_source = false
-docstring_section_style = "spacy"
+docstring_section_style = "list"
+backlinks = true
+parameter_headings = false
+scoped_crossrefs = true
+show_symbol_type_heading = true
+show_symbol_type_toc = true
+separate_signature = true
+show_signature_annotations = false
+merge_init_into_class = true
+docstring_options = {"ignore_init_summary" = true}
 extensions = {"griffe_pydantic" = {"schema" = true}}

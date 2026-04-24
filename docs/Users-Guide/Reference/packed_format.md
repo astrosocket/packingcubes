@@ -1,6 +1,10 @@
+---
+icon: lucide/binary
+---
+
 # Packed Format Design Specification
 
-Version 1.0.1
+Version 1.0.0
 
 This file documents the format used to describe a PackedTree data structure.
 

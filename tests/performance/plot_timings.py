@@ -1,3 +1,11 @@
+# ruff: noqa: D103
+"""
+Collection of functions and CLI for plotting timing test results
+
+The CLI is the intended interface for this module, however, programmatic
+access is also supported for individual plot types.
+"""
+
 import argparse
 import json
 import logging
@@ -7,10 +15,11 @@ from pathlib import Path
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
+from numpy.typing import NDArray
 
 import packingcubes
 
-from .json_parsing import as_unyt
+from ._json_parsing import as_unyt
 
 LOGGER = logging.getLogger(__name__)
 
@@ -73,7 +82,7 @@ m_expected_label = {
 ignore_metrics = ["search:brute"]
 
 
-def save_fig(
+def _save_fig(
     fig: mpl.Figure,
     fig_type: str,
     *,
@@ -89,10 +98,16 @@ def save_fig(
     fig.savefig(str(filename), bbox_inches="tight")
 
 
-def plot_raw_times(sims, **kwargs):
-    """
-    Plot raw timing results in appropriate units
-    """
+type TSims = dict[str, dict[str, NDArray | dict]]
+"""
+Dictionary containing dictionaries containing timing results, organized by simulation
+"""
+type TPlots = tuple[list[mpl.Figure], list[mpl.Axes]]
+""" Tuple of figures and axes"""
+
+
+def plot_raw_times(sims: TSims, **kwargs) -> TPlots:
+    """Plot raw timing results in appropriate units"""
     figs = []
     axs = []
 
@@ -125,14 +140,12 @@ def plot_raw_times(sims, **kwargs):
         ax.legend()
 
     for t, fig in zip(metrics, figs, strict=True):
-        save_fig(fig, f"raw-{t}", **kwargs)
+        _save_fig(fig, f"raw-{t}", **kwargs)
     return figs, axs
 
 
-def plot_expected_times(sims, **kwargs):
-    """
-    Plot timings in O(...) form
-    """
+def plot_expected_times(sims: TSims, **kwargs) -> TPlots:
+    """Plot timings in O(...) form"""
     figs = []
     axs = []
 
@@ -201,14 +214,12 @@ def plot_expected_times(sims, **kwargs):
         ax.legend()
 
     for t, fig in zip(metrics, figs, strict=True):
-        save_fig(fig, f"expected-{t}", **kwargs)
+        _save_fig(fig, f"expected-{t}", **kwargs)
     return figs, axs
 
 
-def plot_normalized_times(sims, **kwargs):
-    """
-    Plot results normalized to scipy version
-    """
+def plot_normalized_times(sims: TSims, **kwargs) -> TPlots:
+    """Plot results normalized to scipy version"""
     figs = []
     axs = []
 
@@ -252,11 +263,11 @@ def plot_normalized_times(sims, **kwargs):
         ax.legend()
 
     for t, fig in zip(metrics, figs, strict=True):
-        save_fig(fig, f"normalized-{t}", **kwargs)
+        _save_fig(fig, f"normalized-{t}", **kwargs)
     return figs, axs
 
 
-def plot_parallel_scaling(sims, **kwargs):
+def plot_parallel_scaling(sims: TSims, **kwargs) -> TPlots:
     fig, axs = plt.subplots(2, 1, sharex=True)
     fig.set_figheight(10)
     labels = {}
@@ -329,11 +340,12 @@ def plot_parallel_scaling(sims, **kwargs):
     axs[0].legend()
     axs[1].legend()
 
-    save_fig(fig, "parallel", **kwargs)
+    _save_fig(fig, "parallel", **kwargs)
     return fig, axs
 
 
-def parse_arguments(argv=None):
+def parse_arguments(argv=None) -> dict:
+    """Parse CLI arguments using argparse"""
     if argv is None:
         # need to skip caller or it's picked up as the snapshot file
         argv = sys.argv[1:]
@@ -432,9 +444,7 @@ def parse_arguments(argv=None):
 def load_sim_results(
     output_list: list[str], *, name_map: list[str] | None = None
 ) -> dict:
-    """
-    Load list of output files into dictionary
-    """
+    """Load list of output files into dictionary"""
     sims = []
     for i, outfilepath in enumerate(output_list):
         with open(outfilepath) as outfile:
@@ -462,7 +472,8 @@ def load_sim_results(
     return sims
 
 
-if __name__ == "__main__":
+def cli():
+    """Run the CLI for plot_timings"""
     args = parse_arguments()
     logging.basicConfig()
     LOGGER.info(f"Running with packingcubes v{packingcubes.__version__}")
@@ -484,3 +495,8 @@ if __name__ == "__main__":
 
     if args.save_dir is None:
         plt.show()
+    return
+
+
+if __name__ == "__main__":
+    sys.exit(cli())

@@ -47,7 +47,7 @@ viz = [
 jupyter = [
     "jupyter-rfb",
 ]
-benchmark = ["scipy", "unyt"]
+benchmark = ["scipy", "unyt", "matplotlib"]
 all = ["packingcubes[viz]", "packingcubes[jupyter]", "packingcubes[benchmark]"]
 
 
@@ -79,9 +79,9 @@ dev = [
 docs = ["griffe-pydantic", "zensical", "mkdocstrings-python", "mkdocstrings"]
 
 [project.scripts]
-packcubes = "packingcubes.cubes.cubes_creation.__main__:main"
-packcubes_timing_run = "tests.performance.timing.__main__:main"
-packcubes_timing_plot = "tests.performance.plot_timings.__main__:main"
+packcubes = "packingcubes.cubes.cubes_creation:cli"
+packcubes_timing_run = "tests.performance.timing:cli"
+packcubes_timing_plot = "tests.performance.plot_timings:cli"
 
 [tool.setuptools]
 packages = ["packingcubes"]
@@ -113,14 +113,16 @@ select = [
     "C90",
     # numpy
     "NPY",
-    # Docstrings - not yet ready
-    # "D",
+    # Docstrings
+    "D",
+    # "DOC", # only available in ruff preview for now
 ]
-ignore = ["F841", "SIM300"]
+ignore = ["F841", "SIM300", "D400",]
 unfixable = ["B"]
 
+
 [tool.ruff.lint.pydocstyle]
-convention = "google"
+convention = "numpy"
 
 [tool.coverage.run]
 source = [
@@ -154,6 +156,10 @@ build = { features = ["build"], solve-group = "default" }
 docs = { features = ["docs", "jupyter"], solve-group = "default" }
 
 [tool.pixi.tasks]
+
+[tool.pixi.feature.docs.tasks]
+zserve = "zensical serve"
+zbuild = "zensical build"
 
 [tool.pixi.feature.dev.tasks]
 test = "pytest --cov=packingcubes"
@@ -193,7 +199,7 @@ jupyter-rfb = ">=0.5.4,<0.6"
 twine = ">=6.2.0,<7"
 
 [tool.pixi.feature.docs.dependencies]
-zensical = ">=0.0.32,<0.0.33"
+zensical = ">=0.0.34,<0.0.35"
 mkdocstrings = ">=1.0.3,<2"
 mkdocstrings-python = ">=2.0.2,<3"
 griffe-pydantic = ">=1.3.1,<2"

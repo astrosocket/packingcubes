@@ -1,3 +1,40 @@
+"""
+Functions and CLI for timing search object creation and search
+
+Contains the primary functions for timing search objects (PackedTrees,
+ParticleCubes, SciPy's KDTree, etc.), both creation and search, across
+datasets.
+
+The primary interface is expected to be the CLI, however programmatic access
+is available through the functions in the functions section.
+
+We refer to timing something as a "test", with a name and result, and the
+primary module output is a dictionary of test results, organized by test name.
+A test result here is a tuple in the form (min(time_vector), time_vector),
+where a time_vector is a collection of the time taken to run the function
+in the test. Thus, a test result is identical to the the output of the `timeit`
+module's timeit function (and grew out of that).
+
+
+Functions
+---------
+    manual_timing
+        Time a collection of create and search tests
+    get_data
+        Load or create the dataset to test on
+    set_decimation
+        Create a sub-dataset with the specified decimation
+    random_search_balls(dataset, centers=centers, num_particles=100)
+        Compute the radii of spheres that contain the specified number of particles
+    get_search_obj
+        Create (and potentially time) a search object
+    collate_results
+        Reorder a results dictionary so that certain keys are top-level
+    save_results
+        Save a results dictionary to a file in JSON format
+
+"""
+
 import argparse
 import contextlib
 import json
@@ -18,16 +55,16 @@ import packingcubes.bounding_box as bbox
 import packingcubes.data_objects as data_objects
 import packingcubes.packed_tree as optree
 
+from ._json_parsing import UnytEncoder
 from .brute import brute_force_creation, brute_force_search
 from .cubes import ParticleCubes, cubes_creation, cubes_query_ball_points
-from .json_parsing import UnytEncoder
-from .kdtree import (
-    KDTree,
-    packed_kdtree_creation,
-    packed_kdtree_query,
-    packed_kdtree_query_ball_point,
-)
 from .octree import python_octree_creation, python_octree_query_ball_point
+from .optree import (
+    OpTree,
+    optree_creation,
+    optree_query,
+    optree_query_ball_point,
+)
 from .packed_tree import _NUM_REPS as _NUM_PACKED_QUERY_REPS
 from .packed_tree import (
     PackedTree,
@@ -37,12 +74,10 @@ from .packed_tree import (
     packed_octree_query_ball_point_indices,
 )
 from .scipy import (
-    KDTree as SciTree,
-)
-from .scipy import (
-    scipy_kdtree_creation,
-    scipy_kdtree_query,
-    scipy_kdtree_query_ball_point,
+    KDTree,
+    kdtree_creation,
+    kdtree_query,
+    kdtree_query_ball_point,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -53,13 +88,12 @@ rng = np.random.default_rng(0xBA55ADE89)
 _DEFAULT_QUERY_SIZE = 100
 
 
-def get_random_data(random_size: int) -> data_objects.InMemory:
+def _get_random_data(random_size: int) -> data_objects.InMemory:
     return data_objects.InMemory(positions=rng.random((random_size, 3)) * 1000)
 
 
 def _create_loading_pattern(filepath: str, loading_factor: int | None = None):
-    """
-    Create chunky slice loading if loading factor requested
+    """Create chunky slice loading if loading factor requested
 
     A "chunky" slice is similar to striding the data (e.g. ::10) except each
     slice is some number of particles thick. So effectively, normal striding
@@ -76,7 +110,6 @@ def _create_loading_pattern(filepath: str, loading_factor: int | None = None):
         slices: list of slices or None
         List of chunky slices or None if loading_factor is None or 1
     """
-
     if loading_factor is None or loading_factor == 1:
         return None
 
@@ -107,7 +140,7 @@ def _create_loading_pattern(filepath: str, loading_factor: int | None = None):
     return loading_pattern
 
 
-def load_data(
+def _load_data(
     snapshot: str, loading_factor: int | None
 ) -> data_objects.GadgetishHDF5Dataset:
     LOGGER.debug("Beginning data loading")
@@ -131,18 +164,38 @@ def load_data(
 def get_data(
     snapshot: str | None, *, loading_factor: int | None, random_size: int
 ) -> data_objects.MultiParticleDataset:
+    """Create or load data
+
+    Args
+    ----
+        snapshot: str | None
+            The path to the snapshot to load. If snapshot is None, generate a
+            random dataset instead
+        loading_factor: int | None
+            Fraction of data to load as an integer equivalent to a stride length
+            If loading_factor is None, all data will be loaded
+        random_size: int
+            Number of particles to randomly generate. Ignored if snapshot is
+            not None
+
+    Returns
+    -------
+        Dataset
+            The loaded or randomly generated dataset
+    """
     return (
-        load_data(snapshot, loading_factor)
+        _load_data(snapshot, loading_factor)
         if snapshot is not None
-        else get_random_data(random_size)
+        else _get_random_data(random_size)
     )
 
 
-def process_data(
+def _process_data(
     *,
     dataset: data_objects.MultiParticleDataset,
     number_balls: int = 100,
 ) -> NDArray:
+    """Create the requested number of search ball centers"""
     box = dataset.bounding_box
     centers = []
     for _ in range(number_balls):
@@ -153,13 +206,14 @@ def process_data(
 def set_decimation(
     *, ds: data_objects.Dataset, decimation_factor: int
 ) -> data_objects.Dataset:
+    """Create an InMemory version of this dataset with the specified decimation"""
     LOGGER.info(f"Decimating to {len(ds) / decimation_factor:.3e} particles")
     return data_objects.InMemory(
         positions=ds.positions.copy()[::decimation_factor, :],
     )
 
 
-def reset_data(ds: data_objects.Dataset) -> data_objects.Dataset:
+def _reset_data(ds: data_objects.Dataset) -> data_objects.Dataset:
     original_inds = np.argsort(ds.index)
     ds.reorder(original_inds)
     # verify
@@ -169,7 +223,7 @@ def reset_data(ds: data_objects.Dataset) -> data_objects.Dataset:
     return ds
 
 
-def random_search_balls_constant_number(
+def random_search_balls(
     ds: data_objects.Dataset,
     *,
     centers: NDArray,
@@ -177,6 +231,43 @@ def random_search_balls_constant_number(
     error_threshold: float = 0.1,
     iterations_threshold: int = 20,
 ) -> tuple[list[float], list[int]]:
+    """
+    Generate random "search balls" with the specified number of partices
+
+    A "search ball" is a simply a sphere specified by 3D center and radius.
+    Since the centers are already provided, here we simply find the radius that
+    would enclose the specified number of particles. Note that if there are
+    fewer particles in the dataset then requested, the radius will be twice
+    the maximum size dimension.
+
+    The spheres generated by this function are only intended to have a number
+    of particles within the error threshold, for technical and performance
+    reasons. We attempt to achieve the number by a binary search, stopping
+    if the number of iterations reaches the threshold. If too many spheres are
+    stopped early, we emit a warning. As such, some spheres may have
+    a maargin of error greater than requested.
+
+    Args
+    ----
+        ds: Dataset
+            Dataset to use when generating spheres
+        centers: Nx3 NDArray
+            The sphere centers to use
+        num_particles: int, optional
+            The number of particles in each sphere. Default 1000
+        error_threshold: float, optional
+            The tolerance for a particle number different than requested as
+            $|number_enclosed - num_particles|/num_particles$. Default 10%
+        iterations_threshold: int, optional
+            Max number of bisections to perform. Default 20
+
+    Returns
+    -------
+        radii: list[float]
+            The search ball radii
+        particle_numbers: list[int]
+            The actual number of particles in each search ball
+    """
     LOGGER.info(
         f"Generating constant particle number search balls of size {num_particles}"
     )
@@ -196,7 +287,7 @@ def random_search_balls_constant_number(
         )
         return radii, particle_numbers
 
-    kdtree = optree.KDTree(data=ds.positions, copy_data=True)
+    tree = optree.OpTree(data=ds.positions, copy_data=True)
     box = ds.bounding_box
     bad_balls = 0
     radii = []
@@ -212,7 +303,7 @@ def random_search_balls_constant_number(
         r = min(ds.bounding_box.size) / 10
         LOGGER.debug(f"Starting search for ball {i} with center {center} and r0={r}")
         n_enclosed = len(
-            kdtree.query_ball_point(
+            tree.query_ball_point(
                 center,
                 r,
                 strict=True,
@@ -230,7 +321,7 @@ def random_search_balls_constant_number(
             rlower = r
             r *= 2
             n_enclosed = len(
-                kdtree.query_ball_point(
+                tree.query_ball_point(
                     center,
                     r,
                     strict=True,
@@ -252,7 +343,7 @@ def random_search_balls_constant_number(
                 f"Have {n_enclosed} particles ({error=:.3g}). Checking {r=:.4g}"
             )
             n_enclosed = len(
-                kdtree.query_ball_point(
+                tree.query_ball_point(
                     center,
                     r,
                     strict=True,
@@ -272,22 +363,21 @@ def random_search_balls_constant_number(
             f"{n_enclosed} particles after {num_iterations} iterations"
         )
         if num_iterations >= iterations_threshold:
-            LOGGER.info(f"Taking too long, skipping sphere {i}")
+            LOGGER.info(f"Taking too long on sphere {i}")
             bad_balls += 1
-            continue
         radii.append(r)
         particle_numbers.append(n_enclosed)
     if bad_balls:
-        LOGGER.debug(f"Skipped {bad_balls} spheres")
+        LOGGER.debug(f"Iteration threshold reached on {bad_balls} spheres")
     if bad_balls > len(centers) / 10:
         LOGGER.warning(
-            f"More than 10% of spheres ({bad_balls}) were skipped."
+            f"More than 10% of spheres ({bad_balls}) crossed the iteration threshold."
             " Timing stats may suffer"
         )
     return radii, particle_numbers
 
 
-def remove_problem_classes_from_state(self):
+def _remove_problem_classes_from_state(self):
     state = self.__dict__.copy()
     data_keys = [
         n
@@ -323,17 +413,18 @@ def remove_problem_classes_from_state(self):
 
 
 def tree_sizes(decimation_factor=10):
+    """Print the sizes of search objects on a standard dataset"""
     # print(".Precompiling") # noqa
     # precompile()
     # print(".Loading data")  # noqa
-    ds = process_data(decimation_factor=decimation_factor)
+    ds = _process_data(decimation_factor=decimation_factor)
     b = pickle.dumps(ds.positions)
     print(f"Positions: {len(b)}")  # noqa
 
     tcf_dict = {
         "python": python_octree_creation,
         "packed": packed_octree_creation,
-        "kdtree": scipy_kdtree_creation,
+        "kdtree": kdtree_creation,
     }
     # print(".Creating trees and computing memory usage")  # noqa
     for name, tree_creation_func in tcf_dict.items():
@@ -341,16 +432,24 @@ def tree_sizes(decimation_factor=10):
         match name:
             case "python":
                 for node in tree:
-                    node.__getstate__ = partial(remove_problem_classes_from_state, node)
+                    node.__getstate__ = partial(
+                        _remove_problem_classes_from_state, node
+                    )
             case "packed":
-                tree.__getstate__ = partial(remove_problem_classes_from_state, tree)
+                tree.__getstate__ = partial(_remove_problem_classes_from_state, tree)
         b = pickle.dumps(tree)
         print(f"{name}: {len(b)}")  # noqa
 
 
-def get_creation_search_dicts():
-    """
-    Get functions to be timed and any additional config options
+# The NDArray is for the brute search creation method
+type TSearchObj = PackedTree | ParticleCubes | OpTree | KDTree | NDArray
+""" A search object """
+
+
+def get_creation_search_dicts() -> tuple[
+    dict[str, Callable[[data_objects.Dataset], TSearchObj]], dict
+]:
+    """Get functions to be timed and any additional config options
 
     For the search dictionary, the "fun" field is the function to be timed,
     the "tree" field is the search object needed, the "config" field contains
@@ -363,8 +462,8 @@ def get_creation_search_dicts():
         "pyoct": python_octree_creation,
         "packed": packed_octree_creation,
         "cubes": cubes_creation,
-        "kdtree": packed_kdtree_creation,
-        "scipy": scipy_kdtree_creation,
+        "optree": optree_creation,
+        "kdtree": kdtree_creation,
         "brute": brute_force_creation,
     }
     search_dict = {
@@ -396,13 +495,13 @@ def get_creation_search_dicts():
             "fun": cubes_query_ball_points,
             "tree": "cubes",
         },
-        "kdtree": {
-            "fun": packed_kdtree_query_ball_point,
-            "tree": "kdtree",
+        "optree": {
+            "fun": optree_query_ball_point,
+            "tree": "optree",
         },
-        "kdq": {
-            "fun": packed_kdtree_query,
-            "tree": "kdtree",
+        "opq": {
+            "fun": optree_query,
+            "tree": "optree",
             "config": {"k": _DEFAULT_QUERY_SIZE},
             "extended_description": f"""
             Returns k(={_DEFAULT_QUERY_SIZE})-closest particles, equivalent to 
@@ -413,13 +512,13 @@ def get_creation_search_dicts():
             "fun": brute_force_search,
             "tree": "brute",
         },
-        "scipy": {
-            "fun": scipy_kdtree_query_ball_point,
-            "tree": "scipy",
+        "kdtree": {
+            "fun": kdtree_query_ball_point,
+            "tree": "kdtree",
         },
-        "sciq": {
-            "fun": scipy_kdtree_query,
-            "tree": "scipy",
+        "kdq": {
+            "fun": kdtree_query,
+            "tree": "kdtree",
             "config": {"k": _DEFAULT_QUERY_SIZE},
             "extended_description": f"""
             Returns k(={_DEFAULT_QUERY_SIZE})-closest particles.
@@ -443,19 +542,19 @@ def _format_time(times: unyt_array | unyt_quantity) -> unyt_array:
     return times.to(units[-1])
 
 
+type TResult = tuple[unyt_quantity, unyt_array]
+""" A result tuple in the form (min(time_vector), time_vector) """
+
+
 def _run_creation_perf_timer(
-    creation_fun: Callable[
-        [data_objects.Dataset], PackedTree | ParticleCubes | KDTree | SciTree
-    ],
+    creation_fun: Callable[[data_objects.Dataset], TSearchObj],
     dataset: data_objects.MultiParticleDataset,
-) -> tuple[unyt_quantity, unyt_array]:
-    """
-    Time search object creation using perf_timer
-    """
+) -> TResult:
+    """Time search object creation using perf_timer"""
     # do initial run to catch any precompilation issues and to prime data loading
     creation_fun(dataset)
     # reset data
-    reset_data(dataset)
+    _reset_data(dataset)
 
     def timeit(
         creation_fun,
@@ -466,7 +565,7 @@ def _run_creation_perf_timer(
         delta = 0
         for _ in range(number):
             t1 = time.perf_counter_ns()
-            reset_data(dataset)
+            _reset_data(dataset)
             delta += time.perf_counter_ns() - t1
             creation_fun(dataset)
         tfinal = time.perf_counter_ns()
@@ -508,10 +607,8 @@ def _run_creation_perf_timer(
 
 def _run_search_perf_timer(
     *, search_dict: dict, search_obj, dry_run: bool = False, **kwargs
-) -> tuple[unyt_quantity, unyt_array]:
-    """
-    Time search object creation using perf_timer
-    """
+) -> TResult:
+    """Time search object creation using perf_timer"""
     if dry_run:
         return -1, [-1, -1] * second
 
@@ -568,10 +665,8 @@ def _run_search_perf_timer(
 
 def _process_time_vec(
     *, time_vec: unyt_array, number: int, extra_scaling: int = 1
-) -> tuple[unyt_quantity, unyt_array]:
-    """
-    Scale and find minimum of time vector
-    """
+) -> TResult:
+    """Scale and find minimum of time vector."""
     time_vec /= number
     time_vec /= extra_scaling
     time_vec = _format_time(time_vec)
@@ -580,38 +675,61 @@ def _process_time_vec(
 
 def get_search_obj(
     *,
-    function: str,
+    name: str,
     dataset: data_objects.Dataset,
-    creation_dict: dict,
+    creation_fun: Callable[[data_objects.Dataset], TSearchObj],
     results: dict = None,
     dry_run: bool = False,
-):
-    cd = creation_dict[function]
+) -> TSearchObj:
+    """
+    Create (and potentially time) a search object.
 
+    Args
+    ----
+        name: str
+            The name of the search object to create
+        dataset: Dataset
+            The dataset to create the search object from
+        creation_fun: Callable[[Dataset], TSearchObj]
+            The actual function to create the search object
+        results: dict[str, TResult], optional
+            Dictionary of test results, organized by test name. If provided,
+            creation_fun will be timed before returning the search object
+        dry_run: bool, optional
+            Flag to provide dummy values for the timing instead of actually
+            performing it. Note that the search object *will* still be created.
+            Default False
+
+    Returns
+    -------
+        TSearchObj
+            The requested search object
+
+    """
     if results is not None:
-        LOGGER.debug(f"Timing {function} creation")
+        LOGGER.debug(f"Timing {name} creation")
         if not dry_run:
             number, time_vec = _run_creation_perf_timer(
-                creation_fun=cd,
+                creation_fun=creation_fun,
                 dataset=dataset,
             )
         else:
             number = -1
             time_vec = [-1, -1] * second
-        results[function] = _process_time_vec(
+        results[name] = _process_time_vec(
             time_vec=time_vec, number=number, extra_scaling=1
         )
         test_name = (
-            (function + f" ({get_num_threads()} threads)")
-            if "cubes" in function or "kdtree" in function
-            else function
+            (name + f" ({get_num_threads()} threads)")
+            if "cubes" in name or "kdtree" in name
+            else name
         )
         LOGGER.info(
             f"{test_name} creation, {number} loops, best of "
-            f"{len(time_vec)} runs: {results[function][0]:.3g}"
+            f"{len(time_vec)} runs: {results[name][0]:.3g}"
         )
 
-    so = cd(dataset)
+    so = creation_fun(dataset)
     so.data_container = dataset.data_container
     return so
 
@@ -627,7 +745,43 @@ def manual_timing(
     dry_run: bool = False,
     creation_cache: dict | None = None,
     number_threads: int | None = None,
-):
+) -> dict:
+    """Time a set of creation and search tests on the provided dataset
+
+    Args
+    ----
+        ds: Dataset
+            Dataset to run creation and timing tests on
+        centers: list[NDArray]
+            Search ball centers as list of length-3 vectors
+        radii: list[float]]
+            Search ball radii
+        particle_numbers: list[int]
+            List of number of particles in each search ball for verification
+        creation_list: list[str]
+            List of creation-type tests
+        search_list: list[str]
+            List of search-type tests
+        dry_run: bool, optional
+            Flag to run everything except the actual tests. Default False
+        creation_cache: dict, optional
+            Dictionary containing search objects referenced by type (e.g.
+            "packed":PackedTree). Search objects not present in the cache, or
+            if no cache is provided, will be generated (and possibly timed) on
+            first use and then cached. Default None.
+        number_threads: int, optional
+            Number of threads to use in numba functions. Default is all threads
+            available to numba (config.NUMBA_NUM_THREADS)
+
+    Returns
+    -------
+        dict[str, TResult]
+            Dictionary of test results, organized by test (search-type tests
+            have "-search" appended to the name). A test result is
+            (min(time_vector), time_vector)
+
+
+    """
     number_threads = (
         config.NUMBA_NUM_THREADS if number_threads is None else number_threads
     )
@@ -665,9 +819,9 @@ def manual_timing(
             )
             LOGGER.debug(f"Generating {creation_name} search obj for {test} search")
             search_obj = get_search_obj(
-                function=creation_name,
+                name=creation_name,
                 dataset=ds,
-                creation_dict=creation_dict,
+                creation_fun=creation_dict[creation_name],
                 results=need_timing,
                 dry_run=dry_run,
             )
@@ -693,7 +847,7 @@ def manual_timing(
         )
         test_name = (
             (test + f" ({get_num_threads()} threads)")
-            if "cubes" in test or "kdtree" in test
+            if "cubes" in test or "optree" in test
             else test
         )
         LOGGER.info(
@@ -706,7 +860,7 @@ def manual_timing(
         if test in results or test in creation_cache:
             continue
         get_search_obj(
-            function=test,
+            name=test,
             dataset=ds,
             creation_dict=creation_dict,
             results=results,
@@ -717,7 +871,7 @@ def manual_timing(
 
 
 # from https://stackoverflow.com/a/27434050
-class LoadFromFile(argparse.Action):
+class _LoadFromFile(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
         with values as f:
             contents = f.read()
@@ -731,6 +885,7 @@ class LoadFromFile(argparse.Action):
 
 
 def parse_arguments(argv=None):
+    """Parse CLI arguments"""
     if argv is None:
         # need to skip caller or it's picked up as the snapshot file
         argv = sys.argv[1:]
@@ -806,7 +961,7 @@ def parse_arguments(argv=None):
         "--number-threads",
         default=[get_num_threads()],
         help=f"""
-        For those tests which can benefit from parallelization (cubes, KDTree),
+        For those tests which can benefit from parallelization (cubes, optree),
         specify the number of threads to run on (e.g. for use in scaling 
         benchmarks). Note that this number must be less than the maximum number
         of threads available ({config.NUMBA_NUM_THREADS}). Can be provided as
@@ -852,12 +1007,12 @@ def parse_arguments(argv=None):
         ),
     )
 
-    group_list_const = ["pyoct", "packed", "cubes", "kdtree", "scipy"]
+    group_list_const = ["pyoct", "packed", "cubes", "optree", "kdtree"]
     group_list_names = [
         "PythonOctree",
         "PackedTree",
         "Cubes",
-        "Packed KDTree",
+        "OpTree",
         "SciPy KDTree",
     ]
     for const, name in zip(group_list_const, group_list_names, strict=True):
@@ -880,7 +1035,7 @@ def parse_arguments(argv=None):
         "--most",
         help="""
         Run most of the tests. Specifically, this is the equivalent of 
-        `--packed --kdtree --scipy --kdq-search --sciq-search`
+        `--packed --optree --kdtree --opq-search --kdq-search`
         """,
         dest="combined_list",
         action="append_const",
@@ -893,7 +1048,7 @@ def parse_arguments(argv=None):
         Read in specified config file for arguments (CLI arguments will override)
         """,
         type=open,
-        action=LoadFromFile,
+        action=_LoadFromFile,
     )
     parser.add_argument(
         "-r",
@@ -942,9 +1097,7 @@ def parse_arguments(argv=None):
 
 
 def _parse_outcome_as_index(outcome: str, **kwargs):
-    """
-    Convert outcome strings to indices
-    """
+    """Convert outcome strings to indices"""
     # split into string list and drop 'out'
     pieces = outcome.split("_")[1:]
     index_list = []
@@ -962,9 +1115,7 @@ def _parse_outcome_as_index(outcome: str, **kwargs):
 def _add_or_create_array(
     *, dict_: dict, name: str, idx, size, value: unyt_quantity | None
 ):
-    """
-    Add element to matrix, creating it if it doesn't exist
-    """
+    """Add element to matrix, creating it if it doesn't exist"""
     if value is None:
         return
     with contextlib.suppress(TypeError):
@@ -978,9 +1129,7 @@ def collate_results(
     *,
     results: dict,
 ) -> dict:
-    """
-    Reorder results dictionary such that creation/search-names/types are top-level keys
-    """
+    """Reorder results dictionary so creation/search-names/types are top-level keys"""
     creation_list = list(results.get("creation-tests", []))
     search_list = [t + "-search" for t in results.get("search-tests", [])]
     test_list = creation_list + search_list
@@ -1061,6 +1210,7 @@ def save_results(
     outfilepath: str,
     raw_results: dict | None = None,
 ):
+    """Save timing results and metadata to JSON"""
     if raw_results is not None:
         results["raw"] = raw_results
     results["snapshot_info"] = snapshot_info
@@ -1074,7 +1224,8 @@ def save_results(
         )
 
 
-if __name__ == "__main__":
+def cli():
+    """Run the CLI for timing"""
     args = parse_arguments()
     logging.basicConfig()
     LOGGER.info(f"Running with packingcubes v{packingcubes.__version__}")
@@ -1110,7 +1261,7 @@ if __name__ == "__main__":
         "particle_type": particle_type,
     }
 
-    centers = process_data(
+    centers = _process_data(
         dataset=ds_full,
         number_balls=args.number_balls,
     )
@@ -1119,7 +1270,7 @@ if __name__ == "__main__":
         for num_threads in args.number_threads:
             creation_cache = {}
             for ns in args.number_search:
-                radii, particle_numbers = random_search_balls_constant_number(
+                radii, particle_numbers = random_search_balls(
                     ds, num_particles=ns, centers=centers
                 )
                 res_name = f"out_df={df}_sb={ns}_threads={num_threads}"
@@ -1142,3 +1293,8 @@ if __name__ == "__main__":
                         snapshot_info=snapshot_info,
                     )
     print(collate_results(results=results))  # noqa: T201
+    return
+
+
+if __name__ == "__main__":
+    sys.exit(cli())

@@ -1,3 +1,10 @@
+"""Metadata for PackedTrees
+
+Contains the TreeMeta class definition along with several functions for
+converting between TreeMetas and packed arrays. See the Packed Format Design
+Specification for more details.
+"""
+
 from __future__ import annotations
 
 import datetime
@@ -38,6 +45,8 @@ class TreeMeta(NamedTuple):
 
 
 class TreeMetaError(Exception):
+    """Tree metadata parsing and formatting errors"""
+
     pass
 
 
@@ -45,22 +54,24 @@ def create_metadata(
     box: bbox.BoundingBox,
     packed: NDArray[np.uint32],
     particle_threshold: int = octree._DEFAULT_PARTICLE_THRESHOLD,
-):
-    """
-    Create a tree metadata object from the provided info
+) -> TreeMeta:
+    """Create a tree metadata object from the provided info
 
-    Args:
-        box: BoundingBox
+    Parameters
+    ----------
+    box: BoundingBox
         The bounding box used to create the tree
 
-        packed: NDArray[uint32]
+    packed: NDArray[uint32]
         The packed tree data
 
-        particle_threshold: int, optional
+    particle_threshold: int, optional
         The particle threshold to split leaves. Defaults to
-        optree._DEFAULT_PARTICLE_THRESHOLD
+        `optree._DEFAULT_PARTICLE_THRESHOLD`
 
-    Returns:
+    Returns
+    -------
+    :
         A TreeMeta object containing the tree's metadata
     """
     creation = np.float64(datetime.datetime.now(tz=datetime.UTC).timestamp())
@@ -77,17 +88,19 @@ def create_metadata(
 def pack_metadata(
     metadata: TreeMeta, packed_tree: NDArray[np.uint32]
 ) -> NDArray[np.uint32]:
-    """
-    Pack tree metadata
+    """Pack tree metadata
 
-    Args:
-        metadata: TreeMeta
+    Parameters
+    ----------
+    metadata: TreeMeta
         The metadata of the tree
 
-        packed_tree: NDArray
+    packed_tree: NDArray
         The packed tree data
 
-    Returns:
+    Returns
+    -------
+    :
         Packed metadata
     """
     packed_meta: NDArray = np.zeros(
@@ -122,28 +135,30 @@ def pack_metadata(
 
 
 def extract_metadata(source: Buffer) -> tuple[TreeMeta, NDArray[np.uint32]]:
-    """
-    Extract the metadata and packed tree information from a buffer
+    """Extract the metadata and packed tree information from a buffer
 
-    Args:
-        source: Buffer
+    Parameters
+    ----------
+    source: Buffer
         A Buffer containing the packed data
 
-    Returns:
-        metadata
+    Returns
+    -------
+    metadata:
         The tree's metadata
 
-        packed_tree
+    packed_tree:
         The actual packed tree data as a numpy array
 
-    Raises:
-        ValueError
+    Raises
+    ------
+    ValueError
         If the metadata does not match an expected format
 
-        NotImplementedError
+    NotImplementedError
         If an unimplemented data format is specified (currently only uint32)
 
-        OctreeError
+    OctreeError
         If the metadata checksum does not match the computed checksum
     """
     combined = np.frombuffer(source, dtype=np.uint32)

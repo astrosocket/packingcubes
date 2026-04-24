@@ -1,3 +1,15 @@
+"""
+Octree interface, reference PythonOctree implementation, and octree creation
+
+OctreeNode and Octree represent the required interface of packingcubes octree
+implementations. PythonOctree and PythonOctreeNode are non-performant reference
+implementations used for initial correctness testing.
+
+The most important elements of this module are actually several of the private
+methods (`_partition` and `_partition_data`), the Error and Warning classes,
+and (`un`)`pack_node_metadata`.
+"""
+
 from __future__ import annotations
 
 import abc
@@ -21,18 +33,21 @@ _DEFAULT_PARTICLE_THRESHOLD = 400
 
 
 class OctreeError(Exception):
+    """Error for issues during octree creation and traversal"""
+
     pass
 
 
 class OctreeWarning(UserWarning):
+    """Warning about issues during octree creation and traversal"""
+
     pass
 
 
 # Convenience functions
 @njit
 def _partition(data: DataContainer, lo: int, hi: int, ax: int, pivot: float) -> int:
-    """
-    Partition a portion of 3D data between lo and hi along the axis ax
+    """Partition a portion of 3D data between lo and hi along the axis ax
 
     Returns the (effective) pivot location. Note that the pivot is not required
     to be in the data, in which case the returned location will be lo (if all
@@ -80,8 +95,7 @@ def _partition_data(
     lo: int,
     hi: int,
 ) -> list[int]:
-    """
-    Partition 3D data from lo to hi contained in bounding box into 8 octants.
+    """Partition 3D data from lo to hi contained in bounding box into 8 octants.
 
     Returns child_list of the octants starting indices. First octant assumed
     to start at lo.
@@ -158,8 +172,8 @@ def _partition_data(
 
 
 def morton(positions: NDArray, box: bbox.BoxLike) -> NDArray[np.int_]:
-    """
-    Given array of positions and box to look at, compute morton encoding
+    """Compute Morton encoding given array of positions and box
+
     Note that there are no checks on whether positions are actually inside
     the box
     Note that returned morton encoding is 1-indexed
@@ -193,8 +207,7 @@ def morton(positions: NDArray, box: bbox.BoxLike) -> NDArray[np.int_]:
 
 
 def full_morton(positions: NDArray, box: bbox.BoxLike) -> NDArray[np.uint64]:
-    """
-    Return the full morton indices of positions in box
+    """Return the full morton indices of positions in box
 
     Computes and returns the full morton encoding of positions in the provided
     box using bit interleaving. Essentially:
@@ -209,16 +222,18 @@ def full_morton(positions: NDArray, box: bbox.BoxLike) -> NDArray[np.uint64]:
     range of ~2e6, well below what most larger simulations work with, so use
     these indices with **caution**!
 
-    Args:
-        positions: NDArray
+    Parameters
+    ----------
+    positions: NDArray
         Array of particle positions. Note: any precision beyond 21 bits will be
         lost!
 
-        box: BoundingBox
+    box: BoundingBox
         Bounding box of all positions
 
-    Returns:
-        mortons: NDArray[np.uint64]
+    Returns
+    -------
+    mortons: NDArray[np.uint64]
         Full morton indices of the provided positions.
     """
     box = bbox.make_bounding_box(box)
@@ -260,6 +275,29 @@ def full_morton(positions: NDArray, box: bbox.BoxLike) -> NDArray[np.uint64]:
 def pre_sort(
     data: DataContainer, particle_threshold=_DEFAULT_PARTICLE_THRESHOLD
 ) -> dict:
+    """
+    Pre-sort a DataContainer, returning node boundaries
+
+    Perform the partitioning step of tree creation, without actually
+    creating a tree object. Mostly.
+
+    Note: creates a new BoundingBox for every node, which can quickly add
+    up memory-wise
+
+    Parameters
+    ----------
+    data: DataContainer
+        The particle data to sort
+    particle_threshold: int, optional
+        The threshold to use when deciding whether to split a node.
+        Default is _DEFAULT_PARTICLE_THRESHOLD
+
+    Returns
+    -------
+    dict:
+        Dictionary of node data organized by the effective node tag.
+        Each entry is a (node_start, node_end) tuple
+    """
     root_box = data.bounding_box
     partition_list = [("0", root_box, 0, len(data) - 1)]
     node_bounds = {"0": (0, len(data) - 1)}
@@ -287,27 +325,27 @@ def pre_sort(
 
 
 class OctreeNode(Sized):
-    """
-    Interface for a node in an octree
+    """Interface for a node in an octree
 
-    Attributes:
-        node_start, node_end: int
+    Attributes
+    ----------
+    node_start, node_end: int
         The start and end data indices for this node. OctreeNodes have
         node_end+1 - node_start particles
 
-        box: bounding_box.BoundingBox
+    box: bounding_box.BoundingBox
         Bounding box of the form [x, y, z, dx, dy, dz] where (x, y, z) is the
         left-front-bottom corner. All particles are assumed to lie inside.
 
-        tag: str
+    tag: str
         Str of 1-based z-order indices describing the current box.
         E.g. if assuming the unit bounding box, the box
         [0.25, 0.25, 0.75, 0.25, 0.25, 0.25] would be [5,1]. Root node is "0"
 
-        children: Iterable[OctreeNode]
+    children: Iterable[OctreeNode]
         Iterable of this node's children. Empty if leaf node
 
-        parent: OctreeNode
+    parent: OctreeNode
         Parent node of this node. None if root of the entire tree.
 
     """
@@ -315,26 +353,27 @@ class OctreeNode(Sized):
     @property
     @abc.abstractmethod
     def node_start(self) -> int:
-        """
-        The start data index for this node. OctreeNodes have
-        node_end+1 - node_start particles
+        """The start data index for this node.
+
+        OctreeNodes have node_end + 1 - node_start particles
         """
         raise NotImplementedError("Defined by implemented class")
 
     @property
     @abc.abstractmethod
     def node_end(self) -> int:
-        """
-        The end data index for this node. OctreeNodes have
-        node_end+1 - node_start particles
+        """The end data index for this node.
+
+        OctreeNodes have node_end + 1 - node_start particles
         """
         raise NotImplementedError("Defined by implemented class")
 
     @property
     @abc.abstractmethod
     def box(self) -> bbox.BoundingBox:
-        """
-        Bounding box of the form [x, y, z, dx, dy, dz] where (x, y, z) is the
+        """Bounding box of this node.
+
+        Has the form [x, y, z, dx, dy, dz] where (x, y, z) is the
         left-front-bottom corner. All particles are assumed to lie inside.
         """
         raise NotImplementedError("Defined by implemented class")
@@ -342,8 +381,8 @@ class OctreeNode(Sized):
     @property
     @abc.abstractmethod
     def tag(self) -> str:
-        """
-        String  of 1-based z-order indices describing the current box.
+        """String  of 1-based z-order indices describing the current box.
+
         E.g. if assuming the unit bounding box, the box
         [0.25, 0.25, 0.75, 0.25, 0.25, 0.25] would be 51. Root node is "0"
         """
@@ -351,12 +390,11 @@ class OctreeNode(Sized):
 
     @property
     def slice(self) -> slice:
-        """
-        Return slice of data corresponding to this node
-        """
+        """Return slice of data corresponding to this node"""
         return slice(self.node_start, self.node_end + 1)
 
     def __repr__(self):
+        """Return a string representation of this node"""
         return (
             f"{type(self).__name__} (id:{self.tag})"
             + f" from {self.node_start}-{self.node_end} ({len(self)} particles) with"
@@ -364,9 +402,7 @@ class OctreeNode(Sized):
         )
 
     def __len__(self):
-        """
-        Return number of particles held by this node
-        """
+        """Return number of particles held by this node"""
         return np.maximum(self.node_end - self.node_start + 1, 0)
 
 
@@ -375,35 +411,35 @@ class OctreeNode(Sized):
 # each subnode/leaf, box size, and node start/end
 # Note that node_ind+part_num=next_sibling_ind
 class PythonOctreeNode(OctreeNode):
-    """
-    Internal representation of a node in the octree
+    """Internal representation of a node in the octree
 
     Class holding the octree information in a recursive substructure. Note that
     the octree is currently fully initialized on creation of the root (node
     creation contains a recursive node creation call). Each node forms the root
     of its own octree and has either 8 children or is a leaf node.
 
-    Attributes:
-        data: DataContainer
+    Attributes
+    ----------
+    data: DataContainer
         The backing DataContainer for the octree
 
-        node_start, node_end: int
+    node_start, node_end: int
         The start and end data indices for this node. OctreeNodes have
         node_end+1 - node_start particles
 
-        box: numpy.array
+    box: numpy.array
         Bounding box of the form [x, y, z, dx, dy, dz] where (x, y, z) is the
         left-front-bottom corner. All particles are assumed to lie inside.
 
-        tag: str
+    tag: str
         String of 1-based z-order indices describing the current box.
         E.g. if assuming the unit bounding box, the box
         [0.25, 0.25, 0.75, 0.25, 0.25, 0.25] would be "051". Root node is "0"
 
-        children: List[OctreeNode]
+    children: List[OctreeNode]
         List of this node's children. Empty if leaf node
 
-        parent: OctreeNode
+    parent: OctreeNode
         Parent node of this node. None if root of the entire tree.
 
     """
@@ -460,30 +496,32 @@ class PythonOctreeNode(OctreeNode):
         parent: PythonOctreeNode | None = None,
         particle_threshold: int = 1,
     ) -> None:
-        """
-        Args:
-            data: DataContainer
+        """Initialize a PythonOctreeNode
+
+        Parameters
+        ----------
+        data: DataContainer
             The backing DataContainer for the octree
 
-            node_start, node_end: int, optional
+        node_start, node_end: int, optional
             The start and end data indices for this node. Defaults to 0 and
             len(data)-1
 
-            box: BoundingBox, optional
+        box: BoundingBox, optional
             Bounding box of the form [x, y, z, dx, dy, dz] where (x, y, z) is the
             left-front-bottom corner. All particles are assumed to lie inside.
             Defaults to data.bounding_box
 
-            tag: str, optional
+        tag: str, optional
             String of 1-based z-order indices describing the current box.
             E.g. if assuming the unit bounding box, the box
             [0.25, 0.25, 0.75, 0.25, 0.25, 0.25] would be "051". Defaults to "0"
             for the root node
 
-            parent: OctreeNode, optional
+        parent: OctreeNode, optional
             Parent node of this node. None (default) if root of the entire tree.
 
-            particle_threshold: int, optional
+        particle_threshold: int, optional
             Configuration parameter for how many particles will be contained in a
             leaf before splitting into subtrees. Note that currently particle
             sorting stops at this level. Default 1.
@@ -532,7 +570,8 @@ class PythonOctreeNode(OctreeNode):
         self._construct()
 
     def _construct(self) -> None:
-        """
+        """Sort this node and construct children
+
         Main recursive call of octree construction. This is where the particles
         get partitioned and child nodes created
         """
@@ -606,32 +645,33 @@ class PythonOctreeNode(OctreeNode):
 
     @property
     def node_start(self) -> int:
-        """
-        The start data index for this node. OctreeNodes have
-        node_end+1 - node_start particles
+        """The start data index for this node.
+
+        OctreeNodes have node_end + 1 - node_start particles
         """
         return self._node_start
 
     @property
     def node_end(self) -> int:
-        """
-        The end data index for this node. OctreeNodes have
-        node_end+1 - node_start particles
+        """The end data index for this node.
+
+        OctreeNodes have node_end + 1 - node_start particles
         """
         return self._node_end
 
     @property
     def box(self) -> bbox.BoundingBox:
-        """
-        Bounding box of the form [x, y, z, dx, dy, dz] where (x, y, z) is the
+        """Bounding box of this node
+
+        Has the form [x, y, z, dx, dy, dz] where (x, y, z) is the
         left-front-bottom corner. All particles are assumed to lie inside.
         """
         return self._box
 
     @property
     def tag(self) -> str:
-        """
-        String of 1-based z-order indices describing the current box.
+        """String of 1-based z-order indices describing the current box.
+
         E.g. if assuming the unit bounding box, the box
         [0.25, 0.25, 0.75, 0.25, 0.25, 0.25] would be [5,1]
         """
@@ -639,22 +679,23 @@ class PythonOctreeNode(OctreeNode):
 
     @property
     def children(self) -> list[PythonOctreeNode | None]:
+        """Return the children of this node. Nonexistent children are None"""
         return self._children
 
     @property
     def parent(self) -> PythonOctreeNode | None:
+        """Return the parent node of this node or None if root"""
         return self._parent
 
     @property
     def is_leaf(self) -> bool:
-        """
-        Return whether this node is a leaf
-        """
+        """Return whether this node is a leaf"""
         if not hasattr(self, "_is_leaf"):
             self._is_leaf = not bool(self.children)
         return self._is_leaf
 
     def __repr__(self):
+        """Return a string representation of this node"""
         return (
             f"{type(self).__name__} (id:{self.tag})"
             + f" from {self.node_start}-{self.node_end} ({len(self)} particles) with"
@@ -667,16 +708,12 @@ class PythonOctreeNode(OctreeNode):
         self,
         xyz: NDArray,
     ) -> NDArray[np.float64]:
-        """
-        Return array of particle distances from given point
-        """
+        """Return array of particle distances from given point"""
         pos = self.data.positions
         return np.sqrt(np.sum((pos[self.slice, :] - xyz) ** 2, axis=1))
 
     def closest_particle_index(self, xyz: NDArray) -> tuple[np.int_, float]:
-        """
-        Return index (and distance) of closest particle
-        """
+        """Return index (and distance) of closest particle"""
         distances = self.distance(xyz)
         ind = np.argmin(distances)
         return ind + self.node_start, distances[ind]
@@ -686,9 +723,7 @@ def _top_down_containing_node(
     node: PythonOctreeNode,
     xyz: NDArray,
 ) -> PythonOctreeNode | None:
-    """
-    For a given point, return the smallest child node that contains point or None
-    """
+    """For a given point, return the smallest child node that contains point or None"""
     while len(node) > 1:
         # find leaf or smallest subtree containing point
         for child in node.children:
@@ -701,9 +736,7 @@ def _top_down_containing_node(
 
 
 def _bottom_up_containing_node(node: PythonOctreeNode, xyz: NDArray):
-    """
-    For a given point, return the smallest parent node that contains point or None
-    """
+    """For a given point, return the smallest parent node that contains point or None"""
     while node.parent is not None:
         if node.box.contains(xyz):
             return node
@@ -712,8 +745,7 @@ def _bottom_up_containing_node(node: PythonOctreeNode, xyz: NDArray):
 
 
 class Octree(Iterable[OctreeNode], Protocol):
-    """
-    Public octree interface
+    """Public octree interface
 
     This protocol defines the methods for manipulating and traversing a
     packingcubes octree.
@@ -722,19 +754,26 @@ class Octree(Iterable[OctreeNode], Protocol):
 
     def __iter__(self) -> Iterator[OctreeNode]:
         """
-        Iterate through all nodes of the octree. Note that no guarantee is made
-        of what order the nodes are traversed in
+        Iterate through all nodes of the octree.
+
+        Note that no guarantee is made of what order the nodes are traversed in
         """
         ...
 
-    def get_leaves(self) -> Iterable[OctreeNode]: ...
-    def get_node(self, tag: str) -> OctreeNode | None: ...
+    def get_leaves(self) -> Iterable[OctreeNode]:
+        """Return an iterable of the octree's leaves"""
+        ...
+
+    def get_node(self, tag: str) -> OctreeNode | None:
+        """Return the node with the specified tag or None if nonexistent"""
+        ...
 
     def get_particle_indices_in_box(
         self,
         *,
         box: bbox.BoxLike,
     ) -> list[tuple[int, int, int]]:
+        """Get the particle start-stop-partiality indices contained within box"""
         pass
 
     def get_particle_indices_in_sphere(
@@ -743,24 +782,26 @@ class Octree(Iterable[OctreeNode], Protocol):
         center: NDArray,
         radius: float,
     ) -> list[tuple[int, int, int]]:
+        """Get the particle start-stop-partiality indices contained within sphere"""
         pass
 
     def get_closest_particle(
         self, xyz: ArrayLike, *, check_neighbors: bool = True
     ) -> tuple[np.int_, float]:
+        """Get the closest particle and it's distance to point"""
         pass
 
 
 class PythonOctree(Octree):
-    """
-    Public octree class
+    """Public octree class
 
     Use this class for creating, manipulating, and traversing an octree based
     on a Dataset object. The octree will be composed of OctreeNodes and is
     currently computed in a top-down approach
 
-    Attributes:
-        root: OctreeNode
+    Attributes
+    ----------
+    root: OctreeNode
         The root node of the octree
 
     """
@@ -775,14 +816,15 @@ class PythonOctree(Octree):
         particle_threshold: int | None = None,
     ) -> None:
         """
-        Args:
-            dataset: Dataset
+        Parameters
+        ----------
+        dataset: Dataset
             A Dataset containing particle data
 
-            particle_threshold: int, optional
+        particle_threshold: int, optional
             Number of particles allowed in a leaf before splitting. Defaults to
             _DEFAULT_PARTICLE_THRESHOLD
-        """
+        """  # noqa: D205
         if particle_threshold is None:
             particle_threshold = _DEFAULT_PARTICLE_THRESHOLD
 
@@ -795,9 +837,7 @@ class PythonOctree(Octree):
         )
 
     def get_leaves(self) -> list[PythonOctreeNode]:
-        """
-        Return a list of all leaf octree nodes in depth-first order
-        """
+        """Return a list of all leaf octree nodes in depth-first order"""
         if not hasattr(self, "_leaves"):
             leaves: list[PythonOctreeNode] = []
             nodes: list[PythonOctreeNode | None] = [self.root]
@@ -813,15 +853,16 @@ class PythonOctree(Octree):
         return self._leaves
 
     def get_node(self, tag: str) -> PythonOctreeNode | None:
-        """
-        Return the node corresponding to the provided tag or None if not found
+        """Return the node corresponding to the provided tag or None if not found
 
-        Args:
-            tag: str
+        Parameters
+        ----------
+        tag: str
             The tag to search for
 
-        Returns:
-            node
+        Returns
+        -------
+        node:
             Node in octree with specified tag or None if it does not exist
         """
         if not tag or tag == "0":
@@ -836,9 +877,7 @@ class PythonOctree(Octree):
         return node
 
     def __iter__(self) -> Iterator[PythonOctreeNode]:
-        """
-        Return all nodes as pre-order tree traversal
-        """
+        """Return all nodes as pre-order tree traversal"""
         nodes = [self.root]
         while nodes:
             node = nodes.pop()
@@ -853,8 +892,7 @@ class PythonOctree(Octree):
         start_node: PythonOctreeNode | None = None,
         top_down: bool = True,
     ) -> PythonOctreeNode | None:
-        """
-        Return smallest node containing point
+        """Return smallest node containing point
 
         Defaults to a top-down approach from root. Can provide a start_node to
         short-cut search. Can also go bottom-up; requires start_node.
@@ -879,8 +917,7 @@ class PythonOctree(Octree):
         start_node: PythonOctreeNode | None = None,
         top_down: bool = True,
     ) -> PythonOctreeNode:
-        """
-        Return smallest node containing all points in array or root
+        """Return smallest node containing all points in array or root
 
         Defaults to a top-down approach from root. Can provide a start_node to
         short-cut search. Can also go bottom-up; requires start_node.
@@ -908,8 +945,7 @@ class PythonOctree(Octree):
         bounding_box: bbox.BoundingBox,
         containment_obj: bbox.BoundingVolume | None = None,
     ) -> tuple[list[PythonOctreeNode], list[PythonOctreeNode]]:
-        """
-        Return lists of all nodes entirely inside and partially inside shape
+        """Return lists of all nodes entirely inside and partially inside shape
 
         Both node lists will be in z-index order, but are likely to be
         interleaved, i.e.
@@ -918,20 +954,22 @@ class PythonOctree(Octree):
                 < entirely_in[i + 1].z_order
                     < partial_leaves[j + 1].z_order
 
-        Args:
-            bounding_box: BoundingBox
+        Parameters
+        ----------
+        bounding_box: BoundingBox
             Shape bounding box
 
-            containment_obj: BoundingVolume, optional
+        containment_obj: BoundingVolume, optional
             Object with bounding box specified by bounding_box. Set to provide
             a more exact containment test (e.g. contained within a sphere).
             Defaults to bounding_box
 
-        Returns:
-            entirely_in: List[OctreeNode]
+        Returns
+        -------
+        entirely_in: List[OctreeNode]
             List of nodes that are entirely within shape. Nodes may be internal nodes
 
-            partial_leaves: List[OctreeNode]
+        partial_leaves: List[OctreeNode]
             List of leaf nodes that are only partially within shape.
 
         """
@@ -988,30 +1026,31 @@ class PythonOctree(Octree):
         center: NDArray,
         radius: float,
     ) -> tuple[list[PythonOctreeNode], list[PythonOctreeNode]]:
-        """
-        Return lists of all nodes entirely inside and nodes partially inside sphere
+        """Return lists of all nodes entirely inside and nodes partially inside sphere
 
         Calls _get_nodes_in_shape using a BoundingSphere
 
-        Args:
-            center: NDArray
+        Parameters
+        ----------
+        center: NDArray
             Coordinates of sphere center
 
-            radius: float
+        radius: float
             Sphere radius
 
-        Returns:
-            entirely_in: List[OctreeNode]
+        Returns
+        -------
+        entirely_in: List[OctreeNode]
             List of nodes that are entirely within shape. Nodes may be internal nodes
 
-            partial_leaves: List[OctreeNode]
+        partial_leaves: List[OctreeNode]
             List of leaf nodes that are only partially within shape.
 
-        Raises:
-            IndexError
+        Raises
+        ------
+        IndexError
             When there are unexpected issues with the queue system.
         """
-
         if len(center) != 3:
             raise ValueError("Center should be a 3 element array")
 
@@ -1028,25 +1067,26 @@ class PythonOctree(Octree):
         bounding_box: bbox.BoundingBox,
         containment_obj: bbox.BoundingVolume | None = None,
     ) -> list[tuple[int, int, int]]:
-        """
-        Return all particles contained within a shape that fits inside bounding box
+        """Return all particles contained within a shape that fits inside bounding box
 
-        Args:
-            bounding_box: BoundingBox
+        Parameters
+        ----------
+        bounding_box: BoundingBox
             Shape bounding box
 
-            containment_test: Callable[NDArray], optional
+        containment_test: Callable[NDArray], optional
             Function to test if point(s) are inside shape. Should have the
             (vectorized) signature
-            containment_test(point: ArrayLike) -> NDArray[bool]
+
+        containment_test(point: ArrayLike) -> NDArray[bool]
             Defaults to testing if point(s) are inside the provided bounding
             box
 
-        Returns:
-            indices: list[tuple[int, int, int]]
+        Returns
+        -------
+        indices: list[tuple[int, int, int]]
             List of particle start-stop indices contained within shape
         """
-
         entirely_in, partial_leaves = self._get_nodes_in_shape(
             bounding_box=bounding_box,
             containment_obj=containment_obj,
@@ -1079,15 +1119,16 @@ class PythonOctree(Octree):
         *,
         box: bbox.BoxLike,
     ) -> list[tuple[int, int, int]]:
-        """
-        Return all particles contained within the box
+        """Return all particles contained within the box
 
-        Args:
-            box: BoxLike
+        Parameters
+        ----------
+        box: BoxLike
             Box to check
 
-        Returns:
-            indices: list[tuple[int, int, int]]
+        Returns
+        -------
+        indices: list[tuple[int, int, int]]
             List of particle start-stop indices contained within sphere
             Third element of each tuple is a flag for whether only some
             particles (1) among the start-stop indices are contained or all (0)
@@ -1104,23 +1145,23 @@ class PythonOctree(Octree):
         center: NDArray,
         radius: float,
     ) -> list[tuple[int, int, int]]:
-        """
-        Return all particles contained within the sphere defined by center and radius
+        """Return all particles contained within the sphere defined by center and radius
 
-        Args:
-            center: NDArray
+        Parameters
+        ----------
+        center: NDArray
             Center point of the sphere
 
-            radius: float
+        radius: float
             Radius of the sphere
 
-        Returns:
-            indices: list[tuple[int, int, int]]
+        Returns
+        -------
+        indices: list[tuple[int, int, int]]
             List of particle start-stop indices contained within sphere
             Third element of each tuple is a flag for whether only some
             particles (1) among the start-stop indices are contained or all (0)
         """
-
         if len(center) != 3:
             raise ValueError("Center should be a 3 element array")
 
@@ -1134,8 +1175,7 @@ class PythonOctree(Octree):
     def get_closest_particle(
         self, xyz: ArrayLike, *, check_neighbors: bool = True
     ) -> tuple[np.int_, float]:
-        """
-        Get nearest particle index (and distance) to point
+        """Get nearest particle index (and distance) to point
 
         Steps:
           1. Find smallest node contaning point
@@ -1144,19 +1184,21 @@ class PythonOctree(Octree):
               1. Check if neighboring node is closer than closest particle
               2. Compare particles in neighbor node to closest
 
-        Args:
-            xyz: ArrayLike
+        Parameters
+        ----------
+        xyz: ArrayLike
             Coordinates of point to check
 
-            check_neighbors: bool, optional
+        check_neighbors: bool, optional
             Flag to check whether we should look at neighbors of the smallest
             containing node. Default True
 
-        Returns:
-            closest_ind: int
+        Returns
+        -------
+        closest_ind: int
             Absolute index of closest particle
 
-            closest_dist: float
+        closest_dist: float
             Distance to closest particle
         """
         xyz = np.atleast_1d(xyz)
@@ -1202,11 +1244,11 @@ class PythonOctree(Octree):
         return closest_ind, closest_dist
 
     def to_packed(self) -> bytes:
-        """
-        Convert to a packed bytestream as described in [Packed Format](packed_format)
+        """Convert to a packed bytestream as described in [Packed Format](packed_format)
 
-        Returns:
-            packed: bytes
+        Returns
+        -------
+        packed: bytes
             Array of FIELD_FORMATs describing this tree
         """
         num_nodes = sum(1 for n in self)
@@ -1265,6 +1307,7 @@ class PythonOctree(Octree):
 
     @classmethod
     def from_packed(cls, packed: bytes):
+        """Create a PythonOctree from a packed tree array"""
         raise NotImplementedError
 
 
@@ -1272,9 +1315,7 @@ class PythonOctree(Octree):
 def unpack_node_metadata(
     metadata: int,
 ) -> tuple[np.uint8, np.uint8, np.uint8, np.uint8]:
-    """
-    Unpack a node metadata field into child_flag, my_index, level, and empty
-    """
+    """Unpack a node metadata field into child_flag, my_index, level, and empty"""
     return (
         np.uint8(metadata >> 24),
         np.uint8((metadata >> 16) & 255),
@@ -1287,7 +1328,5 @@ def unpack_node_metadata(
 def pack_node_metadata(
     child_flag: int, my_index: int, level: int, empty: int
 ) -> np.uint32:
-    """
-    Pack child_flag, my_index, level, and empty ints into a metadata int
-    """
+    """Pack child_flag, my_index, level, and empty ints into a metadata int"""
     return np.uint32((child_flag << 24) + (my_index << 16) + (level << 8) + empty)

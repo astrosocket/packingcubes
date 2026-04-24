@@ -1,16 +1,19 @@
+# ruff: noqa: D103
+"""Creation and search methods for SciPy's KDTree"""
+
 from numpy.typing import NDArray
 from scipy.spatial import KDTree
 
 import packingcubes.octree as octree
 
 
-def scipy_kdtree_creation(ds):
+def kdtree_creation(ds):
     return KDTree(
         data=ds.positions, copy_data=True, leafsize=octree._DEFAULT_PARTICLE_THRESHOLD
     )
 
 
-def scipy_kdtree_query_ball_point(
+def kdtree_query_ball_point(
     tree: KDTree,
     *,
     centers: list[NDArray],
@@ -29,6 +32,6 @@ def scipy_kdtree_query_ball_point(
             )
 
 
-def scipy_kdtree_query(tree: KDTree, *, centers: list[NDArray], k: int, **kwargs):
+def kdtree_query(tree: KDTree, *, centers: list[NDArray], k: int, **kwargs):
     for c in centers:
         dd, ii = tree.query(c, k=k)

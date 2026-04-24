@@ -15,6 +15,8 @@ implementation, specialized for use in astronomical/astrophysical contexts.
 It's written in pure python, with [Numba](https://numba.pydata.org/)-based
 acceleration of the critical code paths.
 
+View the documentation at [packingcubes.readthedocs.io](packingcubes.readthedocs.io)!
+
 ## Requirements
 [![Supported Python Versions](https://img.shields.io/pypi/pyversions/packingcubes)](https://pypi.org/project/packingcubes/) 
 is required. Python versions outside this range may work, but their usage is
@@ -27,8 +29,9 @@ not supported, and at least some features are >Python 3.12.
    `PackedTree`s
 * `xxhash` - required for core routines (packed metadata format)
 
-### Optional packages
+#### Optional packages
 Visualization (the `viz` group):
+
 * `matplotlib` - to use basic octree visualization and plotting (see
    Basic_Usage in the Examples)
 * `pygfx` - to do interactive octree visualization (see Example_PackedTree in
@@ -40,28 +43,31 @@ Visualization (the `viz` group):
    documentation for more details
 
 Jupyter (the `jupyter` group):
+
 * `jupyter-rfb` - for interactive octree visualization in a notebook (see the Visualization section, above)
 
 Benchmark (the `benchmark` group):
+
 * `scipy` - we benchmark against `scipy`'s `KDTree`
 * `unyt` - for unit-aware timing purposes
+* `matplotlib` - for benchmark visualization
 
 The `all` group combines all of the above.
 
-## Usage
+## Basic Usage
 ### Installation
 We're on [PyPI](https://pypi.org/project/packingcubes), so installation is as
 simple as
 
-```sh
+```bash
 pip install packingcubes
 ```
 or
-```sh
+```bash
 uv pip install packingcubes
 ```
 or
-```sh
+```bash
 pixi add packingcubes --pypi
 ```
 
@@ -78,6 +84,7 @@ pixi add packingcubes[all] --pypi
 
 ### Construction
 #### From a snapshot on disk
+<!-- --8<-- [start:basic-const-snap-disk] -->
 From the command line:
 
 ```sh
@@ -93,20 +100,29 @@ import packingcubes
 cubes = packingcubes.Cubes("path/to/snapshot.hdf5")
 
 cubes.save("path/to/output.hdf5")
-# sorted positions/indices are stored in .snapshot_sorted.hdf5 by default
 
+# sorted positions/indices are stored in .snapshot_sorted.hdf5 by default
 # to save elsewhere, use
 dataset = packingcubes.HDF5Dataset(
     "path/to/snapshot.hdf5", sorted_filepath="path/to/output.hdf5"
 )
 cubes = packingcubes.Cubes(dataset)
+```
+<!-- --8<-- [end:basic-const-snap-disk] -->
 
-# if you already have positions_data as an Nx3 matrix, you can use
+#### From positions in memory
+If you already have `positions_data` as an Nx3 matrix, you can use
+
+``` python
 cubes = packingcubes.Cubes(positions_data)
-# Note: this data will be sorted in place! you may want to make a copy
+```
 
-# You can also do the following for easy saving. 
-# The data will still not be copied (by default)
+Note: this data will be sorted in place! You may want to make a copy first.
+
+You can also do the following for easy saving. 
+The data will still not be copied (by default)
+
+``` python
 dataset = packingcubes.InMemory(positions=positions_data)
 cubes = packingcubes.Cubes(dataset)
 dataset.save("path/to/output.hdf5")
@@ -114,6 +130,7 @@ dataset.save("path/to/output.hdf5")
 
 Several configuration options are available, see `packcubes --help` or `help(packingcubes.Cubes)` for more information.
 
+#### Loading
 You can load the saved Cubes with 
 
 ```python
@@ -123,44 +140,44 @@ cubes = packingcubes.Cubes("path/to/saved_cubes.hdf5")
 ```
 
 ### Searching
-Currently, `packingcubes` provides two public methods for searching your
+Currently, `packingcubes` provides multiple public methods for searching your
 dataset:
 
 ```python
+indices = cubes.get_indices_in_sphere(center, radius)
 # particle_types is a string or Sequence[str] that maps to a particle type in
 #   the snapshot
 # center is anything that can be converted by numpy's array method to an (3,)
 #   array, and is the sphere's center
 # radius is a float
-indices_dict = cubes.get_indices_in_sphere(particle_types, center, radius)
 ```
 
 ```python
+indices = cubes.get_indices_in_box(box)
 # particle_types is a string or Sequence[str] that maps to a particle type in
 #   the snapshot
 # box is anything that can be converted by numpy's array method to an (6,)
 #   float array where the first 3 elements are the front-left-bottom corner,
 #   and the second 3 elements are the box width, depth, and height 
 #   (aka [x, y, z, dx, dy, dz])
-indices_dict = cubes.get_indices_in_box(particle_types, box)
 ```
 
-For both methods, the returned object is a dictionary of `particle_type` keys
-mapped to lists of (start, stop) tuples, representing the start and stop
-indices of contiguous tuples in the **sorted** dataset. 
+For both methods, the returned object is an array with 3 columns. Each row can
+be considered a chunk of data, which looks like `[start, stop, partial]` 
+representing the start and stop indices of contiguous data in the 
+**sorted** dataset. The third column, `partial` denotes whether the chunk
+was partially (`1`) or entirely (`0`) contained within the sphere/box.
 
 So the search pipeline might go something like:
 
 ```python
 # cubes are associated with HDF5Dataset dataset created from orig_dataset 
 # which is an h5py File object
-indices_dict = cubes.get_indices_in_sphere(
-    center, radius, particle_types=["PartType0", "Black_Holes"]
-)
+indices = cubes.get_indices_in_sphere(center, radius)
 
 velocities_list = []
 with h5py.File(orig_dataset_file) as orig_dataset:
-    for start,stop in indices_dict["PartType0"]:
+    for start, stop, _ in indices:
         shuffle = dataset.index[start:stop]
         # WARNING: the following could be very slow if shuffle gets
         # large (>10000)
@@ -172,7 +189,7 @@ velocities = np.fromiter(velocities_list)
 
 **Warning**: this could become slow if the `shuffle` sections get big 
 (`len(shuffle)>1000`)! This is because HDF5 loading is inefficient in this
-manner (the `v =` line), not because of the search (the `indices_dict =`
+manner (the `v =` line), not because of the search (the `indices =`
 and `shuffle =` lines). 
 
 The sorting is already performed for the positions information (it was
@@ -181,7 +198,7 @@ the other fields in the snapshot.
 
 So if you only need positional information, 
 ```python
-indices_dict = cubes.get_indices_in_sphere(center, radius)
+indices = cubes.get_indices_in_sphere(center, radius)
 
 positions_list = []
 # We don't need to open the orig_dataset file
@@ -198,13 +215,14 @@ preloading the entire velocities array, using the shuffle list to presort it,
 and then treating it analogously to the `dataset.positions` field or saving it
 back out: 
 ```python
-indices_dict = cubes.get_indices_in_sphere(center, radius)
-indices = indices_dict["PartType0"]
+indices = cubes.get_indices_in_sphere(center, radius)
 
 with h5py.File(orig_dataset_path) as orig_dataset:
     loaded_velocities = orig_dataset["PartType0/velocity"]
+    
 # Just to make sure we're looking at the correct particle type
 dataset.particle_type = "PartType0"
+
 loaded_velocities = loaded_velocities[dataset.index,:]
 
 # use directly
@@ -233,12 +251,13 @@ field sorting (and the original cubing) for you!
 
 
 ### KDTree
+<!-- --8<-- [start:KDTree] -->
 We have also reimplemented some of the API from the `KDTree` in `scipy.spatial`,
 notably the `query_ball_point` method (This is also what the benchmarks compare
 against). Example usage modified from the `scipy.spatial.KDTree` [documentation](https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.KDTree.query_ball_point.html):
 ```python
 >>> import numpy as np
->>> from packingcubes import KDTree # this is the only change you need to make
+>>> from packingcubes import OpTree as KDTree # this is the only change you need to make
 >>> x, y = np.mgrid[0:5, 0:5]
 >>> points = np.c_[x.ravel(), y.ravel()]
 >>> tree = KDTree(points)
@@ -246,15 +265,15 @@ against). Example usage modified from the `scipy.spatial.KDTree` [documentation]
 [5, 10, 11, 15]
 ```
 
+<!-- --8<-- [end:KDTree]  -->
+
 #### Caveats:
-* The provided dataset may be sorted in-place. See the `KDTree` constructor's
+* The provided dataset may be sorted in-place. See the `OpTree` constructor's
   `data` and `copy_data` arguments for more information on when that occurs. 
-* Only `query`, `query_ball_point`, and `query_ball_tree` are fully supported.
-  `query_pairs` and `count_neighbors` are a work in progress (`query_pairs` may
-  not provide completely correct output, `count_neighbors` does not yet have
-  the `KDTree` API portion implemented and may not be correct).
-  `sparse_distance_matrix` is not planned. Both `count_neighbors` and
-  `sparse_distance_matrix` will raise `NotImplementedErrors`.
+* Only `query` and `query_ball_point` are fully supported. `query_ball_tree`,
+  `query_pairs` and `count_neighbors` are a work in progress and will raise
+  `NotImplementedErrors` until fully implemented. `sparse_distance_matrix` is
+  not planned and will always raise `NotImplementedErrors`.
 * Only `query_ball_point` has been benchmarked and is guaranteed to be
   performant. We are currently working on `query`'s performance, but will not
   plan on beating `scipy`.
@@ -279,6 +298,7 @@ against). Example usage modified from the `scipy.spatial.KDTree` [documentation]
   will be sorted in-place unless specified otherwise). For those methods, you
   may be able to specify `return_data_inds=False` to get indices into the
   unsorted dataset. Alternatively, reference the `sort_index` property.
+
 
 ## Development requirements
 ### uv

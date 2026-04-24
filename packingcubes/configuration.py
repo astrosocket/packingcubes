@@ -1,3 +1,5 @@
+"""Determine configuration for packingcubes"""
+
 import logging
 import os
 import tomllib
@@ -9,7 +11,7 @@ LOGGER = logging.getLogger(__name__)
 logging.captureWarnings(capture=True)
 
 
-def determine_field_format():
+def _determine_field_format():
     formats = ["H", "I", "L", "Q"]
     for f in formats:
         if array(f).itemsize == 4:
@@ -19,21 +21,21 @@ def determine_field_format():
     raise NotImplementedError("None of the included array formats are long enough!")
 
 
-FIELD_FORMAT = determine_field_format()
+FIELD_FORMAT = _determine_field_format()
 
 
-def config_dir() -> str:
+def _config_dir() -> str:
     config_root = os.environ.get(
         "XDG_CONFIG_HOME", os.path.join(os.path.expanduser("~"), ".config")
     )
     return os.path.join(config_root, "astrosocket")
 
 
-def get_global_config_file() -> str:
-    return os.path.join(config_dir(), "packingcubes.toml")
+def _get_global_config_file() -> str:
+    return os.path.join(_config_dir(), "packingcubes.toml")
 
 
-def get_local_config_file() -> str:
+def _get_local_config_file() -> str:
     path = Path.cwd()
     while path.parent is not path:
         candidate = path.joinpath("packingcubes.toml")
@@ -44,11 +46,12 @@ def get_local_config_file() -> str:
     return os.path.join(os.path.abspath(os.curdir), "packingcubes.toml")
 
 
-def get_default_cfg() -> dict:
+def _get_default_cfg() -> dict:
     return {"test_data_dir": "/does/not/exist", "config_file": "(default)"}
 
 
 def update_cfg(pccfg: dict, config_file: str):
+    """Update the configuration data stored in config_file"""
     try:
         with open(config_file, "rb") as fh:
             data = tomllib.load(fh)
@@ -64,9 +67,10 @@ def update_cfg(pccfg: dict, config_file: str):
 
 
 def get_packingcubes_config() -> dict:
-    pccfg = get_default_cfg()
-    local_config = get_local_config_file()
-    global_config = get_global_config_file()
+    """Get the packingcubes configuration data"""
+    pccfg = _get_default_cfg()
+    local_config = _get_local_config_file()
+    global_config = _get_global_config_file()
     if os.path.exists(local_config):
         update_cfg(pccfg, local_config)
     elif os.path.exists(global_config):
@@ -79,6 +83,7 @@ pccfg = get_packingcubes_config()
 
 
 def get_test_data_dir_path():
+    """Return the path to the test data directory if set"""
     p = Path(pccfg["test_data_dir"]).expanduser()
     if p.is_dir():
         return p

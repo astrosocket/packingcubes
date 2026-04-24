@@ -1,3 +1,4 @@
+# ruff: noqa: D100, D103
 # File for fixtures that should be shared across the test files
 
 import copy
@@ -21,9 +22,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 def fake_basic_dataset(num_particles: int = 10, seed: int = 0xDEADBEEF) -> Dataset:
-    """
-    Create a mock dataset for testing purposes
-    """
+    """Create a mock dataset for testing purposes"""
     prng = RandomState(seed)
     # For 10 particles, this looks not too dissimilar from an actual extremely
     # low res cosmo sim...

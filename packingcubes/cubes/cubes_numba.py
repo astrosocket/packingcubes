@@ -1,3 +1,19 @@
+"""
+Jitted functions for handling cubes structures
+
+All cubes functionality that can be numba jitted should be included in this
+module.
+
+In general these functions assume that cubes structure can be decomposed into
+three parts similar to a structured array. The parts are
+
+ 1. An array of offset indices, `cube_indices`, such that the particles in cube
+    `i` correspond to the data indices `cube_indices[i]:cube_indices[i+1]`. For
+    the case `i==len(cubes)-1` (the last cube), the end index is `len(data)`.
+ 2. A list of cube bounding boxes, `cube_boxes`.
+ 3. A list of PackedTrees (actually PackedTreeNumbas`)
+"""
+
 from __future__ import annotations
 
 import logging
@@ -37,14 +53,14 @@ LOGGER = logging.getLogger(__name__)
 # need to test parallelism - have issues with using the tbb backend
 # so it's useful to print diagnostic info
 @njit(parallel=True)
-def test_parallel():
+def _test_parallel():
     a = np.zeros((10,))
     for i in prange(len(a)):
         a[i] = i
     return a
 
 
-test_parallel()
+_test_parallel()
 layer = threading_layer()
 LOGGER.debug(f"Running on the {layer} threading layer with {get_num_threads()} threads")
 if layer == "tbb":
@@ -59,11 +75,12 @@ if layer == "tbb":
 
 
 @njit
-def prune_empty(
+def _prune_empty(
     num_particles: int,
     cube_indices: NDArray,
     cube_boxes: List[BoundingBox],
 ) -> tuple[NDArray, List[BoundingBox]]:
+    """Remove empty cubes from the structure"""
     num_retained = 0
     num_cubes = len(cube_indices)
     for i in range(num_cubes):
@@ -134,6 +151,28 @@ def _pretty(matrix: NDArray):
 def cube(data: DataContainer, cubes_per_side: int, box: BoundingBox):
     """
     Bin the loaded particles into the different cubes
+
+    Effectivaly perform a parallel radix sort of the particles into the
+    CxCxC cube bins, where C=`cubes_per_side`.
+
+    Parameters
+    ----------
+    data: DataContainer
+        The 3D particle data to sort
+    cubes_per_side: int
+        The number of cubes on a side
+    box: BoundingBox
+        The bounding box to use, sets the bounding boxes of the individual
+        cubes. Does not need to be the same as data.bounding_box
+
+    Returns
+    -------
+    chopped : NDArray of ints
+        An array of data offsets such that cube 0 is the data from
+        `chopped[0]:chopped[1]`, cube 1 is the data from
+        `chopped[1]:chopped[2]`, etc. The data in the final cube is from
+        `chopped[number_cubes-1]:len(data)`
+
     """
     num_cubes = cubes_per_side**3 + 1
     # print(f"Begin cubing into {num_cubes} cubes")
@@ -217,7 +256,28 @@ def make_trees(
     cube_indices: NDArray,
     cube_boxes: List[BoundingBox],
     particle_threshold: int,
-):
+) -> List[NDArray]:
+    """
+    Create a packed tree for the data in each cube in parallel
+
+    Parameters
+    ----------
+    data: DataContainer
+        The particle data to use
+    cube_indices: NDArray
+        The particle index offsets for each cube
+    cube_boxes: List[BoundingBox]
+        The list of bounding boxes of each cube
+    particle_threshold: int
+        The number of particles needed to split a node when creating the
+        PackedTreeNumba
+
+    Returns
+    -------
+    list[NDArray]
+        The packed tree for each cube in packed array format
+
+    """
     trees = List.empty_list(types.uint32[:])
     num_cubes = len(cube_boxes)
     # pre-allocate in serial
@@ -269,6 +329,24 @@ def get_particle_indices_in_shape(
 ) -> NDArray[np.int_]:
     """
     Get the particle start-stop tuples in the specified shape
+
+    Parameters
+    ----------
+    cubes:
+        List of cube bounding boxes
+    trees:
+        List of cube PackedTreeNumbas
+    cube_offsets:
+        Array of cube offset indices into the data
+    shape:
+        BoundingVolume to check
+
+    Returns
+    -------
+    indices: Xx3 NDArray[np.int_]
+        Array of index information. Each row describes a chunk/slice of data
+        in the form `[start, stop, partial]`, where partial is a flag - (1)
+        if the data chunk is entirely contained within `shape`, (0) otherwise.
     """
     indices = List.empty_list(_list_index_tuple)
     for _ in range(len(cubes)):
@@ -476,8 +554,39 @@ def get_particle_index_list_in_shape(
     data: DataContainer | None,
     use_data_indices: bool,  # noqa: FBT001, FBT002
 ) -> NDArray[np.int_]:
-    """
-    Get the array of particle indices in the specified shape
+    """Get the array of particle indices in the specified shape
+
+    If the data argument is specified, will do additional
+    containment-checks at the particle level
+
+    Parameters
+    ----------
+    cubes:
+        List of cube bounding boxes
+
+    trees:
+        List of cube PackedTreeNumbas
+
+    cube_offsets:
+        Array of cube offset indices into the data
+
+    shape:
+        BoundingVolume to check
+
+    data: DataContainer | None
+        Particle positions information. If `None`, only check whether node
+        is within shape, which is equivalent to expanding the node
+        start/stops from `_get_particle_indices_in_shape`
+
+    use_data_indices: bool
+        Return shuffle indices if `False`. Default `True`
+
+    Returns
+    -------
+    indices: NDArray[int]]
+        List of particle indices contained within shape. Will contain
+        any additional particles that can be found in the same nodes if
+        data is not provided
     """
     slices = get_particle_indices_in_shape(cubes, trees, cube_offsets, shape)
 
@@ -496,9 +605,7 @@ def _get_closest_cube(
     xyz: NDArray,
     distance_function: Callable[[float, float, float, float, float, float], float],
 ) -> np.int_:
-    """
-    Return the index of the closest cube to a point
-    """
+    """Return the index of the closest cube to a point"""
     x, y, z = xyz
     cube_dists = np.empty((len(cubes),), dtype=np.float64)
     for i in prange(len(cubes)):
@@ -522,44 +629,45 @@ def get_closest_particles(
     use_shuffle: bool,  # noqa: FBT001, FBT002
     return_sorted: bool,  # noqa: FBT001, FBT002
 ) -> tuple[NDArray, NDArray]:
-    """
-    Return the k-closest particle distances and their indices
+    """Return the k-closest particle distances and their indices
 
-    Args:
-        cubes: List[BoundingBox]
+    Parameters
+    ----------
+    cubes: List[BoundingBox]
         The cube boxes
 
-        trees: List[PackedTreeNumba]
+    trees: List[PackedTreeNumba]
         The cube trees
 
-        cube_indices: NDArray
+    cube_indices: NDArray
         The cube index offsets
 
-        data: DataContainer
+    data: DataContainer
         The container of the position data
 
-        xyz: NDArray
+    xyz: NDArray
         The 3 Cartesian coordinates
 
-        k: positive int
+    k: positive int
         The number of particles to return. No verification of sign is performed
 
-        distance_function: Callable[[float, float, float, float, float, float], float]
+    distance_function: Callable[[float, float, float, float, float, float], float]
         The distance function between two Cartesian points,
         e.g. d = distance_function(x1, y1, z1, x2, y2, z2)
 
-        distance_upper_bound: float
+    distance_upper_bound: float
         The maximum distance to consider particles within. May result in fewer
         than k particles being returned if too stringent
 
-        use_shuffle: bool
+    use_shuffle: bool
         Flag to return shuffle indices instead of sorted data indices
 
-    Returns:
-        dists: NDArray[float]
+    Returns
+    -------
+    dists: NDArray[float]
         K-length vector of distances
 
-        inds: NDArray[int]
+    inds: NDArray[int]
         K-length vector of particle indices
     """
     x, y, z = xyz

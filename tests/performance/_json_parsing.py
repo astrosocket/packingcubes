@@ -1,3 +1,6 @@
+# ruff: noqa: D103
+"""Creation and search methods for brute force"""
+
 import json
 
 from unyt import unyt_array, unyt_quantity
