@@ -427,22 +427,21 @@ def _has_trees(cubes_dict: dict[str, dict]) -> bool:
 
 
 def _add_trees_to_cubes_dict(
-    *, cubes_dict: dict[str, dict], dataset: MultiParticleDataset, **kwargs
+    *, cubes_dict: dict, dataset: MultiParticleDataset, particle_type: str, **kwargs
 ):
     """Generate missing PackedTrees from dataset on per-particle-type basis"""
     particle_threshold = getattr(
         kwargs, "particle_threshold", _DEFAULT_PARTICLE_THRESHOLD
     )
-    for pt, cubes in cubes_dict.items():
-        dataset.particle_type = pt
-        cube_indices = cast(NDArray, cubes["cube_indices"])
-        cube_boxes = cast(list[bbox.BoundingBox], cubes["cube_boxes"])
-        cube_trees = make_trees(
-            data=dataset.data_container,
-            cube_indices=cube_indices,
-            cube_boxes=cube_boxes,
-            particle_threshold=particle_threshold,
-        )
+    dataset.particle_type = particle_type
+    cube_indices = cast(NDArray, cubes_dict["cube_indices"])
+    cube_boxes = cast(list[bbox.BoundingBox], cubes_dict["cube_boxes"])
+    cubes_dict["cube_trees"] = make_trees(
+        data=dataset.data_container,
+        cube_indices=cube_indices,
+        cube_boxes=cube_boxes,
+        particle_threshold=particle_threshold,
+    )
 
 
 def _handle_dataset_types(
