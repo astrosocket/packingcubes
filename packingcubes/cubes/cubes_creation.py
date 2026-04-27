@@ -24,7 +24,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-from collections.abc import Collection
+from collections.abc import Collection, Mapping
 from typing import cast
 
 import h5py  # type: ignore
@@ -373,7 +373,7 @@ def load_cubes(
     dataset: str | MultiParticleDataset,
     particle_types: str | Collection[str] | None = None,
     **kwargs,
-) -> dict[str, dict]:
+) -> Mapping[str, ParticleCubes]:
     """Load cubes data from a dataset. See make_cubes for a description of the output"""
     cubes_dict = {}
     if isinstance(dataset, Dataset) and not isinstance(dataset, HDF5Dataset):
@@ -405,11 +405,11 @@ def load_cubes(
             for i in range(number):
                 cube_boxes.append(bbox.make_bounding_box(cubes[f"box_{i}"]))
                 cube_trees.append(PackedTree(source=cubes[f"tree_{i}"]))
-            cubes_dict[pt] = {
-                "cube_indices": cube_indices,
-                "cube_boxes": cube_boxes,
-                "cube_trees": cube_trees,
-            }
+            cubes_dict[pt] = ParticleCubes(
+                cube_indices=cube_indices,
+                cube_boxes=cube_boxes,
+                cube_trees=cube_trees,
+            )
     return cubes_dict
 
 
