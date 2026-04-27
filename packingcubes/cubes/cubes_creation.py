@@ -370,13 +370,15 @@ def make_cubes(
 
 
 def load_cubes(
-    dataset: str | MultiParticleDataset,
+    dataset: str | NDArray | MultiParticleDataset,
     particle_types: str | Collection[str] | None = None,
     **kwargs,
 ) -> Mapping[str, ParticleCubes]:
     """Load cubes data from a dataset. See make_cubes for a description of the output"""
     cubes_dict = {}
-    if isinstance(dataset, Dataset) and not isinstance(dataset, HDF5Dataset):
+    if isinstance(dataset, np.ndarray) or (
+        isinstance(dataset, Dataset) and not isinstance(dataset, HDF5Dataset)
+    ):
         raise NotImplementedError("We can only load Cubes from HDF5 datasets")
     if not has_cubes(dataset):
         raise ValueError("No cubes in provided dataset")
