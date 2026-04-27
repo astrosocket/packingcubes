@@ -351,6 +351,9 @@ class InMemory(MultiParticleDataset):
         particle_type: str, optional
             Particle type these positions belong to. Default is `"PartTypeIM"`
 
+        filepath: str, optional
+            Specify a default save location if non-empty. Default is "".
+
         **kwargs:
             Additional arguments are discarded
         """
@@ -419,10 +422,11 @@ class InMemory(MultiParticleDataset):
             ValueError
                 If no output_file is specified
         """
-        if output_file is None:
+        output_file = self.filepath if output_file is None else output_file
+        if not output_file:
             raise ValueError(
                 "InMemory datasets have no default output file. Please specify"
-                " output_file."
+                " output_file or set the filepath."
             )
 
         particle_type = self.particle_type if particle_type is None else particle_type
