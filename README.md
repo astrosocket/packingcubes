@@ -97,16 +97,17 @@ Alternatively:
 ```python
 import packingcubes
 
-cubes = packingcubes.Cubes("path/to/snapshot.hdf5")
+cubes = packingcubes.Cubes(dataset="path/to/snapshot.hdf5", save_dataset=True)
 
 cubes.save("path/to/output.hdf5")
 
-# sorted positions/indices are stored in .snapshot_sorted.hdf5 by default
+# sorted positions/indices are stored in snapshot_sorted.hdf5 by default
 # to save elsewhere, use
-dataset = packingcubes.HDF5Dataset(
-    "path/to/snapshot.hdf5", sorted_filepath="path/to/output.hdf5"
+cubes = packingcubes.Cubes(
+    dataset="path/to/snapshot.hdf5", 
+    save_dataset=True,
+    sorted_filepath="path/to/output.hdf5"
 )
-cubes = packingcubes.Cubes(dataset)
 ```
 <!-- --8<-- [end:basic-const-snap-disk] -->
 
@@ -123,9 +124,12 @@ You can also do the following for easy saving.
 The data will still not be copied (by default)
 
 ``` python
-dataset = packingcubes.InMemory(positions=positions_data)
-cubes = packingcubes.Cubes(dataset)
-dataset.save("path/to/output.hdf5")
+cubes = packingcubes.Cubes(
+    dataset=positions_data,
+    sorted_filepath="path/to/dataset_output.hdf5",
+    # filepath would also work
+    save_dataset=True
+)
 ```
 
 Several configuration options are available, see `packcubes --help` or `help(packingcubes.Cubes)` for more information.
@@ -145,8 +149,6 @@ dataset:
 
 ```python
 indices = cubes.get_indices_in_sphere(center, radius)
-# particle_types is a string or Sequence[str] that maps to a particle type in
-#   the snapshot
 # center is anything that can be converted by numpy's array method to an (3,)
 #   array, and is the sphere's center
 # radius is a float
@@ -154,8 +156,6 @@ indices = cubes.get_indices_in_sphere(center, radius)
 
 ```python
 indices = cubes.get_indices_in_box(box)
-# particle_types is a string or Sequence[str] that maps to a particle type in
-#   the snapshot
 # box is anything that can be converted by numpy's array method to an (6,)
 #   float array where the first 3 elements are the front-left-bottom corner,
 #   and the second 3 elements are the box width, depth, and height 
@@ -171,8 +171,9 @@ was partially (`1`) or entirely (`0`) contained within the sphere/box.
 So the search pipeline might go something like:
 
 ```python
-# cubes are associated with HDF5Dataset dataset created from orig_dataset 
-# which is an h5py File object
+dataset = packingcubes.GadgetishHDF5Dataset(orig_dataset_file)
+cubes = packingcubes.Cubes(dataset=dataset)
+
 indices = cubes.get_indices_in_sphere(center, radius)
 
 velocities_list = []
@@ -198,6 +199,7 @@ the other fields in the snapshot.
 
 So if you only need positional information, 
 ```python
+dataset = packingcubes.GadgetishHDF5Dataset(orig_dataset_file)
 indices = cubes.get_indices_in_sphere(center, radius)
 
 positions_list = []

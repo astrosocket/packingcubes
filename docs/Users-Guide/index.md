@@ -45,13 +45,13 @@ That's it, move on to [Searching](#searching-a-particlecubes-object).
 
 ##### From a snapshot
 Creation is _slightly_ more complicated from a snapshot, since there's the potential
-for multiple particle types. Here we'll assume we only want the gas particles
+for multiple particle types. Here we'll assume we want the gas particles
 (`PartType0`) in an IllustrisTNG snapshot.
 
 ``` python
 import packingcubes
 cubes = packingcubes.Cubes(
-    "path/to/IllustrisTNG/snapshot.hdf5", particle_types="PartType0"
+    "path/to/IllustrisTNG/snapshot.hdf5", particle_type="PartType0"
 )
 ```
 
@@ -105,9 +105,10 @@ cubes = packingcubes.Cubes("path/to/output.hdf5", particle_type="gas")
 
 ??? info "Data saving"
     Saving cubes information **only** saves information about the cubes. If you want
-    to save the sorted dataset information, see 
-    [Saving sorted datasets](Tutorials/Working_with_datasets#). Note
-    that this does require more initial setup.
+    to save the sorted dataset information, specify the `save_dataset=True`
+    and the `sorted_filepath="path"` option on the initial `Cubes` call or see 
+    [Saving sorted datasets](Tutorials/Working_with_datasets#saving-a-dataset). Note
+    that while this second option does require more initial setup, it's more flexible.
 
 #### Specifying Number of Threads
 Both the `ParticleCubes` creation and search operate in parallel using `numba`'s

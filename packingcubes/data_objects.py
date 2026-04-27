@@ -338,6 +338,7 @@ class InMemory(MultiParticleDataset):
         name: str = "",
         filepath: str = "",
         particle_type: str | None = None,
+        **kwargs,
     ):
         """
         Initialize an InMemory Dataset
@@ -350,6 +351,11 @@ class InMemory(MultiParticleDataset):
         particle_type: str, optional
             Particle type these positions belong to. Default is `"PartTypeIM"`
 
+        filepath: str, optional
+            Specify a default save location if non-empty. Default is "".
+
+        **kwargs:
+            Additional arguments are discarded
         """
         positions = np.atleast_2d(positions)
         if positions.shape[1] != 3 or len(positions.shape) > 2:
@@ -416,10 +422,11 @@ class InMemory(MultiParticleDataset):
             ValueError
                 If no output_file is specified
         """
-        if output_file is None:
+        output_file = self.filepath if output_file is None else output_file
+        if not output_file:
             raise ValueError(
                 "InMemory datasets have no default output file. Please specify"
-                " output_file."
+                " output_file or set the filepath."
             )
 
         particle_type = self.particle_type if particle_type is None else particle_type
@@ -510,6 +517,7 @@ class HDF5Dataset(MultiParticleDataset):
         sorted_filepath: str | Path | None = None,
         initial_particle_type: str | None = None,
         data_slices=None,
+        **kwargs,
     ):
         """Initialize an HDF5Dataset
 
@@ -535,6 +543,9 @@ class HDF5Dataset(MultiParticleDataset):
             Effectively, the dataset will be loaded as
             `data = data[data_slice[0]:data_slice[1]:data_slice[3]]`.
             Note: this is true even if loading from the sorted data!
+
+        **kwargs:
+            Additional arguments are discarded
         """
         super().__init__(name=name, filepath=filepath)
 
@@ -719,6 +730,7 @@ class GadgetishHDF5Dataset(HDF5Dataset):
         sorted_filepath: str | Path | None = None,
         initial_particle_type: str | None = None,
         data_slices=None,
+        **kwargs,
     ):
         """Initialize an Gadget-like HDF5Dataset
 
@@ -745,6 +757,9 @@ class GadgetishHDF5Dataset(HDF5Dataset):
             type. This can be used to load only a portion of the dataset.
             Effectively, the dataset will be loaded as
             `data = data[data_slice[0]:data_slice[1]:data_slice[3]]`
+
+        **kwargs:
+            Additional arguments are discarded
         """
         super().__init__(
             name=name,

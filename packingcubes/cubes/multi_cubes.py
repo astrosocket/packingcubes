@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Collection
+from collections.abc import Collection, Mapping
 from pathlib import Path
 from typing import cast
 
@@ -33,11 +33,14 @@ class MultiCubes:
     def __init__(
         self,
         *,
-        cubes_dict: dict[str, dict],
+        cubes_dict: dict[str, dict] | Mapping[str, ParticleCubes],
         **kwargs,
     ):
         self._cubes_dict = {}
         for pt, cubes in cubes_dict.items():
+            if isinstance(cubes, ParticleCubes):
+                self._cubes_dict[pt] = cubes
+                continue
             cube_indices = cast(NDArray, cubes["cube_indices"])
             cube_boxes = cast(list[bbox.BoundingBox], cubes["cube_boxes"])
             cube_trees = cast(

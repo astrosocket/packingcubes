@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Any
 
 import h5py  # type: ignore
 import numpy as np
@@ -420,11 +421,9 @@ class ParticleCubes:
         return dataset.filepath if isinstance(dataset, Dataset) else Path(dataset)
 
 
-def has_cubes(dataset: str | Path | MultiParticleDataset):
+def has_cubes(dataset: str | Path | MultiParticleDataset | Any):
     """Return true if the dataset contains a packingcubes structure"""
     # TODO: This whole function probably needs to be refactored somewhere else
-    if dataset is None:
-        raise ValueError("Need a dataset to check!")
     if isinstance(dataset, HDF5Dataset):
         return "cubes" in dataset._top_level_groups
     if isinstance(dataset, (str, Path)) and h5py.is_hdf5(dataset):

@@ -6,14 +6,11 @@ a snapshot file
 
 Functions
 ---------
-    Cubes(dataset=dataset, particle_types=[..])
-        Load if present or create ParticleCubes/MultiCubes object from the
-        provided dataset with the provided particle_types
+    Cubes(dataset=dataset, particle_type=[..])
+        Load if present or create ParticleCubes object from the
+        provided dataset with the provided particle_type
     make_cubes(dataset=dataset, cubes_per_side=-1, save_dataset=False)
-        Make a cubes_dict type structure from the provided dataset without saving
-    make_ParticleCubes(dataset=dataset)
-        Explicitly create a ParticleCubes object, raising an error if multiple
-        particle types are present. Primarily intended for typechecking
+        The actual function to make a ParticleCubes object
     load_cubes(dataset=dataset)
         Load a cubes_dict type structure from the provideed dataset
 
@@ -24,8 +21,8 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-from collections.abc import Collection
-from typing import cast
+from collections.abc import Collection, Mapping
+from typing import TYPE_CHECKING, cast
 
 import h5py  # type: ignore
 import numpy as np
@@ -242,12 +239,12 @@ def make_cubes(
     cubes_per_side: int = -1,
     cube_box: bbox.BoxLike | None = None,
     particle_threshold: int | None = None,
-    particle_types: str | Collection[str] | None = None,
+    particle_type: str | None = None,
     save_dataset: bool = False,
     **kwargs,
-) -> dict[str, dict[str, NDArray | list[bbox.BoundingBox] | list[PackedTree]]]:
+) -> ParticleCubes:
     """
-    Create a cubes_dict from the provided dataset
+    Create a `ParticleCubes` from the provided dataset
 
     Parameters
     ----------
@@ -258,7 +255,7 @@ def make_cubes(
     cubes_per_side: int, optional
         Number of cubes on a side. Dataset will be divided into `cubes_per_side`**3
         cubes, plus an additional cube to catch any remaining particles (if the
-        cube_box is smaller than the actual data extants). Note: due to the
+        `cube_box` is smaller than the actual data extants). Note: due to the
         `PackedTree`'s packed format, cubes must contain fewer than ~4 billion
         particles. If `cubes_per_side` is too small to support this, a `ValueError`
         will be raised. The limit is per-particle-type.
@@ -268,13 +265,13 @@ def make_cubes(
         that delineates the region of data to be cubed. Any particles outside
         this region will fall into an overflow cube. Useful for zoom-in
         simulations or other datasets with sparse outer regions. Default is the
-        data bounding box
+        data bounding box.
 
     particle_threshold: int, optional
         Maximum number of particles in a tree leaf node. Default is `400`
 
-    particle_types: Collection[str], optional
-        Collection of particle types to include. Default is `dataset.particle_types`
+    particle_type: str, optional
+        Particle type to process. Default is `dataset.particle_type`
 
     save_dataset: bool, optional
         Whether to save the sorted dataset positions out to a file. The data
@@ -282,43 +279,27 @@ def make_cubes(
 
     Returns
     -------
-    cubes_dict: dict
-        A dictionary with 3 components:
-
-         1. cube_indices - contains the data offsets for each cube's
-            particles (i.e. cube 0 is from `cubes_indices[0]:cubes_indices[1]`)
-         2. cube_boxes - containes the bounding box for each cube
-         3. cube_trees - contains the `PackedTree` for each cube
+    :
+        The created ParticleCubes object
 
     Raises
     ------
     ValueError
-        If requested particle types aren't in the dataset or if too few cubes
+        If requested particle type isn't in the dataset or if too few cubes
         were requested for the number of particles
 
     """
-    cubes = {}
-
-    particle_types = (
-        [particle_types] if isinstance(particle_types, str) else particle_types
-    )
-    if particle_types is None:
-        requested_types = set(dataset.particle_types)
-        particle_numbers = np.array(list(dataset.particle_numbers.values()))
-        LOGGER.info(f"Found particle types: {dataset.particle_types}")
-    else:
-        requested_types = set(particle_types)
-        data_types = set(dataset.particle_types)
-        if not requested_types <= data_types:
-            raise ValueError(
-                f"Requested {requested_types - data_types} "
-                "but it is not present in the dataset "
-                f"({data_types})."
-            )
-        LOGGER.info(f"Using {requested_types}. Skipping {data_types - requested_types}")
-        particle_numbers = np.array(
-            [dataset.particle_numbers[i] for i in requested_types]
+    if particle_type is None:
+        particle_type = dataset.particle_type
+        LOGGER.info(f"No particle type provided. Defaulting to {particle_type}")
+    elif particle_type not in dataset.particle_types:
+        raise ValueError(
+            f"Requested {particle_type} "
+            "but it is not present in the dataset "
+            f"(Only {dataset.particle_types} found)."
         )
+
+    particle_number = dataset.particle_numbers[particle_type]
 
     cube_box = dataset.bounding_box if cube_box is None else cube_box
     cube_box = bbox.make_bounding_box(cube_box)
@@ -326,10 +307,10 @@ def make_cubes(
     cubes_per_side = _process_cubes_per_side(cubes_per_side)
 
     num_cubes = cubes_per_side**3 + 1
-    if np.any(particle_numbers / num_cubes > 2**31):
+    if particle_number / num_cubes > 2**31:
         raise ValueError(
             f"Insufficient number of cubes specified. Requested {cubes_per_side}"
-            f" cubes per side, leading to >={particle_numbers / num_cubes}"
+            f" cubes per side, leading to >={particle_number / num_cubes}"
             f" particles per cube. Max per cube supported is {2**32}"
         )
 
@@ -339,64 +320,62 @@ def make_cubes(
         else particle_threshold
     )
 
-    for pt in requested_types:
-        LOGGER.info(f"Processing {pt}")
-        dataset.particle_type = pt
-        data = dataset.data_container
+    dataset.particle_type = particle_type
+    data = dataset.data_container
 
-        LOGGER.info("Cubing")
-        cube_indices = cube(data, cubes_per_side, cube_box)
+    LOGGER.info("Cubing")
+    cube_indices = cube(data, cubes_per_side, cube_box)
 
-        # check cube sizes
-        if np.any(np.diff(cube_indices[:-1]) >= 2**32):
-            raise ValueError(
-                f"Requested number of cubes is insufficient for {pt}. At least"
-                " one cube has more than 2**32 particles, the max allowed for"
-                " a packed tree."
-            )
-
-        LOGGER.info("Getting boxes")
-        cube_boxes = _get_cube_boxes(
-            data=data, box=cube_box, cubes_per_side=cubes_per_side
+    # check cube sizes
+    if np.any(np.diff(cube_indices[:-1]) >= 2**32):
+        raise ValueError(
+            f"Requested number of cubes is insufficient for {particle_type}. At least"
+            " one cube has more than 2**32 particles, the max allowed for"
+            " a packed tree."
         )
 
-        LOGGER.info("Removing empties")
-        cube_indices, cube_boxes = _prune_empty(len(data), cube_indices, cube_boxes)
+    LOGGER.info("Getting boxes")
+    cube_boxes = _get_cube_boxes(data=data, box=cube_box, cubes_per_side=cubes_per_side)
 
-        LOGGER.info("Making trees")
-        trees = make_trees(data, cube_indices, cube_boxes, particle_threshold)
+    LOGGER.info("Removing empties")
+    cube_indices, cube_boxes = _prune_empty(len(data), cube_indices, cube_boxes)
 
-        LOGGER.info("Converting to PackedTrees")
-        ptrees = [
-            PackedTree(
-                source=t,
-                particle_threshold=particle_threshold,
-                bounding_box=b,
-            )
-            for t, b in zip(trees, cube_boxes, strict=True)
-        ]
+    LOGGER.info("Making trees")
+    trees = make_trees(data, cube_indices, cube_boxes, particle_threshold)
 
-        cubes[pt] = {
-            "cube_indices": cube_indices,
-            "cube_boxes": cube_boxes,
-            "cube_trees": ptrees,
-        }
-        LOGGER.info(f"Done with {pt}")
+    LOGGER.info("Converting to PackedTrees")
+    ptrees = [
+        PackedTree(
+            source=t,
+            particle_threshold=particle_threshold,
+            bounding_box=b,
+        )
+        for t, b in zip(trees, cube_boxes, strict=True)
+    ]
 
-        if save_dataset:
-            dataset.save()
+    cubes = ParticleCubes(
+        cube_indices=cube_indices, cube_boxes=cube_boxes, cube_trees=ptrees
+    )
+
+    if save_dataset:
+        LOGGER.info("Saving dataset changes")
+        dataset.save()
+
+    LOGGER.info("Done")
 
     return cubes
 
 
 def load_cubes(
-    dataset: str | MultiParticleDataset,
+    dataset: str | NDArray | MultiParticleDataset,
     particle_types: str | Collection[str] | None = None,
     **kwargs,
-) -> dict[str, dict]:
+) -> Mapping[str, ParticleCubes]:
     """Load cubes data from a dataset. See make_cubes for a description of the output"""
     cubes_dict = {}
-    if isinstance(dataset, Dataset) and not isinstance(dataset, HDF5Dataset):
+    if isinstance(dataset, np.ndarray) or (
+        isinstance(dataset, Dataset) and not isinstance(dataset, HDF5Dataset)
+    ):
         raise NotImplementedError("We can only load Cubes from HDF5 datasets")
     if not has_cubes(dataset):
         raise ValueError("No cubes in provided dataset")
@@ -425,11 +404,11 @@ def load_cubes(
             for i in range(number):
                 cube_boxes.append(bbox.make_bounding_box(cubes[f"box_{i}"]))
                 cube_trees.append(PackedTree(source=cubes[f"tree_{i}"]))
-            cubes_dict[pt] = {
-                "cube_indices": cube_indices,
-                "cube_boxes": cube_boxes,
-                "cube_trees": cube_trees,
-            }
+            cubes_dict[pt] = ParticleCubes(
+                cube_indices=cube_indices,
+                cube_boxes=cube_boxes,
+                cube_trees=cube_trees,
+            )
     return cubes_dict
 
 
@@ -445,40 +424,73 @@ def _has_trees(cubes_dict: dict[str, dict]) -> bool:
 
 
 def _add_trees_to_cubes_dict(
-    *, cubes_dict: dict[str, dict], dataset: MultiParticleDataset, **kwargs
+    *, cubes_dict: dict, dataset: MultiParticleDataset, particle_type: str, **kwargs
 ):
     """Generate missing PackedTrees from dataset on per-particle-type basis"""
     particle_threshold = getattr(
         kwargs, "particle_threshold", _DEFAULT_PARTICLE_THRESHOLD
     )
-    for pt, cubes in cubes_dict.items():
-        dataset.particle_type = pt
-        cube_indices = cast(NDArray, cubes["cube_indices"])
-        cube_boxes = cast(list[bbox.BoundingBox], cubes["cube_boxes"])
-        cube_trees = make_trees(
-            data=dataset.data_container,
-            cube_indices=cube_indices,
-            cube_boxes=cube_boxes,
-            particle_threshold=particle_threshold,
+    dataset.particle_type = particle_type
+    cube_indices = cast(NDArray, cubes_dict["cube_indices"])
+    cube_boxes = cast(list[bbox.BoundingBox], cubes_dict["cube_boxes"])
+    cubes_dict["cube_trees"] = make_trees(
+        data=dataset.data_container,
+        cube_indices=cube_indices,
+        cube_boxes=cube_boxes,
+        particle_threshold=particle_threshold,
+    )
+
+
+def _handle_dataset_types(
+    dataset: str | NDArray | MultiParticleDataset | None = None, **kwargs
+) -> MultiParticleDataset | None:
+    """Convert various possible dataset types into MultiParticleDatasets
+
+    Parameters
+    ----------
+    dataset:
+        The dataset to convert. Strings will be loaded as GadgetishHDF5Datasets,
+        NDArrays will be converted to InMemory, and None will be left as is
+
+    **kwargs:
+        Any kwargs to pass to the corresponding Dataset initializer
+
+    Returns
+    -------
+    :
+        The corresponding MultiParticleDataset or None if None
+
+    """
+    if isinstance(dataset, np.ndarray):
+        # override filepath with sorted_filepath, if present
+        filepath = kwargs.get("sorted_filepath", kwargs.get("filepath"))
+        dataset = InMemory(positions=dataset, filepath=filepath, **kwargs)
+    elif isinstance(dataset, str):
+        dataset = GadgetishHDF5Dataset(
+            filepath=dataset,
+            initial_particle_type=kwargs.get("particle_type"),
+            **kwargs,
         )
+    return dataset
 
 
 def Cubes(
     *,
     dataset: str | NDArray | MultiParticleDataset | None = None,
-    cubes_dict: dict[str, dict] | None = None,
-    sorted_filepath: str | None = None,
+    cubes_dict: dict[str, NDArray | list[bbox.BoundingBox] | list[NDArray | PackedTree]]
+    | None = None,
+    particle_type: str | None = None,
     **kwargs,
-) -> ParticleCubes | dict[str, ParticleCubes]:
-    """Create Cubes objects
-
-    Create a Cubes-type object from the provided data. For datasets with
-    multiple particle types, return a dictionary with mappings between
-    the particle types and the corresponding ParticleCubes object.
+) -> ParticleCubes:
+    """Create or load ParticleCubes objects from the provided data
 
     As an alternative to a dataset, you can provide a dictionary containing
     cube data offsets, bounding boxes, and optionally PackedTrees as
-    `cube_indices`, `cube_boxes`, and `cube_trees`.
+    `cube_indices`, `cube_boxes`, and `cube_trees`. This could be useful in the
+    case where a dataset has a natural top-level structure already, but may not
+    yet have PackedTree subcomponents. As an example, a collection of disjoint
+    blobs in a 3D parameter space, or if the dataset already contains an octree-
+    like structure.
 
     Parameters
     ----------
@@ -489,30 +501,28 @@ def Cubes(
         this or cubes_dict, below. Assumes strings are filepaths to
         [GadgetishHDF5Datasets][GadgetishHDF5Dataset].
 
-    cubes_dict: dict[str, dict], optional
-        Dictionary of particle type -> dictionary elements. Each
-        sub-dictionary has 3 components:
+    cubes_dict: dict, optional
+        Dictionary with 3 components:
 
          1. cube_indices - contains the data offsets for each cube's particles
            (i.e. cube 0 is from `cubes_indices[0]:cubes_indices[1]`)
          2. cube_boxes - containes the `BoundingBox` for each cube
          3. cube_trees - contains the `PackedTree` for each cube
 
-    sorted_filepath: str, optional
-        Location of sorted dataset data. See [HDF5Dataset][HDF5Dataset]
-        for more information. Mostly only useful if you are passing
-        `save_dataset=True` and an HDF5Dataset as well.
+    particle_type: str, optional
+        The particle type to use. Unused if cubes_dict is provided.
+        Defaults to `dataset.particle_type`
 
     **kwargs
-        Extra arguments to `make_cubes` and `ParticleCubes`. See
-        [make_cubes][make_cubes] and [ParticleCubes][ParticleCubes] for a
+        Extra arguments to `MultiParticleDataset`, `make_cubes` and
+        `ParticleCubes`. See [MultiParticleDataset][MultiParticleDataset],
+        [make_cubes][make_cubes], and [ParticleCubes][ParticleCubes] for a
         description.
 
     Returns
     -------
-    ParticleCubes | dict[str, ParticleCubes]
-        Cubes object or dictionary, with the type dependent on the number
-        of particle types present.
+    :
+        ParticleCubes object constructed from the dataset/dictionary
 
     See Also
     --------
@@ -520,91 +530,87 @@ def Cubes(
     """
     if cubes_dict is None and dataset is None:
         raise CubesError("Must provide either a cubes_dict or dataset!")
-    dataset = (
-        InMemory(positions=dataset) if isinstance(dataset, np.ndarray) else dataset
+
+    particle_type = (
+        dataset.particle_type
+        if particle_type is None and isinstance(dataset, MultiParticleDataset)
+        else particle_type
     )
 
     # we only want to load the dataset if we need to
-    # and we don't want to load a particle type that's not specified
-    initial_particle_type = kwargs.get("particle_types")
-    initial_particle_type = (
-        next(iter(initial_particle_type))
-        if initial_particle_type and not isinstance(initial_particle_type, str)
-        else initial_particle_type
-    )
-
     if cubes_dict is None:
-        assert dataset is not None
+        if TYPE_CHECKING:
+            assert dataset is not None
         try:
-            cubes_dict = load_cubes(dataset, **kwargs)
-        except (NotImplementedError, ValueError):
-            dataset = (
-                GadgetishHDF5Dataset(
-                    filepath=dataset,
-                    sorted_filepath=sorted_filepath,
-                    initial_particle_type=initial_particle_type,
+            cubes = next(
+                iter(
+                    load_cubes(dataset, particle_types=particle_type, **kwargs).values()
                 )
-                if isinstance(dataset, str)
-                else dataset
             )
-            cubes_dict = make_cubes(dataset=dataset, **kwargs)
+        except (NotImplementedError, ValueError):
+            dataset = _handle_dataset_types(dataset, particle_type=particle_type)
+            if TYPE_CHECKING:
+                assert dataset is not None
+            cubes = make_cubes(dataset=dataset, particle_type=particle_type, **kwargs)
     else:
-        if not _has_trees(cubes_dict):
+        if "cube_trees" not in cubes_dict:
             if dataset is None:
                 raise CubesError("cubes_dict has no trees and dataset not provided")
-            dataset = (
-                GadgetishHDF5Dataset(
-                    filepath=dataset,
-                    sorted_filepath=sorted_filepath,
-                    initial_particle_type=initial_particle_type,
-                )
-                if isinstance(dataset, str)
-                else dataset
+            dataset = _handle_dataset_types(dataset, particle_type=particle_type)
+            if TYPE_CHECKING:
+                assert dataset is not None
+                assert particle_type is not None
+            _add_trees_to_cubes_dict(
+                cubes_dict=cubes_dict,
+                dataset=dataset,
+                particle_type=particle_type,
+                **kwargs,
             )
-            _add_trees_to_cubes_dict(cubes_dict=cubes_dict, dataset=dataset, **kwargs)
-    if len(cubes_dict) == 1:
-        cubes = next(iter(cubes_dict.values()))
-        return ParticleCubes(**cubes, **kwargs)
-    return MultiCubes(cubes_dict=cubes_dict, **kwargs)._cubes_dict
-
-
-def make_ParticleCubes(**kwargs) -> ParticleCubes:
-    """
-    Make ParticleCubes object from dataset or raise an error
-
-    Parameters
-    ----------
-    **kwargs
-        Refer to [Cubes][Cubes] documentation for a list of all posssible
-        arguments
-    """
-    cubes = Cubes(**kwargs)
-    if not isinstance(cubes, ParticleCubes):
-        raise CubesError(
-            f"""
-            Multiple particle types present. Please specify one of 
-            {list(cubes.keys())} as particle_types="PARTICLE_TYPE".
-            """
+            cube_indices = cast(NDArray[np.int_], cubes_dict["cube_indices"])
+            cube_boxes = cast(List[bbox.BoundingBox], cubes_dict["cube_boxes"])
+            cube_trees = cast(List[PackedTree], cubes_dict["cube_trees"])
+        cubes = ParticleCubes(
+            cube_indices=cube_indices,
+            cube_boxes=cube_boxes,
+            cube_tree=cube_trees,
+            **kwargs,
         )
     return cubes
 
 
-def make_MultiCubes(**kwargs) -> MultiCubes:
+def make_MultiCubes(
+    dataset: str | NDArray | MultiParticleDataset,
+    particle_types: Collection[str] | None,
+    **kwargs,
+) -> MultiCubes:
     """
     Make MultiCubes object from dataset even if there is only one particle type
 
     Parameters
     ----------
+    dataset: str | NDArray | MultiParticleDataset
+        The dataset to load or create the MultiCubes from
+
+    particle_types: Collection[str], optional
+        Collection of particle types to include. Defaults to all particle types
+        found in the dataset
+
     **kwargs
         Refer to [Cubes][Cubes] documentation for a list of all posssible
         arguments
     """
-    cubes = Cubes(**kwargs)
+    if has_cubes(dataset):
+        cubes_dict = load_cubes(dataset, particle_types=particle_types, **kwargs)
+        return MultiCubes(cubes_dict=cubes_dict)
+    mpdataset = _handle_dataset_types(dataset)
+    if mpdataset is None:
+        raise ValueError("Must provide a dataset")
     multi = MultiCubes(cubes_dict={})
-    pt = "particles"
-    if "dataset" in kwargs and isinstance(kwargs["dataset"], MultiParticleDataset):
-        pt = kwargs["dataset"].particle_type
-    multi._cubes_dict = {pt: cubes} if isinstance(cubes, ParticleCubes) else cubes
+    particle_types = (
+        mpdataset.particle_types if particle_types is None else particle_types
+    )
+    for pt in particle_types:
+        multi._cubes_dict[pt] = Cubes(dataset=mpdataset, particle_type=pt, **kwargs)
     return multi
 
 
@@ -619,16 +625,14 @@ def cli():
         )
     dataset = GadgetishHDF5Dataset(filepath=args.snapshot, sorted_filepath=args.output)
     box = _process_box(dataset=dataset, args=args)
-    cubes_dict = make_cubes(
+    cubes = make_MultiCubes(
         dataset=dataset,
         cubes_per_side=args.n,
         cube_box=box,
         particle_threshold=args.particle_threshold,
-        particle_types=args.particle_types,
+        particle_type=args.particle_types,
         save_dataset=not args.no_save_dataset,
     )
-    LOGGER.info(cubes_dict.keys())
-    cubes = make_MultiCubes(dataset=dataset, cubes_dict=cubes_dict)
     if args.output:
         cubes.save(args.output)
     return
