@@ -581,22 +581,39 @@ def Cubes(
     return cubes
 
 
-def make_MultiCubes(**kwargs) -> MultiCubes:
+def make_MultiCubes(
+    dataset: str | NDArray | MultiParticleDataset,
+    particle_types: Collection[str] | None,
+    **kwargs,
+) -> MultiCubes:
     """
     Make MultiCubes object from dataset even if there is only one particle type
 
     Parameters
     ----------
+    dataset: str | NDArray | MultiParticleDataset
+        The dataset to load or create the MultiCubes from
+
+    particle_types: Collection[str], optional
+        Collection of particle types to include. Defaults to all particle types
+        found in the dataset
+
     **kwargs
         Refer to [Cubes][Cubes] documentation for a list of all posssible
         arguments
     """
-    cubes = Cubes(**kwargs)
+    if has_cubes(dataset):
+        cubes_dict = load_cubes(dataset, particle_types=particle_types, **kwargs)
+        return MultiCubes(cubes_dict=cubes_dict)
+    mpdataset = _handle_dataset_types(dataset)
+    if mpdataset is None:
+        raise ValueError("Must provide a dataset")
     multi = MultiCubes(cubes_dict={})
-    pt = "particles"
-    if "dataset" in kwargs and isinstance(kwargs["dataset"], MultiParticleDataset):
-        pt = kwargs["dataset"].particle_type
-    multi._cubes_dict = {pt: cubes} if isinstance(cubes, ParticleCubes) else cubes
+    particle_types = (
+        mpdataset.particle_types if particle_types is None else particle_types
+    )
+    for pt in particle_types:
+        multi._cubes_dict[pt] = Cubes(dataset=mpdataset, particle_type=pt, **kwargs)
     return multi
 
 
@@ -611,16 +628,14 @@ def cli():
         )
     dataset = GadgetishHDF5Dataset(filepath=args.snapshot, sorted_filepath=args.output)
     box = _process_box(dataset=dataset, args=args)
-    cubes_dict = make_cubes(
+    cubes = make_MultiCubes(
         dataset=dataset,
         cubes_per_side=args.n,
         cube_box=box,
         particle_threshold=args.particle_threshold,
-        particle_types=args.particle_types,
+        particle_type=args.particle_types,
         save_dataset=not args.no_save_dataset,
     )
-    LOGGER.info(cubes_dict.keys())
-    cubes = make_MultiCubes(dataset=dataset, cubes_dict=cubes_dict)
     if args.output:
         cubes.save(args.output)
     return
