@@ -443,6 +443,39 @@ def _add_trees_to_cubes_dict(
         )
 
 
+def _handle_dataset_types(
+    dataset: str | NDArray | MultiParticleDataset | None = None, **kwargs
+) -> MultiParticleDataset | None:
+    """Convert various possible dataset types into MultiParticleDatasets
+
+    Parameters
+    ----------
+    dataset:
+        The dataset to convert. Strings will be loaded as GadgetishHDF5Datasets,
+        NDArrays will be converted to InMemory, and None will be left as is
+
+    **kwargs:
+        Any kwargs to pass to the corresponding Dataset initializer
+
+    Returns
+    -------
+    :
+        The corresponding MultiParticleDataset or None if None
+
+    """
+    if isinstance(dataset, np.ndarray):
+        # override filepath with sorted_filepath, if present
+        filepath = kwargs.get("sorted_filepath", kwargs.get("filepath"))
+        dataset = InMemory(positions=dataset, filepath=filepath, **kwargs)
+    elif isinstance(dataset, str):
+        dataset = GadgetishHDF5Dataset(
+            filepath=dataset,
+            initial_particle_type=kwargs.get("particle_type"),
+            **kwargs,
+        )
+    return dataset
+
+
 def Cubes(
     *,
     dataset: str | NDArray | MultiParticleDataset | None = None,
