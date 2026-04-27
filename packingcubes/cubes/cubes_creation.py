@@ -548,27 +548,6 @@ def Cubes(
     return MultiCubes(cubes_dict=cubes_dict, **kwargs)._cubes_dict
 
 
-def make_ParticleCubes(**kwargs) -> ParticleCubes:
-    """
-    Make ParticleCubes object from dataset or raise an error
-
-    Parameters
-    ----------
-    **kwargs
-        Refer to [Cubes][Cubes] documentation for a list of all posssible
-        arguments
-    """
-    cubes = Cubes(**kwargs)
-    if not isinstance(cubes, ParticleCubes):
-        raise CubesError(
-            f"""
-            Multiple particle types present. Please specify one of 
-            {list(cubes.keys())} as particle_types="PARTICLE_TYPE".
-            """
-        )
-    return cubes
-
-
 def make_MultiCubes(**kwargs) -> MultiCubes:
     """
     Make MultiCubes object from dataset even if there is only one particle type
