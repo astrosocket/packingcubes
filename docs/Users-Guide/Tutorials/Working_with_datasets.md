@@ -129,17 +129,25 @@ We now want to cubify our datasets.
 
 It's actually the same command (`Cubes`), regardless of which kind of dataset
 you're using. However, we'll need to specify that we only want the gas particles
-at this time for the GadgetishHDF5Dataset[^2].
+at this time for the GadgetishHDF5Dataset[^2][^3].
 
-[^2]: Otherwise you'll get a dictionary that looks like 
-    `dict(PartType0=ParticleCubes(), PartType1=ParticleCubes(), ...)`
+[^2]: Otherwise you'll get whatever particles are currently loaded (i.e.
+    whatever is in `dataset.particle_type`). By default, for
+    `GadgetishHDF5Dataset`s, that's the first top-level group whose name
+    starts with `"Part"`, and the first element of `dataset.particle_types`. 
+[^3]: We don't need to specify the particle type for InMemory datasets because
+    they only have one, `"PartTypeIM"`. This is just a dummy name used when
+    saving the particles out, however; you can change it with 
+    `inmem_dataset.particle_type = "NewName"`. Note that the new name would
+    need to start with `"Part"` for it to be picked up by 
+    `GadgetishHDF5Dataset`.
 
 Note that the first time you run `Cubes`, it will take a little bit to 
 Just-In-Time compile some of the functions. Subsequent invocations will be
 faster.
 
 ```python
-cubes = packingcubes.Cubes(dataset=dataset, particle_types=dataset.particle_type)
+cubes = packingcubes.Cubes(dataset=dataset, particle_type="PartType0")
 inmem_cubes = packingcubes.Cubes(dataset=inmem_dataset)
 ```
 
@@ -206,6 +214,24 @@ dataset_reloaded.positions
 ```
 
 Note the sorted positions!
+
+
+
+## All-in-one
+As mentioned previously, the `Cubes` command combines a number of the above
+steps into one command. So if you don't need any additional flexibility, or
+access to the dataset positions/shuffle list/etc., you can include the dataset
+saving in the initial `Cubes` call via the `sorted_filepath` and `save_dataset`
+parameters, like so:
+
+```python
+cubes = packingcubes.Cubes(
+    dataset="./snapshot_090.hdf5", 
+    particle_type="PartType0",
+    sorted_filepath="sorted_positions.hdf5",
+    save_dataset=True,
+)
+```
 
 <script id="MathJax-script" src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
 <script>
