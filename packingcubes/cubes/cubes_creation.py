@@ -242,12 +242,12 @@ def make_cubes(
     cubes_per_side: int = -1,
     cube_box: bbox.BoxLike | None = None,
     particle_threshold: int | None = None,
-    particle_types: str | Collection[str] | None = None,
+    particle_type: str | None = None,
     save_dataset: bool = False,
     **kwargs,
-) -> dict[str, dict[str, NDArray | list[bbox.BoundingBox] | list[PackedTree]]]:
+) -> ParticleCubes:
     """
-    Create a cubes_dict from the provided dataset
+    Create a `ParticleCubes` from the provided dataset
 
     Parameters
     ----------
@@ -258,7 +258,7 @@ def make_cubes(
     cubes_per_side: int, optional
         Number of cubes on a side. Dataset will be divided into `cubes_per_side`**3
         cubes, plus an additional cube to catch any remaining particles (if the
-        cube_box is smaller than the actual data extants). Note: due to the
+        `cube_box` is smaller than the actual data extants). Note: due to the
         `PackedTree`'s packed format, cubes must contain fewer than ~4 billion
         particles. If `cubes_per_side` is too small to support this, a `ValueError`
         will be raised. The limit is per-particle-type.
@@ -268,13 +268,13 @@ def make_cubes(
         that delineates the region of data to be cubed. Any particles outside
         this region will fall into an overflow cube. Useful for zoom-in
         simulations or other datasets with sparse outer regions. Default is the
-        data bounding box
+        data bounding box.
 
     particle_threshold: int, optional
         Maximum number of particles in a tree leaf node. Default is `400`
 
-    particle_types: Collection[str], optional
-        Collection of particle types to include. Default is `dataset.particle_types`
+    particle_type: str, optional
+        Particle type to process. Default is `dataset.particle_type`
 
     save_dataset: bool, optional
         Whether to save the sorted dataset positions out to a file. The data
@@ -282,43 +282,27 @@ def make_cubes(
 
     Returns
     -------
-    cubes_dict: dict
-        A dictionary with 3 components:
-
-         1. cube_indices - contains the data offsets for each cube's
-            particles (i.e. cube 0 is from `cubes_indices[0]:cubes_indices[1]`)
-         2. cube_boxes - containes the bounding box for each cube
-         3. cube_trees - contains the `PackedTree` for each cube
+    :
+        The created ParticleCubes object
 
     Raises
     ------
     ValueError
-        If requested particle types aren't in the dataset or if too few cubes
+        If requested particle type isn't in the dataset or if too few cubes
         were requested for the number of particles
 
     """
-    cubes = {}
-
-    particle_types = (
-        [particle_types] if isinstance(particle_types, str) else particle_types
-    )
-    if particle_types is None:
-        requested_types = set(dataset.particle_types)
-        particle_numbers = np.array(list(dataset.particle_numbers.values()))
-        LOGGER.info(f"Found particle types: {dataset.particle_types}")
-    else:
-        requested_types = set(particle_types)
-        data_types = set(dataset.particle_types)
-        if not requested_types <= data_types:
-            raise ValueError(
-                f"Requested {requested_types - data_types} "
-                "but it is not present in the dataset "
-                f"({data_types})."
-            )
-        LOGGER.info(f"Using {requested_types}. Skipping {data_types - requested_types}")
-        particle_numbers = np.array(
-            [dataset.particle_numbers[i] for i in requested_types]
+    if particle_type is None:
+        particle_type = dataset.particle_type
+        LOGGER.info(f"No particle type provided. Defaulting to {particle_type}")
+    elif particle_type not in dataset.particle_types:
+        raise ValueError(
+            f"Requested {particle_type} "
+            "but it is not present in the dataset "
+            f"(Only {dataset.particle_types} found)."
         )
+
+    particle_number = dataset.particle_numbers[particle_type]
 
     cube_box = dataset.bounding_box if cube_box is None else cube_box
     cube_box = bbox.make_bounding_box(cube_box)
@@ -326,10 +310,10 @@ def make_cubes(
     cubes_per_side = _process_cubes_per_side(cubes_per_side)
 
     num_cubes = cubes_per_side**3 + 1
-    if np.any(particle_numbers / num_cubes > 2**31):
+    if particle_number / num_cubes > 2**31:
         raise ValueError(
             f"Insufficient number of cubes specified. Requested {cubes_per_side}"
-            f" cubes per side, leading to >={particle_numbers / num_cubes}"
+            f" cubes per side, leading to >={particle_number / num_cubes}"
             f" particles per cube. Max per cube supported is {2**32}"
         )
 
@@ -339,52 +323,48 @@ def make_cubes(
         else particle_threshold
     )
 
-    for pt in requested_types:
-        LOGGER.info(f"Processing {pt}")
-        dataset.particle_type = pt
-        data = dataset.data_container
+    dataset.particle_type = particle_type
+    data = dataset.data_container
 
-        LOGGER.info("Cubing")
-        cube_indices = cube(data, cubes_per_side, cube_box)
+    LOGGER.info("Cubing")
+    cube_indices = cube(data, cubes_per_side, cube_box)
 
-        # check cube sizes
-        if np.any(np.diff(cube_indices[:-1]) >= 2**32):
-            raise ValueError(
-                f"Requested number of cubes is insufficient for {pt}. At least"
-                " one cube has more than 2**32 particles, the max allowed for"
-                " a packed tree."
-            )
-
-        LOGGER.info("Getting boxes")
-        cube_boxes = _get_cube_boxes(
-            data=data, box=cube_box, cubes_per_side=cubes_per_side
+    # check cube sizes
+    if np.any(np.diff(cube_indices[:-1]) >= 2**32):
+        raise ValueError(
+            f"Requested number of cubes is insufficient for {particle_type}. At least"
+            " one cube has more than 2**32 particles, the max allowed for"
+            " a packed tree."
         )
 
-        LOGGER.info("Removing empties")
-        cube_indices, cube_boxes = _prune_empty(len(data), cube_indices, cube_boxes)
+    LOGGER.info("Getting boxes")
+    cube_boxes = _get_cube_boxes(data=data, box=cube_box, cubes_per_side=cubes_per_side)
 
-        LOGGER.info("Making trees")
-        trees = make_trees(data, cube_indices, cube_boxes, particle_threshold)
+    LOGGER.info("Removing empties")
+    cube_indices, cube_boxes = _prune_empty(len(data), cube_indices, cube_boxes)
 
-        LOGGER.info("Converting to PackedTrees")
-        ptrees = [
-            PackedTree(
-                source=t,
-                particle_threshold=particle_threshold,
-                bounding_box=b,
-            )
-            for t, b in zip(trees, cube_boxes, strict=True)
-        ]
+    LOGGER.info("Making trees")
+    trees = make_trees(data, cube_indices, cube_boxes, particle_threshold)
 
-        cubes[pt] = {
-            "cube_indices": cube_indices,
-            "cube_boxes": cube_boxes,
-            "cube_trees": ptrees,
-        }
-        LOGGER.info(f"Done with {pt}")
+    LOGGER.info("Converting to PackedTrees")
+    ptrees = [
+        PackedTree(
+            source=t,
+            particle_threshold=particle_threshold,
+            bounding_box=b,
+        )
+        for t, b in zip(trees, cube_boxes, strict=True)
+    ]
 
-        if save_dataset:
-            dataset.save()
+    cubes = ParticleCubes(
+        cube_indices=cube_indices, cube_boxes=cube_boxes, cube_trees=ptrees
+    )
+
+    if save_dataset:
+        LOGGER.info("Saving dataset changes")
+        dataset.save()
+
+    LOGGER.info("Done")
 
     return cubes
 
