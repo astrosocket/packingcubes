@@ -6,14 +6,11 @@ a snapshot file
 
 Functions
 ---------
-    Cubes(dataset=dataset, particle_types=[..])
-        Load if present or create ParticleCubes/MultiCubes object from the
-        provided dataset with the provided particle_types
+    Cubes(dataset=dataset, particle_type=[..])
+        Load if present or create ParticleCubes object from the
+        provided dataset with the provided particle_type
     make_cubes(dataset=dataset, cubes_per_side=-1, save_dataset=False)
-        Make a cubes_dict type structure from the provided dataset without saving
-    make_ParticleCubes(dataset=dataset)
-        Explicitly create a ParticleCubes object, raising an error if multiple
-        particle types are present. Primarily intended for typechecking
+        The actual function to make a ParticleCubes object
     load_cubes(dataset=dataset)
         Load a cubes_dict type structure from the provideed dataset
 
