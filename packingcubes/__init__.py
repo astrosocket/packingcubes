@@ -58,9 +58,6 @@ from packingcubes.cubes import (
     ParticleCubes as ParticleCubes,
 )
 from packingcubes.cubes import make_cubes as make_cubes
-from packingcubes.cubes import (
-    make_ParticleCubes as make_ParticleCubes,
-)
 from packingcubes.data_objects import (
     GadgetishHDF5Dataset as GadgetishHDF5Dataset,
 )
@@ -83,7 +80,6 @@ __all__ = [
     "make_cubes",
     "Cubes",
     "ParticleCubes",
-    "make_ParticleCubes",
     "__version__",
 ]
 
