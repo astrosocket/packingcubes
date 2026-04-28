@@ -421,7 +421,7 @@ class ParticleCubes:
         return dataset.filepath if isinstance(dataset, Dataset) else Path(dataset)
 
 
-def has_cubes(dataset: str | Path | MultiParticleDataset | Any):
+def has_cubes(dataset: str | Path | MultiParticleDataset | Any) -> bool:
     """Return true if the dataset contains a packingcubes structure"""
     # TODO: This whole function probably needs to be refactored somewhere else
     if isinstance(dataset, HDF5Dataset):
