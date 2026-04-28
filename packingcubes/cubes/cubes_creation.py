@@ -22,7 +22,7 @@ import argparse
 import logging
 import sys
 from collections.abc import Collection, Mapping
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, cast, overload
 
 import h5py  # type: ignore
 import numpy as np
@@ -441,9 +441,13 @@ def _add_trees_to_cubes_dict(
     )
 
 
+@overload
+def _handle_dataset_types(dataset: None, **kwargs) -> None: ...
+@overload
 def _handle_dataset_types(
-    dataset: str | NDArray | MultiParticleDataset | None = None, **kwargs
-) -> MultiParticleDataset | None:
+    dataset: str | NDArray | MultiParticleDataset, **kwargs
+) -> MultiParticleDataset: ...
+def _handle_dataset_types(dataset=None, **kwargs):
     """Convert various possible dataset types into MultiParticleDatasets
 
     Parameters
@@ -549,8 +553,6 @@ def Cubes(
             )
         except (NotImplementedError, ValueError):
             dataset = _handle_dataset_types(dataset, particle_type=particle_type)
-            if TYPE_CHECKING:
-                assert dataset is not None
             cubes = make_cubes(dataset=dataset, particle_type=particle_type, **kwargs)
     else:
         if "cube_trees" not in cubes_dict:
@@ -558,7 +560,6 @@ def Cubes(
                 raise CubesError("cubes_dict has no trees and dataset not provided")
             dataset = _handle_dataset_types(dataset, particle_type=particle_type)
             if TYPE_CHECKING:
-                assert dataset is not None
                 assert particle_type is not None
             _add_trees_to_cubes_dict(
                 cubes_dict=cubes_dict,
