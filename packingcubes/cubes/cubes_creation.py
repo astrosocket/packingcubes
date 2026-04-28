@@ -22,7 +22,7 @@ import argparse
 import logging
 import sys
 from collections.abc import Collection, Mapping
-from typing import TYPE_CHECKING, cast, overload
+from typing import TYPE_CHECKING, Any, cast, overload
 
 import h5py  # type: ignore
 import numpy as np
@@ -484,6 +484,7 @@ def Cubes(
     cubes_dict: dict[str, NDArray | list[bbox.BoundingBox] | list[NDArray | PackedTree]]
     | None = None,
     particle_type: str | None = None,
+    extras: Mapping[str, Any] | None = None,
     **kwargs,
 ) -> ParticleCubes:
     """Create or load ParticleCubes objects from the provided data
@@ -515,6 +516,13 @@ def Cubes(
     particle_type: str, optional
         The particle type to use. Unused if `cubes_dict` is provided.
         Defaults to `dataset.particle_type`
+
+    extras: Mapping[str, Any], optional
+        Attach additional fields to the dataset to be sorted. Unused if
+        `cubes_dict` is provided.
+        See `process_extra_fields` for
+        [MultiParticleDataset][Dataset.process_extra_fields] or
+        [GadgetishHDF5Dataset][HDF5Dataset.process_extra_fields]
 
     **kwargs
         Extra arguments to `MultiParticleDataset`, `make_cubes` and
@@ -553,6 +561,8 @@ def Cubes(
         except (NotImplementedError, ValueError):
             dataset = _handle_dataset_types(dataset, particle_type=particle_type)
             cubes = make_cubes(dataset=dataset, particle_type=particle_type, **kwargs)
+            if extras:
+                dataset.process_extra_fields(extras)
     else:
         if "cube_trees" not in cubes_dict:
             if dataset is None:
