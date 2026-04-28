@@ -31,11 +31,13 @@ import contextlib
 import logging
 import warnings
 from abc import ABC, abstractmethod
+from collections.abc import Mapping
 from pathlib import Path
+from typing import Any
 
 import h5py  # type: ignore
 import numpy as np
-from numba import TypingError, boolean, float64, int64, njit  # type: ignore
+from numba import TypingError, boolean, float64, int64, njit, prange  # type: ignore
 from numba.experimental import jitclass
 from numba.extending import as_numba_type
 from numpy.typing import NDArray
@@ -154,6 +156,37 @@ def subview(data: DataContainer, start_index: int, end_index: int) -> DataContai
     )
 
 
+@njit(parallel=True)
+def _sort_field_in_place_1D(index, field):
+    new_field = np.empty_like(field)
+    for i in prange(len(field)):
+        new_field[index[i]] = field[i]
+    for i in prange(len(field)):
+        field[i] = new_field[i]
+
+
+@njit(parallel=True)
+def _sort_field_in_place_2D(index, field):
+    new_field = np.empty_like(field)
+    width = field.shape[1]
+    for i in prange(len(field)):
+        for j in range(width):
+            new_field[index[i], j] = field[i, j]
+    for i in prange(len(field)):
+        for j in range(width):
+            field[i, j] = new_field[i, j]
+
+
+def _sort_field_in_place(index, field):
+    shape = field.shape
+    if len(shape) == 1 or (len(shape) == 2 and shape[1] == 1):
+        _sort_field_in_place_1D(index, field)
+    elif len(shape) == 2:
+        _sort_field_in_place_2D(index, field)
+    else:
+        raise TypeError(f"Don't know how to sort field of type {shape}")
+
+
 class Dataset:
     """
     Base class for holding particle position data and associated shuffle list
@@ -254,6 +287,69 @@ class Dataset:
         else:
             box = np.array([0, 0, 0, 1, 1, 1])
         self._box = bbox.make_bounding_box(box)
+
+    def process_extra_fields(self, extra: Mapping[str, Any]):
+        """Process extra fields
+
+        How different types of extra fields are handled will depend on
+        [make_into_array][make_into_array], but the end effect will be a sorted
+        array accessible as an attribute of this dataset instance with the name
+        provided.
+
+        Parameters
+        ----------
+        extra:
+            A mapping of names to extra fields to attach.
+
+        Examples
+        --------
+        >>> dataset.process_extra_fields({"mass":"Mass"})
+        >>> dataset.mass
+
+        Note
+        ----
+        Any attributes added via this method will only be sorted now. Any
+        subsequent sorting will not affect the ordering of these attributes
+        """
+        if not hasattr(self, "_extras"):
+            self._extras = {}
+        for name, field in extra.items():
+            field_arr, is_sorted = self.make_into_array(field)
+            if not is_sorted:
+                _sort_field_in_place(field_arr, self._index)
+            self.__dict__[name] = field_arr
+            self._extras[name] = field_arr
+
+    def make_into_array(self, field: NDArray | Any) -> tuple[NDArray, bool]:
+        """Try to convert field into an array
+
+        Parameters
+        ----------
+        field:
+            Object to be converted into an array.
+
+            Supported types:
+
+              - `NDArray`s with the same length (1st dimension) as positions.
+                Always assumed unsorted.
+
+        Returns
+        -------
+        field_arr:
+            An array of the values with the 1st dimension having the same length
+            as positions
+
+        is_sorted:
+            If `field_arr` is already sorted
+
+        Raises
+        ------
+        NotImplementedError
+            If we do not know how to transform `type(field)` into an array
+        """
+        if isinstance(field, np.ndarray) and len(field) == len(self.positions):
+            return field, False
+        raise NotImplementedError(f"{type(self)} only do No-op transformations")
 
     @property
     def data_container(self) -> DataContainer:
@@ -431,17 +527,19 @@ class InMemory(MultiParticleDataset):
 
         particle_type = self.particle_type if particle_type is None else particle_type
 
+        extras = getattr(self, "_extras", {})
+        fields = ["Coordinates", "index", *extras]
+        arrays = [self._positions, self._index, *extras.values()]
+
         with h5py.File(output_file, "a") as output:
-            for field, array in zip(
-                ["Coordinates", "index"], [self._positions, self._index], strict=True
-            ):
+            for field, array in zip(fields, arrays, strict=True):
                 name = f"{particle_type}/{field}"
                 if name in output:
                     if force_overwrite:
                         del output[name]
                     else:
                         raise DatasetError(
-                            f"{output_file} already contains {particle_type} "
+                            f"{output_file} already contains {name} "
                             "and force_overwrite=False"
                         )
                 output[name] = array
@@ -674,6 +772,63 @@ class HDF5Dataset(MultiParticleDataset):
         if hasattr(self, "_data"):
             del self._data
 
+    def make_into_array(self, field: str | NDArray | Any) -> tuple[NDArray, bool]:
+        """Try to convert field into an array
+
+        Parameters
+        ----------
+        field:
+            Object to be converted into an array
+
+            Supported types:
+
+              - `NDArray`s with the same length (1st dimension) as positions.
+                Always assumed unsorted.
+              - strings representing fields in either the HDF5 file at
+                `self.filepath` (unsorted) or `self.sorted_filepath` (sorted)
+
+        Returns
+        -------
+        field_arr:
+            An array of the values with the 1st dimension having the same length
+            as positions
+
+        is_sorted:
+            If `field_arr` is already sorted
+
+        Raises
+        ------
+        NotImplementedError
+            If we do not know how to transform `type(field)` into an array
+        """
+        if isinstance(field, np.ndarray) and len(field) == len(self.positions):
+            return field, False
+        if isinstance(field, str):
+            is_sorted = True
+            for filepath in [self._sorted_file_name, self.filepath]:
+                with h5py.File(filepath, "r") as file:
+                    pt = self._particle_type + "/"
+                    fname = f"{self._particle_type}/{field}"
+                    if fname not in file:
+                        is_sorted = False
+                        continue
+                    field_arr = _load_data_from_slices(
+                        file[fname], self._data_slices[self._particle_type]
+                    )
+                    return field_arr, is_sorted
+            raise DatasetError(
+                f"""
+                Field {field} was not found in either {self.filepath}
+                or {self._sorted_file_name}.
+                """
+            )
+        raise NotImplementedError(
+            f"""
+            {type(self)} can only do No-op transformations or load fields from
+            the HDF5 file as if via an HDF5 dataset name
+            """
+        )
+
     def save(
         self,
         *,
@@ -700,10 +855,14 @@ class HDF5Dataset(MultiParticleDataset):
 
         particle_type = self.particle_type if particle_type is None else particle_type
 
+        extras = getattr(self, "_extras", {})
+        fields = [self._positions_field, "index", *extras]
+        arrays = [self._positions, self._index, *extras.values()]
+
         with h5py.File(output_file, "a") as output:
             for field, array in zip(
-                [self._positions_field, "index"],
-                [self._positions, self._index],
+                fields,
+                arrays,
                 strict=True,
             ):
                 name = f"{particle_type}/{field}"
@@ -711,7 +870,7 @@ class HDF5Dataset(MultiParticleDataset):
                     del output[name]
                 else:
                     raise DatasetError(
-                        f"{output_file} already contains {particle_type} "
+                        f"{output_file} already contains {name} "
                         "and force_overwrite=False"
                     )
                 output[name] = array
