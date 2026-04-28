@@ -566,9 +566,9 @@ def Cubes(
                 particle_type=particle_type,
                 **kwargs,
             )
-            cube_indices = cast(NDArray[np.int_], cubes_dict["cube_indices"])
-            cube_boxes = cast(List[bbox.BoundingBox], cubes_dict["cube_boxes"])
-            cube_trees = cast(List[PackedTree], cubes_dict["cube_trees"])
+        cube_indices = cast(NDArray[np.int_], cubes_dict["cube_indices"])
+        cube_boxes = cast(List[bbox.BoundingBox], cubes_dict["cube_boxes"])
+        cube_trees = cast(List[PackedTree], cubes_dict["cube_trees"])
         cubes = ParticleCubes(
             cube_indices=cube_indices,
             cube_boxes=cube_boxes,
