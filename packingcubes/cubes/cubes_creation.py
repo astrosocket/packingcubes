@@ -500,21 +500,20 @@ def Cubes(
     ----------
     dataset: str | NDArray | MultiParticleDataset, optional
         Dataset containing positional data. Will be used to create a new
-        ParticleCubes (if array or Dataset with only one particle type) or
-        dictionary (otherwise) object, including sorting. Must provide either
+        ParticleCubes, including sorting. Must provide either
         this or cubes_dict, below. Assumes strings are filepaths to
         [GadgetishHDF5Datasets][GadgetishHDF5Dataset].
 
     cubes_dict: dict, optional
-        Dictionary with 3 components:
+        Dictionary with 2-3 components:
 
          1. cube_indices - contains the data offsets for each cube's particles
            (i.e. cube 0 is from `cubes_indices[0]:cubes_indices[1]`)
          2. cube_boxes - containes the `BoundingBox` for each cube
-         3. cube_trees - contains the `PackedTree` for each cube
+         3. cube_trees (optional) - contains the `PackedTree` for each cube
 
     particle_type: str, optional
-        The particle type to use. Unused if cubes_dict is provided.
+        The particle type to use. Unused if `cubes_dict` is provided.
         Defaults to `dataset.particle_type`
 
     **kwargs
