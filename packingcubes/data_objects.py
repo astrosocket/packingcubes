@@ -657,7 +657,10 @@ class HDF5Dataset(MultiParticleDataset):
                     file[pt + self._positions_field],
                     self._data_slices[self._particle_type],
                 )
-                self._index = file[pt + "index"]
+                self._index = _load_data_from_slices(
+                    file[pt + "index"],
+                    self._data_slices[self._particle_type],
+                )
             else:
                 positions = _load_data_from_slices(
                     file[self._particle_type][self._positions_field],
