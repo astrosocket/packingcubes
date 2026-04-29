@@ -391,7 +391,6 @@ def get_particle_indices_in_shape(
 @njit(parallel=True)
 def _parallel_expand_all_data_indices(
     slices: NDArray[np.int_],
-    shape: bbox.BoundingVolume,
 ):
     num_particles = 0
     offsets = np.empty((slices.shape[0],), dtype=np.int_)
@@ -413,9 +412,7 @@ def _parallel_expand_all_data_indices(
 
 
 @njit(parallel=True)
-def _parallel_expand_all_shuffle_indices(
-    slices: NDArray[np.int_], shape: bbox.BoundingVolume, data: DataContainer
-):
+def _parallel_expand_all_shuffle_indices(slices: NDArray[np.int_], data: DataContainer):
     num_particles = 0
     offsets = np.empty((slices.shape[0],), dtype=np.int_)
     for i in range(slices.shape[0]):
@@ -592,10 +589,10 @@ def get_particle_index_list_in_shape(
 
     if use_data_indices:
         if data is None:
-            return _parallel_expand_all_data_indices(slices, shape)
+            return _parallel_expand_all_data_indices(slices)
         return _parallel_expand_data_indices(slices, shape, data)
     if data is None:
-        return _parallel_expand_all_shuffle_indices(slices, shape, data)
+        return _parallel_expand_all_shuffle_indices(slices, data)
     return _parallel_expand_shuffle_indices(slices, shape, data)
 
 
