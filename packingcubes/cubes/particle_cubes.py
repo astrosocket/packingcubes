@@ -194,6 +194,7 @@ class ParticleCubes:
             cube_offsets=self.cube_indices,
             shape=shape,
             data=data.data_container if isinstance(data, Dataset) else data,
+            strict=strict,
             use_data_indices=use_data_indices,
         )
 

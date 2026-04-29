@@ -548,7 +548,8 @@ def get_particle_index_list_in_shape(
     trees: List[PackedTreeNumba],
     cube_offsets: NDArray,
     shape: bbox.BoundingVolume,
-    data: DataContainer | None,
+    data: DataContainer,
+    strict: bool,  # noqa: FBT001, FBT002
     use_data_indices: bool,  # noqa: FBT001, FBT002
 ) -> NDArray[np.int_]:
     """Get the array of particle indices in the specified shape
@@ -570,13 +571,19 @@ def get_particle_index_list_in_shape(
     shape:
         BoundingVolume to check
 
-    data: DataContainer | None
-        Particle positions information. If `None`, only check whether node
-        is within shape, which is equivalent to expanding the node
-        start/stops from `_get_particle_indices_in_shape`
+    data: DataContainer
+        Particle positions information. If data is not available and you want
+        non-strict data indices, consider calling
+        [_parallel_expand_all_data_indices][_parallel_expand_all_data_indices]
+        directly.
+
+    strict: bool
+        If `False`, only check whether node is within shape, which is
+        equivalent to expanding the node start/stops from
+        `_get_particle_indices_in_shape`. Default `True`.
 
     use_data_indices: bool
-        Return shuffle indices if `False`. Default `True`
+        Return shuffle indices if `False`. Default `True`.
 
     Returns
     -------
@@ -588,12 +595,12 @@ def get_particle_index_list_in_shape(
     slices = get_particle_indices_in_shape(cubes, trees, cube_offsets, shape)
 
     if use_data_indices:
-        if data is None:
-            return _parallel_expand_all_data_indices(slices)
-        return _parallel_expand_data_indices(slices, shape, data)
-    if data is None:
-        return _parallel_expand_all_shuffle_indices(slices, data)
-    return _parallel_expand_shuffle_indices(slices, shape, data)
+        if strict:
+            return _parallel_expand_data_indices(slices, shape, data)
+        return _parallel_expand_all_data_indices(slices)
+    if strict:
+        return _parallel_expand_shuffle_indices(slices, shape, data)
+    return _parallel_expand_all_shuffle_indices(slices, data)
 
 
 @njit(parallel=False)
