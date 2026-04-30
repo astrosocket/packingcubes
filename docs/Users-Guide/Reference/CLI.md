@@ -4,6 +4,7 @@ icon: lucide/terminal
 
 # Command Line Interface
 
+<div>
 <pre><font color="#12488B"><b>usage: </b></font><font color="#A347BA"><b>packcubes</b></font> [<font color="#26A269">-h</font>] [<font color="#26A269">-v</font>] [<font color="#26A269">-n </font><font color="#A2734C">N</font>] [<font color="#26A269">-p </font><font color="#A2734C">PARTICLE_THRESHOLD</font>] [<font color="#26A269">-x </font><font color="#A2734C">X</font>] [<font color="#2AA1B3">-dx </font><font color="#A2734C">DX</font>]
                                                    [<font color="#26A269">-y </font><font color="#A2734C">Y</font>] [<font color="#2AA1B3">-dy </font><font color="#A2734C">DY</font>] [<font color="#26A269">-z </font><font color="#A2734C">Z</font>] [<font color="#2AA1B3">-dz </font><font color="#A2734C">DZ</font>] [<font color="#26A269">-c </font><font color="#A2734C">CONFIG</font>]
                                                    [<font color="#26A269">-t </font><font color="#A2734C">PARTICLE_TYPES [PARTICLE_TYPES ...]</font>]
@@ -48,3 +49,5 @@ SNAPSHOT OUTPUT at the end. Additional arguments can be read from a file by spec
 `@filename` anywhere among the argument string. Any arguments found in the file will overwrite previously
 specified arguments and be overwritten by arguments specified later. Note that this is different behavior
 from the -c/--config argument!</pre>
+
+</div>
