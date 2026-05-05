@@ -479,8 +479,8 @@ def _handle_dataset_types(dataset=None, **kwargs):
 
 
 def Cubes(
-    *,
     dataset: str | NDArray | MultiParticleDataset | None = None,
+    *,
     cubes_dict: dict[str, NDArray | list[bbox.BoundingBox] | list[NDArray | PackedTree]]
     | None = None,
     particle_type: str | None = None,
@@ -502,7 +502,7 @@ def Cubes(
     dataset: str | NDArray | MultiParticleDataset, optional
         Dataset containing positional data. Will be used to create a new
         ParticleCubes, including sorting. Must provide either
-        this or cubes_dict, below. Assumes strings are filepaths to
+        this or `cubes_dict`, below. Assumes strings are filepaths to
         [GadgetishHDF5Datasets][GadgetishHDF5Dataset].
 
     cubes_dict: dict, optional

@@ -96,7 +96,7 @@ positions[:, :2] = xy
 We don't need anything fancy, so creating a `ParticleCubes` is pretty simple:
 
 ```python
-cubes = packingcubes.Cubes(dataset=positions, particle_threshold=10) # (1)!
+cubes = packingcubes.Cubes(positions, particle_threshold=10) # (1)!
 cubes
 ```
 

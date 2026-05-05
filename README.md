@@ -97,14 +97,14 @@ Alternatively:
 ```python
 import packingcubes
 
-cubes = packingcubes.Cubes(dataset="path/to/snapshot.hdf5", save_dataset=True)
+cubes = packingcubes.Cubes("path/to/snapshot.hdf5", save_dataset=True)
 
 cubes.save("path/to/output.hdf5")
 
 # sorted positions/indices are stored in snapshot_sorted.hdf5 by default
 # to save elsewhere, use
 cubes = packingcubes.Cubes(
-    dataset="path/to/snapshot.hdf5", 
+    "path/to/snapshot.hdf5", 
     save_dataset=True,
     sorted_filepath="path/to/output.hdf5"
 )
@@ -125,7 +125,7 @@ The data will still not be copied (by default)
 
 ``` python
 cubes = packingcubes.Cubes(
-    dataset=positions_data,
+    positions_data,
     sorted_filepath="path/to/dataset_output.hdf5",
     # filepath would also work
     save_dataset=True
@@ -172,7 +172,7 @@ So the search pipeline might go something like:
 
 ```python
 dataset = packingcubes.GadgetishHDF5Dataset(orig_dataset_file)
-cubes = packingcubes.Cubes(dataset=dataset)
+cubes = packingcubes.Cubes(dataset)
 
 indices = cubes.get_indices_in_sphere(center, radius)
 

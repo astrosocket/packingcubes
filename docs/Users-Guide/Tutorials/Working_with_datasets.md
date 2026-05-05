@@ -147,8 +147,8 @@ Just-In-Time compile some of the functions. Subsequent invocations will be
 faster.
 
 ```python
-cubes = packingcubes.Cubes(dataset=dataset, particle_type="PartType0")
-inmem_cubes = packingcubes.Cubes(dataset=inmem_dataset)
+cubes = packingcubes.Cubes(dataset, particle_type="PartType0")
+inmem_cubes = packingcubes.Cubes(inmem_dataset)
 ```
 
 These cubes are ready for searching!
@@ -226,7 +226,7 @@ parameters, like so:
 
 ```python
 cubes = packingcubes.Cubes(
-    dataset="./snapshot_090.hdf5", 
+    "./snapshot_090.hdf5", 
     particle_type="PartType0",
     sorted_filepath="sorted_positions.hdf5",
     save_dataset=True,
