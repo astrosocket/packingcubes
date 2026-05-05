@@ -47,6 +47,8 @@ class ParticleCubes:
     """ The packed trees for each cube """
     _numba_trees: List[PackedTreeNumba]
     """ The PackedTreeNumba for each cube """
+    _dataset: Dataset | None
+    """ An attached dataset """
 
     def __init__(
         self,
@@ -54,6 +56,7 @@ class ParticleCubes:
         cube_indices: NDArray,
         cube_boxes: List[BoundingBox],
         cube_trees: list[NDArray] | list[PackedTree] | list[NDArray | PackedTree],
+        dataset: Dataset | None = None,
         **kwargs,
     ):
         particle_threshold = getattr(
@@ -76,6 +79,7 @@ class ParticleCubes:
             )
 
         self._numba_trees = List([t._tree for t in self.cube_trees])
+        self._dataset = dataset
 
     def _get_particle_indices_in_shape(
         self,
@@ -388,6 +392,11 @@ class ParticleCubes:
             Still in progress. Try a PackedTree for this functionality
             """
         )
+
+    @property
+    def dataset(self) -> Dataset | None:
+        """Return the attached Dataset to this object or None"""
+        return self._dataset
 
     def save(
         self,

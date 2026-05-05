@@ -29,11 +29,14 @@ class MultiCubes:
 
     _cubes_dict: dict[str, ParticleCubes]
     """ Mapping from particle type to ParticleCubes for this dataset """
+    _dataset: Dataset | None
+    """ An attached dataset """
 
     def __init__(
         self,
         *,
         cubes_dict: dict[str, dict] | Mapping[str, ParticleCubes],
+        dataset: Dataset | None = None,
         **kwargs,
     ):
         self._cubes_dict = {}
@@ -51,8 +54,10 @@ class MultiCubes:
                 cube_indices=cube_indices,
                 cube_boxes=cube_boxes,
                 cube_trees=cube_trees,
+                dataset=dataset,
                 **kwargs,
             )
+        self._dataset = dataset
 
     @property
     def particle_types(self):
