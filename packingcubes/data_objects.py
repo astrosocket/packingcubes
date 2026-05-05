@@ -467,6 +467,7 @@ class InMemory(MultiParticleDataset):
                 )
             )
         self._positions = positions.astype(np.float64, copy=False)
+        filepath = "" if filepath is None else filepath
         super().__init__(name=name, filepath=filepath)
         if bounding_box is None:
             self._set_bounding_box()
