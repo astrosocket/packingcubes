@@ -223,8 +223,8 @@ class MultiCubes:
         inds = {}
         for pt in particle_types:
             inds[pt] = self._cubes_dict[pt]._get_particle_index_list_in_shape(
-                data,
-                shape,
+                data=data,
+                shape=shape,
                 use_data_indices=use_data_indices,
             )
         return inds

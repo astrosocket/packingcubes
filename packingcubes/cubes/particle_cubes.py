@@ -157,11 +157,18 @@ class ParticleCubes:
 
         return self._get_particle_indices_in_shape(sph)
 
+    def _needs_data(self, data: DataContainer | Dataset | None = None):
+        """Check if data is provided or attached"""
+        data = self._dataset if data is None else data
+        if data is None:
+            raise ValueError("Dataset not provided and no dataset attached")
+        return data
+
     def _get_particle_index_list_in_shape(
         self,
-        data: DataContainer | Dataset,
-        shape: bbox.BoundingVolume,
         *,
+        shape: bbox.BoundingVolume,
+        data: DataContainer | Dataset | None = None,
         use_data_indices: bool = True,
         strict: bool = False,
     ) -> NDArray[np.int_]:
@@ -171,9 +178,9 @@ class ParticleCubes:
 
         Parameters
         ----------
-        data: DataContainer | Dataset
+        data: DataContainer | Dataset, optional
             Dataset containing the particle positions. Pass a DataContainer
-            object for a slight performance increase
+            object for a slight performance increase. Defaults to self.dataset.
 
         box: BoundingBox
             The bounding box of the shape
@@ -191,7 +198,13 @@ class ParticleCubes:
         -------
         indices: Array[int]
             Array of particle indices contained within shape
+
+        Raises
+        ------
+        ValueError
+            If `data` is `None` and `self.dataset` is `None`
         """
+        data = self._needs_data(data)
         return get_particle_index_list_in_shape(
             cubes=self.cube_boxes,
             trees=self._numba_trees,
@@ -204,9 +217,9 @@ class ParticleCubes:
 
     def get_particle_index_list_in_box(
         self,
-        data: DataContainer | Dataset,
         box: bbox.BoxLike,
         *,
+        data: DataContainer | Dataset | None = None,
         use_data_indices: bool = True,
         strict: bool = False,
     ) -> NDArray[np.int_]:
@@ -214,12 +227,12 @@ class ParticleCubes:
 
         Parameters
         ----------
-        data: DataContainer | Dataset
-            Dataset containing the particle positions. Pass a DataContainer
-            object for a slight performance increase
-
         box: BoxLike
             The box to search in
+
+        data: DataContainer | Dataset, optional
+            Dataset containing the particle positions. Pass a DataContainer
+            object for a slight performance increase. Defaults to self.dataset.
 
         use_data_indices: bool, optional
             Flag to return indices into the sorted dataset (True, default) or
@@ -234,6 +247,11 @@ class ParticleCubes:
         -------
         indices: Array[int]
             Array of particle indices contained within shape
+
+        Raises
+        ------
+        ValueError
+            If `data` is `None` and `self.dataset` is `None`
         """
         numba_box = bbox.make_bounding_box(box)
         return self._get_particle_index_list_in_shape(
@@ -245,10 +263,10 @@ class ParticleCubes:
 
     def get_particle_index_list_in_sphere(
         self,
-        data: DataContainer | Dataset,
         center: NDArray,
         radius: float,
         *,
+        data: DataContainer | Dataset | None = None,
         use_data_indices: bool = True,
         strict: bool = False,
     ) -> NDArray[np.int_]:
@@ -256,15 +274,15 @@ class ParticleCubes:
 
         Parameters
         ----------
-        data: DataContainer | Dataset
-            Dataset containing the particle positions. Pass a DataContainer
-            object for a slight performance increase
-
         center: NDArray
             Center point of the sphere
 
         radius: float
             Radius of the sphere
+
+        data: DataContainer | Dataset, optional
+            Dataset containing the particle positions. Pass a DataContainer
+            object for a slight performance increase. Defaults to self.dataset.
 
         use_data_indices: bool, optional
             Flag to return indices into the sorted dataset (True, default) or
@@ -279,6 +297,11 @@ class ParticleCubes:
         -------
         indices: NDArray[int]
             Array of particle indices contained within the sphere
+
+        Raises
+        ------
+        ValueError
+            If `data` is `None` and `self.dataset` is `None`
         """
         sph = bbox.make_bounding_sphere(radius, center=center, unsafe=True)
         return self._get_particle_index_list_in_shape(
@@ -291,8 +314,8 @@ class ParticleCubes:
     def get_closest_particles(
         self,
         *,
-        data: DataContainer | Dataset,
         xyz: NDArray,
+        data: DataContainer | Dataset | None = None,
         distance_upper_bound: float | None = None,
         p: float | None = None,
         k: int | None = None,
@@ -303,11 +326,11 @@ class ParticleCubes:
 
         Parameters
         ----------
-        data: DataContainer | Dataset
-            Source of particle position data
-
         xyz: ArrayLike
             Coordinates of point to check
+
+        data: DataContainer | Dataset, optional
+            Source of particle position data. Defaults to self.dataset.
 
         distance_upper_bound: nonnegative float, optional
             Return only neighbors from other nodes within this distance. This
@@ -347,6 +370,8 @@ class ParticleCubes:
         ------
         NotImplementedError
             If a p value of greater than 2 is provided
+        ValueError
+            If `data` is `None` and `self.dataset` is `None`
         """
         p = 2 if p is None else p
         if p != 2:
@@ -363,6 +388,7 @@ class ParticleCubes:
         )
         return_sorted = True if return_sorted is None else return_sorted
 
+        data = self._needs_data(data)
         return get_closest_particles(
             self.cube_boxes,
             self._numba_trees,
