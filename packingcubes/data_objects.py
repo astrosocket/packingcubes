@@ -568,7 +568,7 @@ def _load_data_from_slices(dataset: h5py.Dataset, slices: list | None) -> NDArra
         The (possibly) sliced dataset
     """
     if slices is None:
-        return dataset[:, :]
+        return np.array(dataset)
 
     width = dataset.shape[1]
     number = sum(s.stop - s.start for s in slices)
