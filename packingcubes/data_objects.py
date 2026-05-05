@@ -434,6 +434,7 @@ class InMemory(MultiParticleDataset):
         name: str = "",
         filepath: str = "",
         particle_type: str | None = None,
+        bounding_box: bbox.BoundingBox | None = None,
         **kwargs,
     ):
         """
@@ -467,7 +468,10 @@ class InMemory(MultiParticleDataset):
             )
         self._positions = positions.astype(np.float64, copy=False)
         super().__init__(name=name, filepath=filepath)
-        self._set_bounding_box()
+        if bounding_box is None:
+            self._set_bounding_box()
+        else:
+            self._box = bounding_box
         self._setup_index()
         self._particle_type = "PartTypeIM" if particle_type is None else particle_type
 
