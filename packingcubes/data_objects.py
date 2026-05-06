@@ -342,14 +342,16 @@ class Dataset:
 
               - `NDArray`s with the same length (1st dimension) as positions.
                 Always assumed unsorted.
+              - (`NDArray`, `is_sorted`) tuples, where the NDArray must be like the
+                above.
 
         Returns
         -------
-        field_arr:
+        field_arr: NDArray
             An array of the values with the 1st dimension having the same length
             as positions
 
-        is_sorted:
+        is_sorted: bool
             If `field_arr` is already sorted
 
         Raises
@@ -357,8 +359,11 @@ class Dataset:
         NotImplementedError
             If we do not know how to transform `type(field)` into an array
         """
+        is_sorted = False
+        if isinstance(field, tuple) and len(field) == 2:
+            field, is_sorted = field
         if isinstance(field, np.ndarray) and len(field) == len(self.positions):
-            return field, False
+            return field, is_sorted
         raise NotImplementedError(f"{type(self)} only do No-op transformations")
 
     @property
@@ -795,20 +800,21 @@ class HDF5Dataset(MultiParticleDataset):
         field:
             Object to be converted into an array
 
-            Supported types:
+            Adds supported types:
 
-              - `NDArray`s with the same length (1st dimension) as positions.
-                Always assumed unsorted.
               - strings representing fields in either the HDF5 file at
                 `self.filepath` (unsorted) or `self.sorted_filepath` (sorted)
 
+            See [MultiParticleDataset][MultiParticleDataset.make_into_array]
+            for additional supported types.
+
         Returns
         -------
-        field_arr:
+        field_arr: NDArray
             An array of the values with the 1st dimension having the same length
             as positions
 
-        is_sorted:
+        is_sorted: bool
             If `field_arr` is already sorted
 
         Raises
@@ -816,11 +822,12 @@ class HDF5Dataset(MultiParticleDataset):
         NotImplementedError
             If we do not know how to transform `type(field)` into an array
         """
-        if isinstance(field, np.ndarray) and len(field) == len(self.positions):
-            return field, False
         if isinstance(field, str):
             is_sorted = True
             for filepath in [self._sorted_file_name, self.filepath]:
+                if not h5py.is_hdf5(filepath):
+                    is_sorted = False
+                    continue
                 with h5py.File(filepath, "r") as file:
                     pt = self._particle_type + "/"
                     fname = f"{self._particle_type}/{field}"
@@ -837,12 +844,7 @@ class HDF5Dataset(MultiParticleDataset):
                 or {self._sorted_file_name}.
                 """
             )
-        raise NotImplementedError(
-            f"""
-            {type(self)} can only do No-op transformations or load fields from
-            the HDF5 file as if via an HDF5 dataset name
-            """
-        )
+        return super().make_into_array(field)
 
     def save(
         self,
