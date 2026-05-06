@@ -508,6 +508,21 @@ def test_project_point_on_box_valid(
 
 
 #############################
+# Test BoundingSphere bounding_box
+#############################
+@given(ct.valid_bounding_boxes())
+def test_box_bounding_box(box: bbox.BoundingBox):
+    bbox = box.bounding_box()
+
+    # Need to test that the box is exactly equal
+    # but is a copy
+    assert np.all(bbox.box == box.box)
+    bbox.box += bbox.box / 100 + 5
+    for i in range(6):
+        assert bbox.box[i] != box.box[i]
+
+
+#############################
 # Test make_bounding_sphere
 #############################
 @given(ct.invalid_spheres())
@@ -579,7 +594,7 @@ def test_bsph_contains_valid(sph: bbox.BoundingSphere, xyz: ArrayLike):
 #############################
 @given(ct.valid_bounding_spheres())
 def test_bsph_bounding_box(sph: bbox.BoundingSphere):
-    box = sph.bounding_box
+    box = sph.bounding_box()
     center, radius = sph.center, sph.radius
 
     assert np.all(box.box[:3] == center - radius)
