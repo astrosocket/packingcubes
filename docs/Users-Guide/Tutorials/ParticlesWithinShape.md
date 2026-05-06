@@ -69,11 +69,16 @@ import packingcubes
 We'll start by generating some random data. We'll make 1000 particles with $x$ and $y$
 coordinates ranging from 0 to 100.
 
-``` python
+```python
 xy = np.random.uniform(size=(1000,2)) * 100
 
 plt.plot(xy[:,0], xy[:,1] , "k.")
+plt.savefig("PWS_figs/fig_1.svg", bbox_inches="tight") # (1)!
 ```
+
+1. You can ignore lines, they're temporary fixes for issues rendering images in the docs
+
+![Figure 1: Random arrangement of points](PWS_figs/fig_1.svg)
 
 ParticleCubes are designed to work with 3D data, so we'll need to pad our 2D
 data with zeros to make it 3D.
@@ -117,7 +122,10 @@ bx = 20
 by = 21
 side = 20
 plt.plot(bx + np.array([0, side, side, 0, 0]), by + np.array([0, 0, side, side, 0]), lw=2)
+plt.savefig("PWS_figs/fig_2.svg", bbox_inches="tight")
 ```
+
+![Figure 2: Random arrangement of points with a box](PWS_figs/fig_2.svg)
 
 To search in a box, we set the corner position and then the dimensions of the
 box as a single array in the form `[x, y, z, dx, dy, dz]`.
@@ -156,12 +164,15 @@ for start, stop, partial in index_array:
     # plot each chunk of data
     chunk = positions[start:stop, :2]
     plt.plot(chunk[:,0], chunk[:, 1], "*" if partial else "o") # (2)!
+plt.savefig("PWS_figs/fig_3.svg", bbox_inches="tight")
 ```
 
 1. Run `plt.show()` after these commands
 2. Using different markers for the different `partial` values is purely for
    visual effect, there's no difference between the chunks.
    
+![Figure 3: Displaying the particles in the different chunks](PWS_figs/fig_3.svg)
+
 ??? success "Best for high performance"
     This method will give results in the shortest possible time (since there's
     no sorting or strict containment checks) and is intended for loading data
@@ -184,9 +195,12 @@ plt.plot(xy[:,0], xy[:,1] , "k.") # (1)!
 plt.plot(bx + np.array([0, side, side, 0, 0]), by + np.array([0, 0, side, side, 0]), lw=2)
 
 plt.plot(positions[index_list,0], positions[index_list, 1], "s")
+plt.savefig("PWS_figs/fig_4.svg", bbox_inches="tight")
 ```
 
 1. Run `plt.show()` after these commands
+
+![Figure 4: Displaying strict particle search](PWS_figs/fig_4.svg)
 
 ??? success "Best for parity with SciPy's KDTree"
     These results will be the most similar to SciPy's KDTree output, but note
@@ -215,9 +229,12 @@ plt.plot(xy[:,0], xy[:,1] , "k.") # (1)!
 plt.plot(bx + np.array([0, side, side, 0, 0]), by + np.array([0, 0, side, side, 0]), lw=2)
 
 plt.plot(search_positions[:,0], search_positions[:, 1], "v")
+plt.savefig("PWS_figs/fig_5.svg", bbox_inches="tight")
 ```
 
 1. Run `plt.show()` after these commands
+
+![Figure 5: Displaying strict particle search](PWS_figs/fig_5.svg)
 
 ??? success "Best for looking at multiple fields of the particles"
     This method will give you a subdataset with all the extra fields you
@@ -249,7 +266,10 @@ circle = plt.Circle(
     lw=2, clip_on=False, fill=False
 )
 plt.gca().add_patch(circle)
+plt.savefig("PWS_figs/fig_6.svg", bbox_inches="tight")
 ```
+
+![Figure 6: Random arrangement of points with a circle](PWS_figs/fig_6.svg)
 
 ### Actually do the search
 
@@ -299,11 +319,15 @@ axs[2].plot(
     "v", color="tab:orange"
 )
 axs[2].set_title("Sphere(strict=True)")
+
+plt.savefig("PWS_figs/fig_7.svg", bbox_inches="tight")
 ```
 
 1. Run `plt.show()` after these commands
 2. Just like above, using different markers for the different `partial` values
    is purely for visual effect, there's no difference between the chunks.
+
+![Figure 7: Particles in sphere, 3 ways](PWS_figs/fig_7.svg)
 
 !!! warning "Fragile Data!"
     You may notice that the order of the data in `positions` has changed (occurred
