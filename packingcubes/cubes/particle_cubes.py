@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Collection, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +13,7 @@ from numba.typed import List
 from numpy.typing import NDArray
 
 import packingcubes.bounding_box as bbox
+import packingcubes.cubes.cubes_numba as cubba
 from packingcubes.bounding_box import BoundingBox
 from packingcubes.cubes.cubes_numba import (
     get_closest_particles,
@@ -22,6 +24,7 @@ from packingcubes.data_objects import (
     DataContainer,
     Dataset,
     HDF5Dataset,
+    InMemory,
     MultiParticleDataset,
 )
 from packingcubes.octree import _DEFAULT_PARTICLE_THRESHOLD
@@ -423,6 +426,265 @@ class ParticleCubes:
     def dataset(self) -> Dataset | None:
         """Return the attached Dataset to this object or None"""
         return self._dataset
+
+    def _Shape(
+        self,
+        *,
+        shape: bbox.BoundingVolume,
+        dataset: Dataset | None = None,
+        strict: bool = False,
+        fields: str | Collection[str] | None = None,
+        extras: Mapping[str, Any] | None = None,
+        save_filepath: str | None = None,
+        save_particle_type: str | None = None,
+    ) -> InMemory:
+        """Construct a subdataset bounded by shape
+
+        Parameters
+        ----------
+        shape: BoundingVolume
+            The shape to use for searching/containment tests
+
+        dataset: Dataset, optional
+            Dataset containing the particle positions. Defaults to self.dataset.
+
+        strict: bool, optional
+            Flag to specify whether only particles inside the shape will
+            be returned. If False (default), additional nearby particles may be
+            included for signficantly increased performance
+
+        fields: Collection[str], optional
+            Subset of fields in `dataset.extras` to include. Specify `"all"` to
+            include everything in `dataset.extras`. Defaults to the empty set.
+
+        extras: Mapping[str, Any], optional
+            Additional fields to sort, add to `dataset.extras`, and include in
+            the returned subdataset. See
+            [process_extra_fields][process_extra_fields] for more details.
+            Defaults to `None`
+
+        save_filepath, save_particle_type: str, optional
+            If provided, save this subdataset to the specified file with the
+            specified particle type. `save_particle_type` can be omitted to use
+            `dataset.particle_type`.
+
+        Returns
+        -------
+        :
+            Subdataset with the specified bounding volume and fields
+
+        Raises
+        ------
+        ValueError
+            If fields are specified that are in neither `extras` nor
+            `dataset.extras`.
+        """
+        dataset = self._needs_data(dataset)
+        if fields is None:
+            fields = set()
+        elif fields == "all":
+            fields = dataset.extras
+        fields = set(fields)
+
+        if extras:
+            dataset.process_extra_fields(extras)
+            fields |= extras.keys()
+
+        if not fields <= dataset.extras:
+            raise ValueError(
+                f"""
+                Requested {fields - dataset.extras} but they are not in the
+                {dataset} yet. You can include new fields (without saving them)
+                using the extras parameter.
+                """
+            )
+
+        LOGGER.debug("Beginning search")
+        slices = self._get_particle_indices_in_shape(shape)
+
+        LOGGER.debug("Expanding positions")
+        positions = (
+            cubba._parallel_expand_matrix(
+                slices, shape, dataset.positions, dataset.positions
+            )
+            if strict
+            else cubba._parallel_expand_all_matrix(slices, dataset.positions)
+        )
+
+        LOGGER.debug("Creating output dataset")
+        result = InMemory(
+            positions=positions,
+            filepath=save_filepath if save_filepath else "",
+            particle_type=save_particle_type
+            if save_particle_type
+            else getattr(dataset, "particle_type", None),
+            bounding_box=shape.bounding_box(),
+        )
+
+        LOGGER.debug("Adding shuffle indices")
+        result._add_extra_field(
+            "shuffle",
+            cubba._parallel_expand_data_indices(slices, shape, dataset.data_container)
+            if strict
+            else cubba._parallel_expand_all_data_indices(slices),
+            is_sorted=True,
+        )
+
+        LOGGER.debug("Expanding and adding remaining fields")
+        for field in fields:
+            full_field = np.squeeze(getattr(dataset, field))
+            if full_field.shape == 2:
+                field_arr = (
+                    cubba._parallel_expand_matrix(
+                        slices, shape, dataset.positions, full_field
+                    )
+                    if strict
+                    else cubba._parallel_expand_all_matrix(slices, full_field)
+                )
+            else:
+                field_arr = (
+                    cubba._parallel_expand_array(
+                        slices, shape, dataset.positions, full_field
+                    )
+                    if strict
+                    else cubba._parallel_expand_all_array(slices, full_field)
+                )
+            result._add_extra_field(field, field_arr, is_sorted=True)
+
+        if save_filepath:
+            LOGGER.debug("Saving search dataset")
+            result.save()
+
+        return result
+
+    def Sphere(
+        self,
+        center: NDArray,
+        radius: float,
+        *,
+        dataset: Dataset | None = None,
+        strict: bool = False,
+        fields: Collection[str] | None = None,
+        extras: Mapping[str, Any] | None = None,
+        save_filepath: str | None = None,
+        save_particle_type: str | None = None,
+    ) -> InMemory:
+        """Construct a spherical subdataset
+
+        Parameters
+        ----------
+        center: NDArray
+            Center point of the sphere
+
+        radius: float
+            Radius of the sphere
+
+        dataset: Dataset, optional
+            Dataset containing the particle positions. Defaults to self.dataset.
+
+        strict: bool, optional
+            Flag to specify whether only particles inside the shape will
+            be returned. If False (default), additional nearby particles may be
+            included for signficantly increased performance
+
+        fields: Collection[str], optional
+            Subset of fields in `dataset.extras` to include. Specify `"all"` to
+            include everything in `dataset.extras`. Defaults to the empty set.
+
+        extras: Mapping[str, Any], optional
+            Additional fields to sort, add to `dataset.extras`, and include in
+            the returned subdataset. See
+            [process_extra_fields][process_extra_fields] for more details.
+            Defaults to `None`
+
+        save_filepath, save_particle_type: str, optional
+            If provided, save this subdataset to the specified file with the
+            specified particle type. `save_particle_type` can be omitted to use
+            the default particle type.
+
+        Returns
+        -------
+        :
+            Subdataset with the specified bounding volume and fields
+
+        Raises
+        ------
+        ValueError
+            If fields are specified that are in neither `extras` nor
+            `dataset.extras`.
+        """
+        sphere = bbox.make_bounding_sphere(radius=radius, center=center)
+        dataset = self._needs_data(dataset)
+        return self._Shape(
+            shape=sphere,
+            dataset=dataset,
+            strict=strict,
+            fields=fields,
+            extras=extras,
+            save_filepath=save_filepath,
+            save_particle_type=save_particle_type,
+        )
+
+    def Box(
+        self,
+        box: bbox.BoxLike,
+        *,
+        dataset: Dataset | None = None,
+        strict: bool = False,
+        fields: Collection[str] | None = None,
+        extras: Mapping[str, Any] | None = None,
+        save_filepath: str | None = None,
+        save_particle_type: str | None = None,
+    ) -> InMemory:
+        """Construct a box-shaped subdataset
+
+        Parameters
+        ----------
+        dataset: Dataset, optional
+            Dataset containing the particle positions. Defaults to self.dataset.
+
+        strict: bool, optional
+            Flag to specify whether only particles inside the shape will
+            be returned. If False (default), additional nearby particles may be
+            included for signficantly increased performance
+
+        fields: Collection[str], optional
+            Subset of fields in `dataset.extras` to include. Specify `"all"` to
+            include everything in `dataset.extras`. Defaults to the empty set.
+
+        extras: Mapping[str, Any], optional
+            Additional fields to sort, add to `dataset.extras`, and include in
+            the returned subdataset. See
+            [process_extra_fields][process_extra_fields] for more details.
+            Defaults to `None`
+
+        save_filepath, save_particle_type: str, optional
+            If provided, save this subdataset to the specified file with the
+            specified particle type. `save_particle_type` can be omitted to use
+            the default particle type.
+
+        Returns
+        -------
+        :
+            Subdataset with the specified bounding volume and fields
+
+        Raises
+        ------
+        ValueError
+            If fields are specified that are in neither `extras` nor
+            `dataset.extras`.
+        """
+        numba_box = bbox.make_bounding_box(box)
+        dataset = self._needs_data(dataset)
+        return self._Shape(
+            shape=numba_box,
+            dataset=dataset,
+            strict=strict,
+            fields=fields,
+            extras=extras,
+            save_filepath=save_filepath,
+            save_particle_type=save_particle_type,
+        )
 
     def save(
         self,
