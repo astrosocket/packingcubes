@@ -427,7 +427,7 @@ def _parallel_expand_all_shuffle_indices(slices: NDArray[np.int_], data: DataCon
         start = slices[i, 0]
         end = slices[i, 1]
         offset = offsets[i]
-        size = start - end
+        size = end - start
         shuffle = data._index[start:end]
         for j in range(size):
             indices[offset + j] = shuffle[j]
