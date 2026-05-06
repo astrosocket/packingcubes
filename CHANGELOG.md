@@ -56,6 +56,7 @@
 
 ### 📚 Documentation
 
+- Rework key-features section ([1fc7c9e](https://github.com/astrosocket/packingcubes/commit/1fc7c9e5ecabadc32681cd42bd86744d32378d05))
 - Add TvsR recipes ([be5522b](https://github.com/astrosocket/packingcubes/commit/be5522b7528b58d8c7f01d87aaf251283b8771e0))
 - Add figures to PWS ([b02f896](https://github.com/astrosocket/packingcubes/commit/b02f896d6e03f41538705bbc184a6f5b9b55f2dc))
 - Add new search pipeline and index list searching ([ec78d2d](https://github.com/astrosocket/packingcubes/commit/ec78d2dd16027cc4cad3357d1c8dc4ba0e5d6076))
@@ -70,6 +71,12 @@
 - Update tutorials, Getting Started page ([f45d3a6](https://github.com/astrosocket/packingcubes/commit/f45d3a6539e3f26acf73f42c9d09fefd0082cb0d))
 - Update README ([db2f3db](https://github.com/astrosocket/packingcubes/commit/db2f3db256f98252606f4b73f16dbcfda01bcc7d))
 - Update module/package docstrings ([d9fda93](https://github.com/astrosocket/packingcubes/commit/d9fda933999521957fd7d25c45de62cc9ebc1564))
+
+### 🧪 Testing
+
+- Fix bounding_box now method, add box version ([7efc00b](https://github.com/astrosocket/packingcubes/commit/7efc00b9420893377bf1b600e4325ba667fd7edd))
+- Fix minor issues with testing ([a0b242f](https://github.com/astrosocket/packingcubes/commit/a0b242f0bc8f53ced8f24b9a406595682d09f523))
+- Fix numba coverage report ([e3d9ecb](https://github.com/astrosocket/packingcubes/commit/e3d9ecba0bd1b268b2fdd7128c5092b70a225733))
 
 ### ⚙️ Miscellaneous Tasks
 
