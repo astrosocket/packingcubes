@@ -250,10 +250,10 @@ def make_cubes(
     ----------
     dataset: MultiParticleDataset
         The dataset containing particle data. Will be sorted in-place, but will
-        not save updated positional information unless save_dataset is True
+        not save updated positional information unless `save_dataset` is `True`
 
     cubes_per_side: int, optional
-        Number of cubes on a side. Dataset will be divided into `cubes_per_side`**3
+        Number of cubes on a side. Dataset will be divided into `cubes_per_side**3`
         cubes, plus an additional cube to catch any remaining particles (if the
         `cube_box` is smaller than the actual data extants). Note: due to the
         `PackedTree`'s packed format, cubes must contain fewer than ~4 billion
@@ -274,8 +274,9 @@ def make_cubes(
         Particle type to process. Default is `dataset.particle_type`
 
     save_dataset: bool, optional
-        Whether to save the sorted dataset positions out to a file. The data
-        will be sorted in memory either way. Default `False`.
+        Whether to save the sorted dataset positions out to a file using
+        default values for the parameters. The data will be sorted in memory
+        either way. Default `False`.
 
     Returns
     -------
@@ -493,8 +494,8 @@ def Cubes(
     `cube_indices`, `cube_boxes`, and `cube_trees`. This could be useful in the
     case where a dataset has a natural top-level structure already, but may not
     yet have PackedTree subcomponents. As an example, a collection of disjoint
-    blobs in a 3D parameter space, or if the dataset already contains an octree-
-    like structure.
+    blobs in a 3D parameter space, or if the dataset already contains an
+    octree-like structure.
 
     Parameters
     ----------
@@ -520,19 +521,24 @@ def Cubes(
         Attach additional fields to the dataset to be sorted. Unused if
         `cubes_dict` is provided.
         See `process_extra_fields` for
-        [MultiParticleDataset][Dataset.process_extra_fields] or
-        [GadgetishHDF5Dataset][HDF5Dataset.process_extra_fields]
+        [`MultiParticleDataset`][Dataset.process_extra_fields] or
+        [`GadgetishHDF5Dataset`][HDF5Dataset.process_extra_fields]
 
     **kwargs
-        Extra arguments to `MultiParticleDataset`, `make_cubes` and
-        `ParticleCubes`. See [MultiParticleDataset][MultiParticleDataset],
-        [make_cubes][make_cubes], and [ParticleCubes][ParticleCubes] for a
+        Extra arguments to [`MultiParticleDataset`][MultiParticleDataset],
+        [`make_cubes`][make_cubes], and [`ParticleCubes`][ParticleCubes] for a
         description.
 
     Returns
     -------
     :
         ParticleCubes object constructed from the dataset/dictionary
+
+    Raises
+    ------
+    CubesError
+        If neither `dataset` nor `cubes_dict` is provided
+
 
     See Also
     --------
