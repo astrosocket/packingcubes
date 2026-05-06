@@ -31,11 +31,13 @@ import contextlib
 import logging
 import warnings
 from abc import ABC, abstractmethod
+from collections.abc import Collection, Mapping, Set
 from pathlib import Path
+from typing import Any
 
 import h5py  # type: ignore
 import numpy as np
-from numba import TypingError, boolean, float64, int64, njit  # type: ignore
+from numba import TypingError, boolean, float64, int64, njit, prange  # type: ignore
 from numba.experimental import jitclass
 from numba.extending import as_numba_type
 from numpy.typing import NDArray
@@ -154,6 +156,37 @@ def subview(data: DataContainer, start_index: int, end_index: int) -> DataContai
     )
 
 
+@njit(parallel=True)
+def _sort_field_in_place_1D(index, field):
+    new_field = np.empty_like(field)
+    for i in prange(len(field)):
+        new_field[index[i]] = field[i]
+    for i in prange(len(field)):
+        field[i] = new_field[i]
+
+
+@njit(parallel=True)
+def _sort_field_in_place_2D(index, field):
+    new_field = np.empty_like(field)
+    width = field.shape[1]
+    for i in prange(len(field)):
+        for j in range(width):
+            new_field[index[i], j] = field[i, j]
+    for i in prange(len(field)):
+        for j in range(width):
+            field[i, j] = new_field[i, j]
+
+
+def _sort_field_in_place(index, field):
+    shape = field.shape
+    if len(shape) == 1 or (len(shape) == 2 and shape[1] == 1):
+        _sort_field_in_place_1D(index, field)
+    elif len(shape) == 2:
+        _sort_field_in_place_2D(index, field)
+    else:
+        raise TypeError(f"Don't know how to sort field of type {shape}")
+
+
 class Dataset:
     """
     Base class for holding particle position data and associated shuffle list
@@ -169,6 +202,7 @@ class Dataset:
     filepath: Path
     """The path to this dataset (can be empty)"""
     _positions: np.ndarray
+    _extras: set[str]
 
     def __init__(
         self,
@@ -181,6 +215,9 @@ class Dataset:
             name = filepath.name
         self.filepath = filepath
         self.name = name
+
+        # no extra fields on initialization
+        self._extras = set()
 
         # the following will need to be set by the data loader
         self._box = bbox.make_bounding_box(np.array([0, 0, 0, 1, 1, 1], dtype=float))
@@ -256,6 +293,80 @@ class Dataset:
         self._box = bbox.make_bounding_box(box)
 
     @property
+    def extras(self) -> Set:
+        """Additional sorted fields"""
+        return self._extras
+
+    def _add_extra_field(self, field: str, data: NDArray, *, is_sorted: bool):
+        if not is_sorted:
+            _sort_field_in_place(self._index, data)
+        self.__dict__[field] = data
+        self._extras.add(field)
+
+    def process_extra_fields(self, extra: Mapping[str, Any]):
+        """Process extra fields
+
+        How different types of extra fields are handled will depend on
+        [make_into_array][make_into_array], but the net effect will be a sorted
+        array accessible as an attribute of this dataset instance with the name
+        provided.
+
+        Parameters
+        ----------
+        extra: Mapping[str, Any]
+            A mapping of names to extra fields to attach.
+
+        Examples
+        --------
+        >>> dataset.process_extra_fields({"mass":"Mass"})
+        >>> dataset.mass
+
+        Note
+        ----
+        Any attributes added via this method will only be sorted now. Any
+        subsequent sorting will not affect the ordering of these attributes
+        """
+        for name, field in extra.items():
+            field_arr, is_sorted = self.make_into_array(field)
+            self._add_extra_field(name, field_arr, is_sorted=is_sorted)
+
+    def make_into_array(self, field: NDArray | Any) -> tuple[NDArray, bool]:
+        """Try to convert field into an array
+
+        Parameters
+        ----------
+        field:
+            Object to be converted into an array.
+
+            Supported types:
+
+              - `NDArray`s with the same length (1st dimension) as positions.
+                Always assumed unsorted.
+              - (`NDArray`, `is_sorted`) tuples, where the NDArray must be like the
+                above.
+
+        Returns
+        -------
+        field_arr: NDArray
+            An array of the values with the 1st dimension having the same length
+            as positions
+
+        is_sorted: bool
+            If `field_arr` is already sorted
+
+        Raises
+        ------
+        NotImplementedError
+            If we do not know how to transform `type(field)` into an array
+        """
+        is_sorted = False
+        if isinstance(field, tuple) and len(field) == 2:
+            field, is_sorted = field
+        if isinstance(field, np.ndarray) and len(field) == len(self.positions):
+            return field, is_sorted
+        raise NotImplementedError(f"{type(self)} only do No-op transformations")
+
+    @property
     def data_container(self) -> DataContainer:
         """Return the DataContainer wrapping this dataset"""
         if not hasattr(self, "_data"):
@@ -299,6 +410,9 @@ class MultiParticleDataset(Dataset, ABC):
         output_file: str | Path | None = None,
         force_overwrite: bool | None = None,
         particle_type: str | None = None,
+        fields: Collection[str] | None = None,
+        skip_positions: bool = False,
+        skip_index: bool = False,
     ):
         """Save this dataset to disk
 
@@ -317,8 +431,59 @@ class MultiParticleDataset(Dataset, ABC):
         particle_type: str, optional
             Save positions under a different particle type than
             `self.particle_type`
+
+        fields: Collection[str], optional
+            Collection of fields in `self.extras` to save in addition to
+            `self.positions` and `self.index`
+
+        skip_positions: bool, optional
+            Do not save `self.positions` if `True`. Default `False`.
+
+        skip_index: bool, optional
+            Do not save `self.index` if `True`. Default `False`.
         """
         ...
+
+
+def save_hdf5_field(
+    *,
+    output_file: str | Path,
+    force_overwrite: bool | None,
+    particle_type: str,
+    field: str,
+    data: NDArray,
+):
+    """Save field with name to disk in an HDF5 file
+
+    Parameters
+    ----------
+    output_file: str | Path
+        The name of the output file.
+
+    force_overwrite: bool
+        Force overwriting position and index data if the output file
+        already contains it under the specified particle type
+
+    particle_type: str
+        Particle type to save field under. Essentially, field will be saved as
+        `file[f"{particle_type}/{name}"]`.
+
+    field: str
+        Name of field
+
+    data: NDArray
+        Field data
+    """
+    with h5py.File(output_file, "a") as output:
+        name = f"{particle_type}/{field}"
+        if name in output:
+            if force_overwrite:
+                del output[name]
+            else:
+                raise DatasetError(
+                    f"{output_file} already contains {field} and force_overwrite=False"
+                )
+        output[name] = data
 
 
 class InMemory(MultiParticleDataset):
@@ -338,6 +503,7 @@ class InMemory(MultiParticleDataset):
         name: str = "",
         filepath: str = "",
         particle_type: str | None = None,
+        bounding_box: bbox.BoundingBox | None = None,
         **kwargs,
     ):
         """
@@ -370,8 +536,12 @@ class InMemory(MultiParticleDataset):
                 )
             )
         self._positions = positions.astype(np.float64, copy=False)
+        filepath = "" if filepath is None else filepath
         super().__init__(name=name, filepath=filepath)
-        self._set_bounding_box()
+        if bounding_box is None:
+            self._set_bounding_box()
+        else:
+            self._box = bounding_box
         self._setup_index()
         self._particle_type = "PartTypeIM" if particle_type is None else particle_type
 
@@ -400,14 +570,17 @@ class InMemory(MultiParticleDataset):
         output_file: str | Path | None = None,
         force_overwrite: bool | None = None,
         particle_type: str | None = None,
+        fields: Collection[str] | None = None,
+        skip_positions: bool = False,
+        skip_index: bool = False,
     ):
         """Save sorted particle data and shuffle-list to disk in an HDF5 file
 
         Parameters
         ----------
         output_file: str | Path, optional
-            The name of the output file. Note this field is optional to match
-            the superclass, however, specifying None will raise a ValueError.
+            The name of the output file. Defaults to `self.filepath`. Since
+            this is `""` unless specified, will raise a `ValueError`.
 
         force_overwrite: bool, optional
             Force overwriting position and index data if the output file
@@ -417,10 +590,20 @@ class InMemory(MultiParticleDataset):
             Save positions under a different particle type than
             `self.particle_type`
 
+        fields: Collection[str], optional
+            Collection of fields in `self.extras` to save in addition to
+            `self.positions` and `self.index`
+
+        skip_positions: bool, optional
+            Do not save `self.positions` if `True`. Default `False`.
+
+        skip_index: bool, optional
+            Do not save `self.index` if `True`. Default `False`.
+
         Raises
         ------
             ValueError
-                If no output_file is specified
+                If no output_file or the empty string (`""`) is specified
         """
         output_file = self.filepath if output_file is None else output_file
         if not output_file:
@@ -431,20 +614,30 @@ class InMemory(MultiParticleDataset):
 
         particle_type = self.particle_type if particle_type is None else particle_type
 
+        fields = self._extras if fields is None else set(fields)
+        if not fields <= self._extras:
+            raise ValueError(
+                f"""
+                Requested {self._extras - fields} but they are not present in
+                this dataset.
+                """
+            )
+
+        data = {field: self.__dict__[field] for field in fields}
+        if not skip_positions:
+            data["Coordinates"] = self.positions
+        if not skip_index:
+            data["index"] = self.index
+
+        for field, array in data.items():
+            save_hdf5_field(
+                output_file=output_file,
+                force_overwrite=force_overwrite,
+                particle_type=particle_type,
+                field=field,
+                data=array,
+            )
         with h5py.File(output_file, "a") as output:
-            for field, array in zip(
-                ["Coordinates", "index"], [self._positions, self._index], strict=True
-            ):
-                name = f"{particle_type}/{field}"
-                if name in output:
-                    if force_overwrite:
-                        del output[name]
-                    else:
-                        raise DatasetError(
-                            f"{output_file} already contains {particle_type} "
-                            "and force_overwrite=False"
-                        )
-                output[name] = array
             output[particle_type].attrs["use_sorted"] = True
 
 
@@ -465,7 +658,7 @@ def _load_data_from_slices(dataset: h5py.Dataset, slices: list | None) -> NDArra
         The (possibly) sliced dataset
     """
     if slices is None:
-        return dataset[:, :]
+        return np.array(dataset)
 
     width = dataset.shape[1]
     number = sum(s.stop - s.start for s in slices)
@@ -515,7 +708,7 @@ class HDF5Dataset(MultiParticleDataset):
         name: str | None = None,
         filepath: str | Path,
         sorted_filepath: str | Path | None = None,
-        initial_particle_type: str | None = None,
+        particle_type: str | None = None,
         data_slices=None,
         **kwargs,
     ):
@@ -534,7 +727,7 @@ class HDF5Dataset(MultiParticleDataset):
             Will also search for positions data from this file before
             searching filepath.
 
-        initial_particle_type: str, optional
+        particle_type: str, optional
             Initial particle type to (eagerly) load.
 
         data_slices: np.s_ | dict[str, np.s_], optional
@@ -549,7 +742,7 @@ class HDF5Dataset(MultiParticleDataset):
         """
         super().__init__(name=name, filepath=filepath)
 
-        self._preload(sorted_filepath, initial_particle_type)
+        self._preload(sorted_filepath, particle_type)
 
         self._process_slices(data_slices)
 
@@ -560,7 +753,7 @@ class HDF5Dataset(MultiParticleDataset):
     def _preload(
         self,
         sorted_filepath: str | Path | None,
-        initial_particle_type: str | None = None,
+        particle_type: str | None = None,
     ):
         """Load certain attributes at initialization
 
@@ -674,12 +867,69 @@ class HDF5Dataset(MultiParticleDataset):
         if hasattr(self, "_data"):
             del self._data
 
+    def make_into_array(self, field: str | NDArray | Any) -> tuple[NDArray, bool]:
+        """Try to convert field into an array
+
+        Parameters
+        ----------
+        field:
+            Object to be converted into an array
+
+            Adds supported types:
+
+              - strings representing fields in either the HDF5 file at
+                `self.filepath` (unsorted) or `self.sorted_filepath` (sorted)
+
+            See [MultiParticleDataset][MultiParticleDataset.make_into_array]
+            for additional supported types.
+
+        Returns
+        -------
+        field_arr: NDArray
+            An array of the values with the 1st dimension having the same length
+            as positions
+
+        is_sorted: bool
+            If `field_arr` is already sorted
+
+        Raises
+        ------
+        NotImplementedError
+            If we do not know how to transform `type(field)` into an array
+        """
+        if isinstance(field, str):
+            is_sorted = True
+            for filepath in [self._sorted_file_name, self.filepath]:
+                if not h5py.is_hdf5(filepath):
+                    is_sorted = False
+                    continue
+                with h5py.File(filepath, "r") as file:
+                    pt = self._particle_type + "/"
+                    fname = f"{self._particle_type}/{field}"
+                    if fname not in file:
+                        is_sorted = False
+                        continue
+                    field_arr = _load_data_from_slices(
+                        file[fname], self._data_slices[self._particle_type]
+                    )
+                    return field_arr, is_sorted
+            raise DatasetError(
+                f"""
+                Field {field} was not found in either {self.filepath}
+                or {self._sorted_file_name}.
+                """
+            )
+        return super().make_into_array(field)
+
     def save(
         self,
         *,
         output_file: str | Path | None = None,
         force_overwrite: bool | None = None,
         particle_type: str | None = None,
+        fields: Collection[str] | None = None,
+        skip_positions: bool = False,
+        skip_index: bool = False,
     ):
         """Save sorted particle positions and shuffle list to provided file
 
@@ -695,26 +945,44 @@ class HDF5Dataset(MultiParticleDataset):
         particle_type: str, optional
             Save positions under a different particle type than
             `self.particle_type`
+
+        fields: Collection[str], optional
+            Collection of fields in `self.extras` to save in addition to
+            `self.positions` and `self.index`
+
+        skip_positions: bool, optional
+            Do not save `self.positions` if `True`. Default `False`.
+
+        skip_index: bool, optional
+            Do not save `self.index` if `True`. Default `False`.
         """
         output_file = self._sorted_file_name if output_file is None else output_file
 
         particle_type = self.particle_type if particle_type is None else particle_type
 
+        fields = self._extras if fields is None else set(fields)
+        if not fields <= self._extras:
+            raise ValueError(
+                f"""
+                Requested {self._extras - fields} but they are not present in
+                this dataset.
+                """
+            )
+        data = {field: self.__dict__[field] for field in fields}
+        if not skip_positions:
+            data[self._positions_field] = self.positions
+        if not skip_index:
+            data["index"] = self.index
+
+        for field, array in data.items():
+            save_hdf5_field(
+                output_file=output_file,
+                force_overwrite=force_overwrite,
+                particle_type=particle_type,
+                field=field,
+                data=array,
+            )
         with h5py.File(output_file, "a") as output:
-            for field, array in zip(
-                [self._positions_field, "index"],
-                [self._positions, self._index],
-                strict=True,
-            ):
-                name = f"{particle_type}/{field}"
-                if name in output and force_overwrite:
-                    del output[name]
-                else:
-                    raise DatasetError(
-                        f"{output_file} already contains {particle_type} "
-                        "and force_overwrite=False"
-                    )
-                output[name] = array
             output[particle_type].attrs["use_sorted"] = True
 
 
@@ -731,7 +999,7 @@ class GadgetishHDF5Dataset(HDF5Dataset):
         name: str | None = None,
         filepath: str | Path,
         sorted_filepath: str | Path | None = None,
-        initial_particle_type: str | None = None,
+        particle_type: str | None = None,
         data_slices=None,
         **kwargs,
     ):
@@ -751,7 +1019,7 @@ class GadgetishHDF5Dataset(HDF5Dataset):
             searching filepath. Defaults to `filepath.parent/filepath.stem +
             "_sorted.hdf5"`
 
-        initial_particle_type: str, optional
+        particle_type: str, optional
             Initial particle type to (eagerly) load. Defaults to the first HDF5
             group that starts with "Part".
 
@@ -768,14 +1036,14 @@ class GadgetishHDF5Dataset(HDF5Dataset):
             name=name,
             filepath=filepath,
             sorted_filepath=sorted_filepath,
-            initial_particle_type=initial_particle_type,
+            particle_type=particle_type,
             data_slices=data_slices,
         )
 
     def _preload(
         self,
         sorted_filepath: str | Path | None,
-        initial_particle_type: str | None = None,
+        particle_type: str | None = None,
     ):
         # TODO handle case where particles are split across multiple files...
         particle_types = []
@@ -806,9 +1074,7 @@ class GadgetishHDF5Dataset(HDF5Dataset):
 
         # set initial particle type
         self._particle_type = (
-            particle_types[0]
-            if initial_particle_type is None
-            else initial_particle_type
+            particle_types[0] if particle_type is None else particle_type
         )
         _particle_numbers = self._header["NumPart_Total"]
         _particle_numbers = _particle_numbers[_particle_numbers > 0]

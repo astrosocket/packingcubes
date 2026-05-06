@@ -22,7 +22,7 @@ import argparse
 import logging
 import sys
 from collections.abc import Collection, Mapping
-from typing import TYPE_CHECKING, cast, overload
+from typing import TYPE_CHECKING, Any, cast, overload
 
 import h5py  # type: ignore
 import numpy as np
@@ -250,10 +250,10 @@ def make_cubes(
     ----------
     dataset: MultiParticleDataset
         The dataset containing particle data. Will be sorted in-place, but will
-        not save updated positional information unless save_dataset is True
+        not save updated positional information unless `save_dataset` is `True`
 
     cubes_per_side: int, optional
-        Number of cubes on a side. Dataset will be divided into `cubes_per_side`**3
+        Number of cubes on a side. Dataset will be divided into `cubes_per_side**3`
         cubes, plus an additional cube to catch any remaining particles (if the
         `cube_box` is smaller than the actual data extants). Note: due to the
         `PackedTree`'s packed format, cubes must contain fewer than ~4 billion
@@ -274,8 +274,9 @@ def make_cubes(
         Particle type to process. Default is `dataset.particle_type`
 
     save_dataset: bool, optional
-        Whether to save the sorted dataset positions out to a file. The data
-        will be sorted in memory either way. Default `False`.
+        Whether to save the sorted dataset positions out to a file using
+        default values for the parameters. The data will be sorted in memory
+        either way. Default `False`.
 
     Returns
     -------
@@ -472,18 +473,18 @@ def _handle_dataset_types(dataset=None, **kwargs):
     elif isinstance(dataset, str):
         dataset = GadgetishHDF5Dataset(
             filepath=dataset,
-            initial_particle_type=kwargs.get("particle_type"),
             **kwargs,
         )
     return dataset
 
 
 def Cubes(
-    *,
     dataset: str | NDArray | MultiParticleDataset | None = None,
+    *,
     cubes_dict: dict[str, NDArray | list[bbox.BoundingBox] | list[NDArray | PackedTree]]
     | None = None,
     particle_type: str | None = None,
+    extras: Mapping[str, Any] | None = None,
     **kwargs,
 ) -> ParticleCubes:
     """Create or load ParticleCubes objects from the provided data
@@ -493,15 +494,15 @@ def Cubes(
     `cube_indices`, `cube_boxes`, and `cube_trees`. This could be useful in the
     case where a dataset has a natural top-level structure already, but may not
     yet have PackedTree subcomponents. As an example, a collection of disjoint
-    blobs in a 3D parameter space, or if the dataset already contains an octree-
-    like structure.
+    blobs in a 3D parameter space, or if the dataset already contains an
+    octree-like structure.
 
     Parameters
     ----------
     dataset: str | NDArray | MultiParticleDataset, optional
         Dataset containing positional data. Will be used to create a new
         ParticleCubes, including sorting. Must provide either
-        this or cubes_dict, below. Assumes strings are filepaths to
+        this or `cubes_dict`, below. Assumes strings are filepaths to
         [GadgetishHDF5Datasets][GadgetishHDF5Dataset].
 
     cubes_dict: dict, optional
@@ -516,16 +517,28 @@ def Cubes(
         The particle type to use. Unused if `cubes_dict` is provided.
         Defaults to `dataset.particle_type`
 
+    extras: Mapping[str, Any], optional
+        Attach additional fields to the dataset to be sorted. Unused if
+        `cubes_dict` is provided.
+        See `process_extra_fields` for
+        [`MultiParticleDataset`][Dataset.process_extra_fields] or
+        [`GadgetishHDF5Dataset`][HDF5Dataset.process_extra_fields]
+
     **kwargs
-        Extra arguments to `MultiParticleDataset`, `make_cubes` and
-        `ParticleCubes`. See [MultiParticleDataset][MultiParticleDataset],
-        [make_cubes][make_cubes], and [ParticleCubes][ParticleCubes] for a
+        Extra arguments to [`MultiParticleDataset`][MultiParticleDataset],
+        [`make_cubes`][make_cubes], and [`ParticleCubes`][ParticleCubes] for a
         description.
 
     Returns
     -------
     :
         ParticleCubes object constructed from the dataset/dictionary
+
+    Raises
+    ------
+    CubesError
+        If neither `dataset` nor `cubes_dict` is provided
+
 
     See Also
     --------
@@ -553,6 +566,14 @@ def Cubes(
         except (NotImplementedError, ValueError):
             dataset = _handle_dataset_types(dataset, particle_type=particle_type)
             cubes = make_cubes(dataset=dataset, particle_type=particle_type, **kwargs)
+            if extras:
+                dataset.process_extra_fields(extras)
+                if "save_dataset" in kwargs:
+                    # we skip positions and index here because they would have
+                    # already been saved
+                    dataset.save(
+                        fields=extras.keys(), skip_positions=True, skip_index=True
+                    )
     else:
         if "cube_trees" not in cubes_dict:
             if dataset is None:
@@ -575,6 +596,8 @@ def Cubes(
             cube_tree=cube_trees,
             **kwargs,
         )
+    # Only attach dataset if we used (converted) it
+    cubes._dataset = dataset if isinstance(dataset, MultiParticleDataset) else None
     return cubes
 
 
@@ -611,6 +634,7 @@ def make_MultiCubes(
     )
     for pt in particle_types:
         multi._cubes_dict[pt] = Cubes(dataset=mpdataset, particle_type=pt, **kwargs)
+    multi._dataset = mpdataset
     return multi
 
 

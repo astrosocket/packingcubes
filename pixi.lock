@@ -611,7 +611,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-64/xorg-libxdmcp-1.1.5-hb03c661_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/xxhash-0.8.3-hb47aa4a_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/yaml-0.2.5-h280c20c_3.conda
-      - conda: https://conda.anaconda.org/conda-forge/linux-64/zensical-0.0.34-py310h1570de5_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/zensical-0.0.40-py310h1570de5_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/zeromq-4.3.5-h387f397_9.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/zipp-3.23.0-pyhcf101f3_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/zlib-ng-2.3.2-hceb46e0_1.conda
@@ -3717,8 +3717,8 @@ packages:
   timestamp: 1769093650580
 - pypi: ./
   name: packingcubes
-  version: 0.3.2.dev60+dirty
-  sha256: ecc4e16c83413a24c6377fb4410c3e34e84dd1f91a0a75ef31bf444b7b0cff36
+  version: 0.4.1.dev28+dirty
+  sha256: 674cc1cbfaf354017e6dcba74f6ba460cb1fdafc2924d63d34d96368d5b24ff8
   requires_dist:
   - numpy
   - h5py
@@ -5246,10 +5246,10 @@ packages:
   - pkg:pypi/yt?source=hash-mapping
   size: 6842859
   timestamp: 1763578365365
-- conda: https://conda.anaconda.org/conda-forge/linux-64/zensical-0.0.34-py310h1570de5_0.conda
+- conda: https://conda.anaconda.org/conda-forge/linux-64/zensical-0.0.40-py310h1570de5_0.conda
   noarch: python
-  sha256: 469afdf654d3d86daf96e6915e3a075e2836364a3676f96ecc74f03aa75e299f
-  md5: 21c1da7dba400edfef4a92e5b2c7450c
+  sha256: 21c6695302fc88da21787e1ab6e454c91f2b27f28b0a812f2bb179246ff08e09
+  md5: 6eb37bdfc5f545e3c0dcb705d14b935d
   depends:
   - python
   - click >=8.1.8
@@ -5259,6 +5259,7 @@ packages:
   - pymdown-extensions >=10.21.2
   - pyyaml >=6.0.2
   - tomli >=2.4.0
+  - jinja2 >=3.1
   - __glibc >=2.17,<3.0.a0
   - libgcc >=14
   - _python_abi3_support 1.*
@@ -5267,9 +5268,9 @@ packages:
   - __glibc >=2.17
   license: MIT
   purls:
-  - pkg:pypi/zensical?source=hash-mapping
-  size: 6721425
-  timestamp: 1776772681321
+  - pkg:pypi/zensical?source=compressed-mapping
+  size: 6850248
+  timestamp: 1777919933016
 - conda: https://conda.anaconda.org/conda-forge/linux-64/zeromq-4.3.5-h387f397_9.conda
   sha256: 47cfe31255b91b4a6fa0e9dbaf26baa60ac97e033402dbc8b90ba5fee5ffe184
   md5: 8035e5b54c08429354d5d64027041cad

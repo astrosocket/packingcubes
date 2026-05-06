@@ -17,7 +17,8 @@ The steps for searching data are pretty straightforward:
 2. Search object
 
 #### Creating a ParticleCubes object
-Basic steps to creating a `ParticleCubes` object.
+Basic steps to creating a 
+[ParticleCubes](Reference/Cubes#packingcubes.cubes.ParticleCubes) object.
 
 Of course, there are a number of optional arguments that you can specify, along
 with more complicated paths if you want to reuse information, save out data, etc.

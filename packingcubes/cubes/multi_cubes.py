@@ -16,6 +16,7 @@ from packingcubes.data_objects import (
     DataContainer,
     Dataset,
     HDF5Dataset,
+    InMemory,
 )
 from packingcubes.packed_tree import (
     PackedTree,
@@ -29,11 +30,14 @@ class MultiCubes:
 
     _cubes_dict: dict[str, ParticleCubes]
     """ Mapping from particle type to ParticleCubes for this dataset """
+    _dataset: Dataset | None
+    """ An attached dataset """
 
     def __init__(
         self,
         *,
         cubes_dict: dict[str, dict] | Mapping[str, ParticleCubes],
+        dataset: Dataset | None = None,
         **kwargs,
     ):
         self._cubes_dict = {}
@@ -51,8 +55,10 @@ class MultiCubes:
                 cube_indices=cube_indices,
                 cube_boxes=cube_boxes,
                 cube_trees=cube_trees,
+                dataset=dataset,
                 **kwargs,
             )
+        self._dataset = dataset
 
     @property
     def particle_types(self):
@@ -218,8 +224,9 @@ class MultiCubes:
         inds = {}
         for pt in particle_types:
             inds[pt] = self._cubes_dict[pt]._get_particle_index_list_in_shape(
-                data,
-                shape,
+                data=data,
+                shape=shape,
+                strict=strict,
                 use_data_indices=use_data_indices,
             )
         return inds
@@ -401,6 +408,122 @@ class MultiCubes:
                 return_sorted=return_sorted,
             )
         return inds
+
+    def _Shape(
+        self, *, particle_types: str | Collection[str] | None = None, **kwargs
+    ) -> dict[str, InMemory]:
+        """Construct a subdataset bounded by shape for each particle type
+
+        Parameters
+        ----------
+        particle_types: str | Collection[str], optional
+            Particle type(s) to include. Defaults to `self.particle_types`
+
+        **kwargs:
+            See [`_Shape`][ParticleCubes._Shape] in `ParticleCubes` for
+            other arguments. Note that `save_particle_type` will be ignored
+            and the corresponding `particle_type` will be used.
+
+        Returns
+        -------
+        :
+            Dictionary of subdatasets with the specified bounding volume and
+            fields, organized by particle type.
+
+        Raises
+        ------
+        ValueError
+            If fields are specified that are in neither `extras` nor
+            `dataset.extras`.
+        """
+        if particle_types is None:
+            particle_types = self.particle_types
+        if isinstance(particle_types, str):
+            particle_types = [particle_types]
+        if "save_particle_type" in kwargs:
+            del kwargs["save_particle_type"]
+        results = {}
+        for pt in particle_types:
+            results[pt] = self._cubes_dict[pt]._Shape(save_particle_type=pt, **kwargs)
+        return results
+
+    def Sphere(
+        self,
+        center: NDArray,
+        radius: float,
+        *,
+        particle_types: str | Collection[str] | None = None,
+        **kwargs,
+    ) -> dict[str, InMemory]:
+        """Construct a subdataset bounded by a sphere for each particle type
+
+        Parameters
+        ----------
+        center: NDArray
+            Center point of the sphere
+
+        radius: float
+            Radius of the sphere
+
+        particle_types: str | Collection[str], optional
+            Particle type(s) to include. Defaults to `self.particle_types`
+
+        **kwargs:
+            See [`Sphere`][ParticleCubes.Sphere] in `ParticleCubes` for
+            other arguments. Note that `save_particle_type` will be ignored
+            and the corresponding `particle_type` will be used.
+
+        Returns
+        -------
+        :
+            Dictionary of subdatasets with the specified bounding volume and
+            fields, organized by particle type.
+
+        Raises
+        ------
+        ValueError
+            If fields are specified that are in neither `extras` nor
+            `dataset.extras`.
+        """
+        sphere = bbox.make_bounding_sphere(center=center, radius=radius)
+        return self._Shape(particle_types=particle_types, shape=sphere, **kwargs)
+
+    def Box(
+        self,
+        box: bbox.BoxLike,
+        *,
+        particle_types: str | Collection[str] | None = None,
+        **kwargs,
+    ) -> dict[str, InMemory]:
+        """Construct a subdataset bounded by a sphere for each particle type
+
+        Parameters
+        ----------
+        box: BoxLike
+            Box to check
+
+        particle_types: str | Collection[str], optional
+            Particle type(s) to include. Defaults to `self.particle_types`
+
+        **kwargs:
+            See [`Sphere`][ParticleCubes.Sphere] in `ParticleCubes` for
+            other arguments. Note that `save_particle_type` will be ignored
+            and the corresponding `particle_type` will be used.
+
+        Returns
+        -------
+        :
+            Dictionary of subdatasets with the specified bounding volume and
+            fields, organized by particle type.
+
+        Raises
+        ------
+        ValueError
+            If fields are specified that are in neither `extras` nor
+            `dataset.extras`.
+        """
+        numba_box = bbox.make_bounding_box(box)
+        return self._Shape(particle_types=particle_types, shape=numba_box, **kwargs)
 
     def save(
         self,

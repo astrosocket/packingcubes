@@ -97,14 +97,14 @@ Alternatively:
 ```python
 import packingcubes
 
-cubes = packingcubes.Cubes(dataset="path/to/snapshot.hdf5", save_dataset=True)
+cubes = packingcubes.Cubes("path/to/snapshot.hdf5", save_dataset=True)
 
 cubes.save("path/to/output.hdf5")
 
 # sorted positions/indices are stored in snapshot_sorted.hdf5 by default
 # to save elsewhere, use
 cubes = packingcubes.Cubes(
-    dataset="path/to/snapshot.hdf5", 
+    "path/to/snapshot.hdf5", 
     save_dataset=True,
     sorted_filepath="path/to/output.hdf5"
 )
@@ -125,7 +125,7 @@ The data will still not be copied (by default)
 
 ``` python
 cubes = packingcubes.Cubes(
-    dataset=positions_data,
+    positions_data,
     sorted_filepath="path/to/dataset_output.hdf5",
     # filepath would also work
     save_dataset=True
@@ -145,7 +145,7 @@ cubes = packingcubes.Cubes("path/to/saved_cubes.hdf5")
 
 ### Searching
 Currently, `packingcubes` provides multiple public methods for searching your
-dataset:
+dataset. Some examples:
 
 ```python
 indices = cubes.get_indices_in_sphere(center, radius)
@@ -154,98 +154,59 @@ indices = cubes.get_indices_in_sphere(center, radius)
 # radius is a float
 ```
 
+or
+
 ```python
-indices = cubes.get_indices_in_box(box)
+indices = cubes.get_index_list_in_box(box)
 # box is anything that can be converted by numpy's array method to an (6,)
 #   float array where the first 3 elements are the front-left-bottom corner,
 #   and the second 3 elements are the box width, depth, and height 
 #   (aka [x, y, z, dx, dy, dz])
 ```
 
-For both methods, the returned object is an array with 3 columns. Each row can
+or 
+
+```python
+sphere = cubes.Sphere(center, radius, fields="all")
+# center and radius have the same meaning as above
+```
+
+For the first method, the returned object is an array with 3 columns. Each row can
 be considered a chunk of data, which looks like `[start, stop, partial]` 
 representing the start and stop indices of contiguous data in the 
 **sorted** dataset. The third column, `partial` denotes whether the chunk
 was partially (`1`) or entirely (`0`) contained within the sphere/box.
 
+In the second method, the returned object is a list of the actual particle indices.
+
+In the third, the returned object is a subdataset of all the fields present that
+are attached to the particles in the defined sphere.
+
 So the search pipeline might go something like:
 
 ```python
 dataset = packingcubes.GadgetishHDF5Dataset(orig_dataset_file)
-cubes = packingcubes.Cubes(dataset=dataset)
+cubes = packingcubes.Cubes(
+    dataset,
+    particle_type="PartType0",
+    extras={"v":"Velocity"}
+)
 
-indices = cubes.get_indices_in_sphere(center, radius)
+sphere = cubes.Sphere(center, radius, fields="all")
 
-velocities_list = []
-with h5py.File(orig_dataset_file) as orig_dataset:
-    for start, stop, _ in indices:
-        shuffle = dataset.index[start:stop]
-        # WARNING: the following could be very slow if shuffle gets
-        # large (>10000)
-        v = orig_dataset["PartType0/Velocity"][shuffle,:]
-        velocities_list.extend(v)
-
-velocities = np.fromiter(velocities_list)
+velocities = sphere.v
 ```
 
-**Warning**: this could become slow if the `shuffle` sections get big 
-(`len(shuffle)>1000`)! This is because HDF5 loading is inefficient in this
-manner (the `v =` line), not because of the search (the `indices =`
-and `shuffle =` lines). 
-
-The sorting is already performed for the positions information (it was
-necessary to construct the tree), but `packingcubes` does not apply the sort to
-the other fields in the snapshot. 
-
-So if you only need positional information, 
+or as a "one-liner"[^1]:
 ```python
-dataset = packingcubes.GadgetishHDF5Dataset(orig_dataset_file)
-indices = cubes.get_indices_in_sphere(center, radius)
-
-positions_list = []
-# We don't need to open the orig_dataset file
-dataset.particle_type = "PartType0"
-for start,stop in indices_dict["PartType0"]:
-    positions_list.extend(dataset.positions[start:stop])
-
-positions = np.fromiter(positions_list)
+velocities = packingcubes.Cubes(
+    orig_dataset_file,
+    particle_type="PartType0",
+    extras={"v":"Velocity"}
+).Sphere(center, radius, fields="all").v
 ```
-should be very fast.
 
-If you need a different field, (like the `velocities`, as above), we recommend
-preloading the entire velocities array, using the shuffle list to presort it,
-and then treating it analogously to the `dataset.positions` field or saving it
-back out: 
-```python
-indices = cubes.get_indices_in_sphere(center, radius)
-
-with h5py.File(orig_dataset_path) as orig_dataset:
-    loaded_velocities = orig_dataset["PartType0/velocity"]
-    
-# Just to make sure we're looking at the correct particle type
-dataset.particle_type = "PartType0"
-
-loaded_velocities = loaded_velocities[dataset.index,:]
-
-# use directly
-velocities_list = []
-for start,stop in indices:
-    velocities_list.extend(loaded_velocities[start:stop])
-
-# or save it back out
-with h5py.File(sorted_velocity_path, "a") as outfile:
-    outfile["PartType0/velocity"] = loaded_velocities
-...
-velocities_list = []
-with h5py.File(sorted_velocity_path) as vel_dataset:
-    for start, stop in indices:
-        velocities_list.extend(
-            vel_dataset["PartType0/velocity"][start:stop, :]
-        )
-
-
-velocities = np.fromiter(velocities_list)
-```
+[^1]: Okay, it's _technically_ 5 lines. But only because it's broken up for clarity!
 
 If this seems like a hassle, consider the [GUSTEAU](https://www.github.com/astrosocket/gusteau)
 project, which among many other improvements, will do all of this additional
