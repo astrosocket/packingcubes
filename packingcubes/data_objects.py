@@ -31,7 +31,7 @@ import contextlib
 import logging
 import warnings
 from abc import ABC, abstractmethod
-from collections.abc import Mapping
+from collections.abc import Mapping, Set
 from pathlib import Path
 from typing import Any
 
@@ -202,6 +202,7 @@ class Dataset:
     filepath: Path
     """The path to this dataset (can be empty)"""
     _positions: np.ndarray
+    _extras: set[str]
 
     def __init__(
         self,
@@ -214,6 +215,9 @@ class Dataset:
             name = filepath.name
         self.filepath = filepath
         self.name = name
+
+        # no extra fields on initialization
+        self._extras = set()
 
         # the following will need to be set by the data loader
         self._box = bbox.make_bounding_box(np.array([0, 0, 0, 1, 1, 1], dtype=float))
@@ -288,17 +292,28 @@ class Dataset:
             box = np.array([0, 0, 0, 1, 1, 1])
         self._box = bbox.make_bounding_box(box)
 
+    @property
+    def extras(self) -> Set:
+        """Additional sorted fields"""
+        return self._extras
+
+    def _add_extra_field(self, field: str, data: NDArray, *, is_sorted: bool):
+        if not is_sorted:
+            _sort_field_in_place(self._index, data)
+        self.__dict__[field] = data
+        self._extras.add(field)
+
     def process_extra_fields(self, extra: Mapping[str, Any]):
         """Process extra fields
 
         How different types of extra fields are handled will depend on
-        [make_into_array][make_into_array], but the end effect will be a sorted
+        [make_into_array][make_into_array], but the net effect will be a sorted
         array accessible as an attribute of this dataset instance with the name
         provided.
 
         Parameters
         ----------
-        extra:
+        extra: Mapping[str, Any]
             A mapping of names to extra fields to attach.
 
         Examples
@@ -311,14 +326,9 @@ class Dataset:
         Any attributes added via this method will only be sorted now. Any
         subsequent sorting will not affect the ordering of these attributes
         """
-        if not hasattr(self, "_extras"):
-            self._extras = {}
         for name, field in extra.items():
             field_arr, is_sorted = self.make_into_array(field)
-            if not is_sorted:
-                _sort_field_in_place(field_arr, self._index)
-            self.__dict__[name] = field_arr
-            self._extras[name] = field_arr
+            self._add_extra_field(name, field_arr, is_sorted=is_sorted)
 
     def make_into_array(self, field: NDArray | Any) -> tuple[NDArray, bool]:
         """Try to convert field into an array
