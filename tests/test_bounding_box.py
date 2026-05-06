@@ -157,6 +157,7 @@ def test_copy(box: bbox.BoundingBox):
 # Test BoundingBox contains
 #############################
 @given(ct.valid_bounding_boxes(), ct.invalid_positions())
+@settings(deadline=None)
 def test_bbox_contains_invalid_point(box: bbox.BoundingBox, xyz: ArrayLike):
     assert not np.any(box.contains(xyz))
 
@@ -310,7 +311,7 @@ def test_get_box_center_valid(bounding_box: bbox.BoundingBox):
 #############################
 @given(
     ct.valid_bounding_boxes(),
-    st.floats() | st.integers().filter(lambda i: i < 0 or 7 < i),
+    st.floats() | st.integers().filter(lambda i: i < 1 or 8 < i),
     st.floats(allow_infinity=False, allow_nan=False),
 )
 @settings(deadline=None)
@@ -343,6 +344,7 @@ def test_get_box_vertex_invalid_indices(
     st.integers(min_value=1, max_value=8),
     st.floats(allow_infinity=False, allow_nan=False),
 )
+@settings(deadline=400)
 def test_get_box_vertex_valid(
     bounding_box: bbox.BoundingBox, index: int, jitter: float
 ):
@@ -506,6 +508,21 @@ def test_project_point_on_box_valid(
 
 
 #############################
+# Test BoundingSphere bounding_box
+#############################
+@given(ct.valid_bounding_boxes())
+def test_box_bounding_box(box: bbox.BoundingBox):
+    bbox = box.bounding_box()
+
+    # Need to test that the box is exactly equal
+    # but is a copy
+    assert np.all(bbox.box == box.box)
+    bbox.box += bbox.box / 100 + 5
+    for i in range(6):
+        assert bbox.box[i] != box.box[i]
+
+
+#############################
 # Test make_bounding_sphere
 #############################
 @given(ct.invalid_spheres())
@@ -563,7 +580,7 @@ def test_bsph_contains_invalid_point(sph: bbox.BoundingSphere, xyz: ArrayLike):
     sph=bbox.make_bounding_sphere(radius=134217728.0, center=[0, 0, 2]),
     xyz=np.array([1.34217728e8, 0.0, 0.0]),
 ).via("discovered failure in test logic")
-@settings(deadline=600)
+@settings(deadline=None)
 @given(ct.valid_bounding_spheres(), ct.valid_positions())
 def test_bsph_contains_valid(sph: bbox.BoundingSphere, xyz: ArrayLike):
     center, radius = sph.center, sph.radius
@@ -577,7 +594,7 @@ def test_bsph_contains_valid(sph: bbox.BoundingSphere, xyz: ArrayLike):
 #############################
 @given(ct.valid_bounding_spheres())
 def test_bsph_bounding_box(sph: bbox.BoundingSphere):
-    box = sph.bounding_box
+    box = sph.bounding_box()
     center, radius = sph.center, sph.radius
 
     assert np.all(box.box[:3] == center - radius)

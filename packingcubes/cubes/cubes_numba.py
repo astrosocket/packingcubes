@@ -391,7 +391,6 @@ def get_particle_indices_in_shape(
 @njit(parallel=True)
 def _parallel_expand_all_data_indices(
     slices: NDArray[np.int_],
-    shape: bbox.BoundingVolume,
 ):
     num_particles = 0
     offsets = np.empty((slices.shape[0],), dtype=np.int_)
@@ -413,9 +412,7 @@ def _parallel_expand_all_data_indices(
 
 
 @njit(parallel=True)
-def _parallel_expand_all_shuffle_indices(
-    slices: NDArray[np.int_], shape: bbox.BoundingVolume, data: DataContainer
-):
+def _parallel_expand_all_array(slices: NDArray[np.int_], array: NDArray):
     num_particles = 0
     offsets = np.empty((slices.shape[0],), dtype=np.int_)
     for i in range(slices.shape[0]):
@@ -423,18 +420,45 @@ def _parallel_expand_all_shuffle_indices(
         offsets[i] = num_particles
         num_particles += slices[i, 1] - slices[i, 0]
 
-    indices = np.empty((num_particles,), dtype=np.int64)
+    output = np.empty((num_particles,), dtype=array.dtype)
     #  ignore information about partial/full, just return indices as
     # fast as possible
     for i in prange(slices.shape[0]):
         start = slices[i, 0]
         end = slices[i, 1]
         offset = offsets[i]
-        size = start - end
-        shuffle = data._index[start:end]
+        size = end - start
+        subarray = array[start:end]
         for j in range(size):
-            indices[offset + j] = shuffle[j]
-    return indices
+            output[offset + j] = subarray[j]
+    return output
+
+
+@njit(parallel=True)
+def _parallel_expand_all_matrix(slices: NDArray[np.int_], matrix: NDArray):
+    assert len(matrix.shape) == 2
+    width = matrix.shape[1]
+
+    num_particles = 0
+    offsets = np.empty((slices.shape[0],), dtype=np.int_)
+    for i in range(slices.shape[0]):
+        # can't parallelize this because offsets should be the cumsum
+        offsets[i] = num_particles
+        num_particles += slices[i, 1] - slices[i, 0]
+
+    output = np.empty((num_particles, width), dtype=matrix.dtype)
+    #  ignore information about partial/full, just return indices as
+    # fast as possible
+    for i in prange(slices.shape[0]):
+        start = slices[i, 0]
+        end = slices[i, 1]
+        offset = offsets[i]
+        size = end - start
+        submatrix = matrix[start:end, 0:width]
+        for j in range(size):
+            for k in range(width):
+                output[offset + j, k] = submatrix[j, k]
+    return output
 
 
 @njit(parallel=True)
@@ -492,10 +516,11 @@ def _parallel_expand_data_indices(
 
 
 @njit(parallel=True)
-def _parallel_expand_shuffle_indices(
+def _parallel_expand_array(
     slices: NDArray[np.int_],
     shape: bbox.BoundingVolume,
-    data: DataContainer,
+    data_positions: NDArray[np.float64],
+    array: NDArray,
 ) -> NDArray[np.int_]:
     num_particles = 0
     offsets = np.empty((slices.shape[0],), dtype=np.int_)
@@ -504,7 +529,8 @@ def _parallel_expand_shuffle_indices(
         offsets[i] = num_particles
         num_particles += slices[i, 1] - slices[i, 0]
 
-    indices = np.empty((num_particles,), dtype=np.int64)
+    output_full = np.empty((num_particles,), dtype=array.dtype)
+    use_flag = np.empty((num_particles,), dtype=np.bool_)
 
     num_contained = 0
     for i in prange(slices.shape[0]):
@@ -513,36 +539,106 @@ def _parallel_expand_shuffle_indices(
         partial = slices[i, 2]
         offset = offsets[i]
         size = end - start
-        shuffle = data._index[start:end]
+        subarray = array[start:end]
         if not partial:
             # fully enclosed
             for j in range(size):
-                indices[offset + j] = shuffle[j]
+                ind = offset + j
+                output_full[ind] = subarray[j]
+                use_flag[ind] = 1
             num_contained += size
             continue
-        positions = data._positions[start:end, 0:3]
+        positions = data_positions[start:end, 0:3]
         j = 0
         ind = offset
         for x, y, z in positions:
             if shape.contains_point(x, y, z):
-                indices[ind] = shuffle[j]
+                output_full[ind] = subarray[j]
+                use_flag[ind] = 1
                 ind += 1
             j += 1  # noqa: SIM113
         num_contained += ind - offset
         while ind < offset + size:
-            indices[ind] = -1
+            # don't need to set output_full[ind] here since we'll skip it later
+            # anyway
+            use_flag[ind] = 0
             ind += 1
 
     # not parallelizable since we're shrinking the array
-    out_indices = np.empty((num_contained,), dtype=np.int_)
+    output_tight = np.empty((num_contained,), dtype=np.int_)
     ind = 0
-    for i in range(len(indices)):
-        index = indices[i]
-        if index >= 0:
-            out_indices[ind] = index
+    for i in range(len(output_full)):
+        if use_flag[i]:
+            output_tight[ind] = output_full[i]
             ind += 1
 
-    return out_indices
+    return output_tight
+
+
+# This is a complex function in theory, but a lot of that is just the explicit
+# for loops over the 2nd dimension
+@njit(parallel=True)
+def _parallel_expand_matrix(  # noqa: C901
+    slices: NDArray[np.int_],
+    shape: bbox.BoundingVolume,
+    data_positions: NDArray[np.float64],
+    matrix: NDArray,
+) -> NDArray[np.int_]:
+    assert len(matrix.shape) == 2
+    width = matrix.shape[1]
+
+    num_particles = 0
+    offsets = np.empty((slices.shape[0],), dtype=np.int_)
+    for i in range(slices.shape[0]):
+        # can't parallelize this because offsets should be the cumsum
+        offsets[i] = num_particles
+        num_particles += slices[i, 1] - slices[i, 0]
+
+    output_full = np.empty((num_particles, width), dtype=matrix.dtype)
+    use_flag = np.empty((num_particles,), dtype=np.bool_)
+
+    num_contained = 0
+    for i in prange(slices.shape[0]):
+        start = slices[i, 0]
+        end = slices[i, 1]
+        partial = slices[i, 2]
+        offset = offsets[i]
+        size = end - start
+        submatrix = matrix[start:end, 0:width]
+        if not partial:
+            # fully enclosed
+            for j in range(size):
+                ind = offset + j
+                for k in range(width):
+                    output_full[ind, k] = submatrix[j, k]
+                use_flag[ind] = 1
+            num_contained += size
+            continue
+        positions = data_positions[start:end, 0:3]
+        j = 0
+        ind = offset
+        for x, y, z in positions:
+            if shape.contains_point(x, y, z):
+                for k in range(width):
+                    output_full[ind, k] = submatrix[j, k]
+                use_flag[ind] = 1
+                ind += 1
+            j += 1  # noqa: SIM113
+        num_contained += ind - offset
+        while ind < offset + size:
+            use_flag[ind] = 0
+            ind += 1
+
+    # not parallelizable since we're shrinking the array
+    output_tight = np.empty((num_contained, width), dtype=matrix.dtype)
+    ind = 0
+    for i in range(len(output_full)):
+        if use_flag[i]:
+            for j in range(width):
+                output_tight[ind, j] = output_full[i, j]
+            ind += 1
+
+    return output_tight
 
 
 @njit
@@ -551,7 +647,8 @@ def get_particle_index_list_in_shape(
     trees: List[PackedTreeNumba],
     cube_offsets: NDArray,
     shape: bbox.BoundingVolume,
-    data: DataContainer | None,
+    data: DataContainer,
+    strict: bool,  # noqa: FBT001, FBT002
     use_data_indices: bool,  # noqa: FBT001, FBT002
 ) -> NDArray[np.int_]:
     """Get the array of particle indices in the specified shape
@@ -573,13 +670,19 @@ def get_particle_index_list_in_shape(
     shape:
         BoundingVolume to check
 
-    data: DataContainer | None
-        Particle positions information. If `None`, only check whether node
-        is within shape, which is equivalent to expanding the node
-        start/stops from `_get_particle_indices_in_shape`
+    data: DataContainer
+        Particle positions information. If data is not available and you want
+        non-strict data indices, consider calling
+        [_parallel_expand_all_data_indices][_parallel_expand_all_data_indices]
+        directly.
+
+    strict: bool
+        If `False`, only check whether node is within shape, which is
+        equivalent to expanding the node start/stops from
+        `_get_particle_indices_in_shape`. Default `True`.
 
     use_data_indices: bool
-        Return shuffle indices if `False`. Default `True`
+        Return shuffle indices if `False`. Default `True`.
 
     Returns
     -------
@@ -591,12 +694,71 @@ def get_particle_index_list_in_shape(
     slices = get_particle_indices_in_shape(cubes, trees, cube_offsets, shape)
 
     if use_data_indices:
-        if data is None:
-            return _parallel_expand_all_data_indices(slices, shape)
-        return _parallel_expand_data_indices(slices, shape, data)
-    if data is None:
-        return _parallel_expand_all_shuffle_indices(slices, shape, data)
-    return _parallel_expand_shuffle_indices(slices, shape, data)
+        if strict:
+            return _parallel_expand_data_indices(slices, shape, data)
+        return _parallel_expand_all_data_indices(slices)
+    if strict:
+        return _parallel_expand_array(slices, shape, data._positions, data._index)
+    return _parallel_expand_all_array(slices, data._index)
+
+
+@njit
+def get_array_in_shape(
+    cubes: List[BoundingBox],
+    trees: List[PackedTreeNumba],
+    cube_offsets: NDArray,
+    shape: bbox.BoundingVolume,
+    data_positions: NDArray,
+    array: NDArray,
+    strict: bool,  # noqa: FBT001, FBT002
+) -> NDArray[np.int_]:
+    """Get the array of particle indices in the specified shape
+
+    If the data argument is specified, will do additional
+    containment-checks at the particle level
+
+    Parameters
+    ----------
+    cubes:
+        List of cube bounding boxes
+
+    trees:
+        List of cube PackedTreeNumbas
+
+    cube_offsets:
+        Array of cube offset indices into the data
+
+    shape:
+        BoundingVolume to check
+
+    data_positions: NDArray
+        Particle positions information. If data is not available and you want
+        non-strict containment, consider calling
+        [_parallel_expand_all_array][_parallel_expand_all_array] or
+        [_parallel_expand_all_matrix][_parallel_expand_all_matrix]
+        directly.
+
+    array: NDArray
+        The actual array to expand.
+
+    strict: bool
+        If `False`, only check whether node is within shape, which is
+        equivalent to expanding the node start/stops from
+        `_get_particle_indices_in_shape`. Default `True`.
+
+
+    Returns
+    -------
+    indices: NDArray[int]]
+        List of particle indices contained within shape. Will contain
+        any additional particles that can be found in the same nodes if
+        data is not provided
+    """
+    slices = get_particle_indices_in_shape(cubes, trees, cube_offsets, shape)
+
+    if strict:
+        return _parallel_expand_array(slices, shape, data_positions, array)
+    return _parallel_expand_all_array(slices, array)
 
 
 @njit(parallel=False)

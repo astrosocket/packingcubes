@@ -1057,7 +1057,7 @@ class PythonOctree(Octree):
         sph = bbox.BoundingSphere(center, radius)
 
         return self._get_nodes_in_shape(
-            bounding_box=sph.bounding_box,
+            bounding_box=sph.bounding_box(),
             containment_obj=sph,
         )
 
@@ -1168,7 +1168,7 @@ class PythonOctree(Octree):
         sph = bbox.make_bounding_sphere(center=center, radius=radius)
 
         return self._get_particle_indices_in_shape(
-            bounding_box=sph.bounding_box,
+            bounding_box=sph.bounding_box(),
             containment_obj=sph,
         )
 

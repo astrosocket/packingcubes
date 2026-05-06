@@ -38,13 +38,7 @@ Methods
 -------
 Cubes
     Intended ParticleCubes creation method. Can accept snaphsot file paths,
-    Dataset objects, and position arrays and returns a ParticleCubes or
-    dictionary of ParticleCubes, depending on the number of particle types
-
-make_ParticleCubes
-    Effectively `Cubes` but raise an error if more than one particle type is
-    present (useful for typing)
-
+    Dataset objects, and position arrays and returns a ParticleCubes object
 
 """
 
@@ -58,9 +52,6 @@ from packingcubes.cubes import (
     ParticleCubes as ParticleCubes,
 )
 from packingcubes.cubes import make_cubes as make_cubes
-from packingcubes.cubes import (
-    make_ParticleCubes as make_ParticleCubes,
-)
 from packingcubes.data_objects import (
     GadgetishHDF5Dataset as GadgetishHDF5Dataset,
 )
@@ -83,7 +74,6 @@ __all__ = [
     "make_cubes",
     "Cubes",
     "ParticleCubes",
-    "make_ParticleCubes",
     "__version__",
 ]
 

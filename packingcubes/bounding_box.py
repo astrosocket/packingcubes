@@ -272,6 +272,16 @@ class BoundingVolume:
         """
         raise NotImplementedError("Must be called from an implementing class")
 
+    def bounding_box(self) -> BoundingBox:
+        """Return a BoundingBox for this volume
+
+        Returns
+        -------
+        : BoundingBox
+            A BoundingBox instance that completely encloses this volume
+        """
+        raise NotImplementedError("Must be called from an implmenting class")
+
 
 # KW-only arguments with defaults seem to be just completely broken. Likely
 # related to https://github.com/numba/numba/issues/5903
@@ -345,6 +355,10 @@ class BoundingBox(BoundingVolume):
         """Return a deep copy of this bounding box"""
         return BoundingBox(self.box.copy())
 
+    def bounding_box(self) -> BoundingBox:
+        """Return the BoundingBox for this bounding box (a copy of self)"""
+        return self.copy()
+
     def get_box_center(self) -> NDArray:
         """Return the coordinates of the center of the box"""
         return self.box[0:3] + self.box[3:6] / 2
@@ -359,7 +373,7 @@ class BoundingBox(BoundingVolume):
         Parameters
         ----------
         index: int
-            Z-order (0-based) index of vertex
+            Z-order (1-based) index of vertex
 
         jitter: float, optional
             Jitter direction. Default 0 (no jitter)
@@ -1088,7 +1102,6 @@ class BoundingSphere(BoundingVolume):
         # if it's not a vertex
         return max(overlap, 1)
 
-    @property
     def bounding_box(self) -> BoundingBox:
         """Return a BoundingBox that would contain this sphere"""
         center = self.center

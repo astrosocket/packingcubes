@@ -714,7 +714,6 @@ class PackedTreeNumba:
 
     def _get_nodes_in_shape(
         self,
-        bounding_box: bbox.BoundingBox,
         containment_obj: bbox.BoundingVolume,
     ) -> tuple[list[PackedNodeNumba], list[PackedNodeNumba]]:
         """Return lists of all nodes entirely inside and partially inside shape
@@ -728,12 +727,8 @@ class PackedTreeNumba:
 
         Parameters
         ----------
-        bounding_box: BoundingBox
-            Shape bounding box
-
         containment_obj: BoundingVolume
-            Object with bounding box specified by bounding_box. Provides
-            a more exact containment test (e.g. contained within a sphere).
+            Object to test containment in.
 
         Returns
         -------
@@ -748,7 +743,6 @@ class PackedTreeNumba:
         IndexError
             When there are unexpected issues with the queue system.
         """
-        bbox_center = bounding_box.get_box_center()
         node = self._make_root_node()
 
         entire_nodes = List.empty_list(pack_node_type)
@@ -828,10 +822,7 @@ class PackedTreeNumba:
         with objmode(sph=bbox.bs_type):
             sph = bbox.make_bounding_sphere(center=center, radius=radius)
 
-        return self._get_nodes_in_shape(
-            sph.bounding_box,
-            sph,
-        )
+        return self._get_nodes_in_shape(sph)
 
     def _get_particle_indices_in_shape(
         self,

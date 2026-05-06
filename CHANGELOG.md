@@ -1,3 +1,86 @@
+## [0.5.0] - 2026-05-06
+
+### 🚀 Features
+
+- Add search objects ([684481a](https://github.com/astrosocket/packingcubes/commit/684481a9eadc2d24c1d75021dde7fabfa717c8b2))
+- Add get_array_in_shape ([7ada2b3](https://github.com/astrosocket/packingcubes/commit/7ada2b3b0156d58466879ba4a0c4853996a6066a))
+- Attach datasets to Cubes objects on creation ([add464a](https://github.com/astrosocket/packingcubes/commit/add464a8c101ecd86d5072171e8b3957def862cb))
+- Include extras when saving datasets ([f5ef90f](https://github.com/astrosocket/packingcubes/commit/f5ef90f9a39738cfb0d77294570171f5299ccf5c))
+- Increase flexibility when saving extras ([2873e47](https://github.com/astrosocket/packingcubes/commit/2873e47a459f72dd9b2c21a5d062392c2847c10e))
+- Add support for extra array tuples ([ecc041f](https://github.com/astrosocket/packingcubes/commit/ecc041f87128f29a305a74cc9029d84f6a94f3d4))
+- Allow dataset to be optional ([eaf5d19](https://github.com/astrosocket/packingcubes/commit/eaf5d191ebb18ea2e10ed8d60cecdfc4bb3d7d85))
+- Explicitly allow attaching a Dataset to a ParticleCubes/MultiCubes ([375766d](https://github.com/astrosocket/packingcubes/commit/375766d65af82c8f40e3962c9c619ec58e53b90d))
+- Change dataset to positional parameter ([58bbfca](https://github.com/astrosocket/packingcubes/commit/58bbfca618e025269a47a6480a11e235c33ee4c3))
+- Allow setting bounding box on InMemory creation ([e16d450](https://github.com/astrosocket/packingcubes/commit/e16d4503379185c835bf722ed4f2ee18dcb85ce2))
+- Convert bounding_box to method on BoundingVolume ([ecf9c74](https://github.com/astrosocket/packingcubes/commit/ecf9c74edf8c5a6ccd5163e099d76424e70e44cb))
+- Expose extras processing to Cubes ([7b8bba1](https://github.com/astrosocket/packingcubes/commit/7b8bba1e18fcb5337eba85fbc995418971210bd3))
+- Add ability to attach extra fields to dataset ([52b9101](https://github.com/astrosocket/packingcubes/commit/52b91018d80233564c52b53d510fd480353d869c))
+- Allow MultiCubes to initialize from dict of str->ParticleCubes ([a47bb80](https://github.com/astrosocket/packingcubes/commit/a47bb80593dbab42ff660839661606a7b614f265))
+- Use filepath as default InMemory save location ([3e7b48d](https://github.com/astrosocket/packingcubes/commit/3e7b48d31229aca92f255dc6ea2585dfaca704b6))
+- Ignore extra kwargs in initialization ([276497a](https://github.com/astrosocket/packingcubes/commit/276497ac52c3d000a699ca576100a51b743b13cc))
+- Allow passing NDArrays to load_dataset ([f9add9e](https://github.com/astrosocket/packingcubes/commit/f9add9e72cc7312d7c6ce6b949dfd6fceb2c140b))
+- Add _handle_dataset_types ([8f4a826](https://github.com/astrosocket/packingcubes/commit/8f4a8260129742a573146e4cd867b2c50ff80a23))
+- Update make_cubes following ([#30](https://github.com/astrosocket/packingcubes/issues/30)) ([b77ce4c](https://github.com/astrosocket/packingcubes/commit/b77ce4cff317dd3cca2bcbf6570b4de10adaab25))
+
+### 🐛 Bug Fixes
+
+- Fix negative chunk sizes ([d0289bb](https://github.com/astrosocket/packingcubes/commit/d0289bb2bc21bea301def62068408e15954916cc))
+- Fix not passing strict parameter ([e8089e6](https://github.com/astrosocket/packingcubes/commit/e8089e6c5ce28579eefd6a28df552d474edbba6d))
+- Fix data loading when slices not provided ([bb51f34](https://github.com/astrosocket/packingcubes/commit/bb51f348f8ca072058fb151d6e6604f1c2af918d))
+- Handle None filepaths for InMemory ([4eaac93](https://github.com/astrosocket/packingcubes/commit/4eaac93250c8c61e5756e6d8a3546d8699fbcd6a))
+- Fix strict containment test handling ([867d111](https://github.com/astrosocket/packingcubes/commit/867d111666dbc5ada0157cc10537238623e59804))
+- Fix loading entire index ([b8a3193](https://github.com/astrosocket/packingcubes/commit/b8a3193869657908b2ac37f37ebd624913ba1ad1))
+- Add missing typing ([222f8a8](https://github.com/astrosocket/packingcubes/commit/222f8a84f280d4b43b550986f4903e2e0196ef7c))
+- Fix improper indentation ([b65d176](https://github.com/astrosocket/packingcubes/commit/b65d176179d5fb37873fe777ef731b592bada33d))
+
+### 💼 Other
+
+- Ignore datafiles for doc testing ([05d8f97](https://github.com/astrosocket/packingcubes/commit/05d8f97c73fef905fb9f23a57116ae4724d91f2a))
+
+### 🚜 Refactor
+
+- Genericize array expansion ([e9d0791](https://github.com/astrosocket/packingcubes/commit/e9d07913b16856796b32375d10e2b0534f94d669))
+- Drop initial from initial_particle_type for parity to InMemory ([ffcf78b](https://github.com/astrosocket/packingcubes/commit/ffcf78ba8021c86d52c3639279d34aa7ec9b2cec))
+- Move extras to property ([6207c19](https://github.com/astrosocket/packingcubes/commit/6207c193ef5db131286bb3493936053021515b4d))
+- Remove unused boundingbox ([f4d6415](https://github.com/astrosocket/packingcubes/commit/f4d6415202047342180a721c734da10bb23d40d3))
+- Remove extra shape parameter ([085d8df](https://github.com/astrosocket/packingcubes/commit/085d8df6ddd09e137af931f9a4f715d5fd32750d))
+- Overload _handle_dataset_types ([4c588ed](https://github.com/astrosocket/packingcubes/commit/4c588ede3964e33d30b6b2aef6b8df73a660ad50))
+- Update exported functionality ([0ec510d](https://github.com/astrosocket/packingcubes/commit/0ec510d4bbdc3d5a7b664a6dfcaeb74f6e82b497))
+- Update OpTree to use Cubes ([cd651e6](https://github.com/astrosocket/packingcubes/commit/cd651e621aed8e95299f4b1ff0fbb976973d07e3))
+- Remove extraneous None check, add Any typing ([14d7e2d](https://github.com/astrosocket/packingcubes/commit/14d7e2db6e7176ef1dc878057fc7241f4a3e68cf))
+- Update make_MultiCubes ([3da120b](https://github.com/astrosocket/packingcubes/commit/3da120bd1f495a2bba5f55bec08467aa951b7312))
+- (Breaking) make Cubes only return ParticleCubes objects ([8cb1a97](https://github.com/astrosocket/packingcubes/commit/8cb1a97eeee9f08f1ee8d166d6a1df0d45b67901))
+- Switch _add_trees to only one particle_type at a time ([942b595](https://github.com/astrosocket/packingcubes/commit/942b5953469f47bcfc1fa0b62e6997f61fed4d33))
+- Remove make_ParticleCubes ([dce9045](https://github.com/astrosocket/packingcubes/commit/dce904508a4108ef68381a1697e1f3b5a70cf26a))
+- Stop passing around cube_dicts ([0cd57ba](https://github.com/astrosocket/packingcubes/commit/0cd57ba17c309cdaafe89192ddb667cfaa890cb3))
+
+### 📚 Documentation
+
+- Rework key-features section ([1fc7c9e](https://github.com/astrosocket/packingcubes/commit/1fc7c9e5ecabadc32681cd42bd86744d32378d05))
+- Add TvsR recipes ([be5522b](https://github.com/astrosocket/packingcubes/commit/be5522b7528b58d8c7f01d87aaf251283b8771e0))
+- Add figures to PWS ([b02f896](https://github.com/astrosocket/packingcubes/commit/b02f896d6e03f41538705bbc184a6f5b9b55f2dc))
+- Add new search pipeline and index list searching ([ec78d2d](https://github.com/astrosocket/packingcubes/commit/ec78d2dd16027cc4cad3357d1c8dc4ba0e5d6076))
+- Update Working_With_Datasets ([0dd1be5](https://github.com/astrosocket/packingcubes/commit/0dd1be54593dbd353a36daa2e54e5021b73a13cd))
+- Make ParticleCubes a link ([59da1ca](https://github.com/astrosocket/packingcubes/commit/59da1ca36be1f02a173eea4b3a8acbc6d31c0c78))
+- Update the readme for new search pipeline ([042e2a1](https://github.com/astrosocket/packingcubes/commit/042e2a187685aafd2ca11741f1fd4cdac4de7421))
+- Add 'why use packingcubes', clean up ([6ca6a02](https://github.com/astrosocket/packingcubes/commit/6ca6a02986e11b7f80326393a9c4ea61f572d52f))
+- Set explicit ordering for Cubes members ([4052871](https://github.com/astrosocket/packingcubes/commit/4052871102aef501d0fda04299988526d730b215))
+- Tweak cubes creation docs to match updates ([ca8c9dd](https://github.com/astrosocket/packingcubes/commit/ca8c9dd68c598250a239ef563c787272039d6344))
+- Fix formatting ([a4c3ecf](https://github.com/astrosocket/packingcubes/commit/a4c3ecf99db77cb2dad89b604f21cc458e99fbda))
+- Fix up Cubes docstring ([2589a86](https://github.com/astrosocket/packingcubes/commit/2589a8679c95fca7d6de8de1112e3dbcb218e496))
+- Update tutorials, Getting Started page ([f45d3a6](https://github.com/astrosocket/packingcubes/commit/f45d3a6539e3f26acf73f42c9d09fefd0082cb0d))
+- Update README ([db2f3db](https://github.com/astrosocket/packingcubes/commit/db2f3db256f98252606f4b73f16dbcfda01bcc7d))
+- Update module/package docstrings ([d9fda93](https://github.com/astrosocket/packingcubes/commit/d9fda933999521957fd7d25c45de62cc9ebc1564))
+
+### 🧪 Testing
+
+- Fix bounding_box now method, add box version ([7efc00b](https://github.com/astrosocket/packingcubes/commit/7efc00b9420893377bf1b600e4325ba667fd7edd))
+- Fix minor issues with testing ([a0b242f](https://github.com/astrosocket/packingcubes/commit/a0b242f0bc8f53ced8f24b9a406595682d09f523))
+- Fix numba coverage report ([e3d9ecb](https://github.com/astrosocket/packingcubes/commit/e3d9ecba0bd1b268b2fdd7128c5092b70a225733))
+
+### ⚙️ Miscellaneous Tasks
+
+- Remove github pages workflow ([95242f0](https://github.com/astrosocket/packingcubes/commit/95242f02d98385a29d66d6d13c9e0dac0f105a2a))
 ## [0.4.0] - 2026-04-24
 
 ### 🚀 Features

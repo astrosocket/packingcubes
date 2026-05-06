@@ -282,13 +282,12 @@ class OpTree:
             octree._DEFAULT_PARTICLE_THRESHOLD if leafsize is None else leafsize
         )
 
-        self._cubes = cubes.make_ParticleCubes(
+        self._cubes = cubes.Cubes(
             dataset=self._dataset,
             particle_threshold=leafsize,
             cube_box=bounding_box,
             save_dataset=save_dataset,
-            # Want only one particle type (current)
-            particle_types=self._dataset.particle_type,
+            particle_type=self._dataset.particle_type,
         )
 
         # Each node is 5 fields, so number of nodes in a single tree = length/5
