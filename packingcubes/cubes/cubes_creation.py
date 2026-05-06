@@ -562,6 +562,12 @@ def Cubes(
             cubes = make_cubes(dataset=dataset, particle_type=particle_type, **kwargs)
             if extras:
                 dataset.process_extra_fields(extras)
+                if "save_dataset" in kwargs:
+                    # we skip positions and index here because they would have
+                    # already been saved
+                    dataset.save(
+                        fields=extras.keys(), skip_positions=True, skip_index=True
+                    )
     else:
         if "cube_trees" not in cubes_dict:
             if dataset is None:
