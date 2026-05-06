@@ -31,7 +31,7 @@ import contextlib
 import logging
 import warnings
 from abc import ABC, abstractmethod
-from collections.abc import Mapping, Set
+from collections.abc import Collection, Mapping, Set
 from pathlib import Path
 from typing import Any
 
@@ -410,6 +410,9 @@ class MultiParticleDataset(Dataset, ABC):
         output_file: str | Path | None = None,
         force_overwrite: bool | None = None,
         particle_type: str | None = None,
+        fields: Collection[str] | None = None,
+        skip_positions: bool = False,
+        skip_index: bool = False,
     ):
         """Save this dataset to disk
 
@@ -428,8 +431,59 @@ class MultiParticleDataset(Dataset, ABC):
         particle_type: str, optional
             Save positions under a different particle type than
             `self.particle_type`
+
+        fields: Collection[str], optional
+            Collection of fields in `self.extras` to save in addition to
+            `self.positions` and `self.index`
+
+        skip_positions: bool, optional
+            Do not save `self.positions` if `True`. Default `False`.
+
+        skip_index: bool, optional
+            Do not save `self.index` if `True`. Default `False`.
         """
         ...
+
+
+def save_hdf5_field(
+    *,
+    output_file: str | Path,
+    force_overwrite: bool | None,
+    particle_type: str,
+    field: str,
+    data: NDArray,
+):
+    """Save field with name to disk in an HDF5 file
+
+    Parameters
+    ----------
+    output_file: str | Path
+        The name of the output file.
+
+    force_overwrite: bool
+        Force overwriting position and index data if the output file
+        already contains it under the specified particle type
+
+    particle_type: str
+        Particle type to save field under. Essentially, field will be saved as
+        `file[f"{particle_type}/{name}"]`.
+
+    field: str
+        Name of field
+
+    data: NDArray
+        Field data
+    """
+    with h5py.File(output_file, "a") as output:
+        name = f"{particle_type}/{field}"
+        if name in output:
+            if force_overwrite:
+                del output[name]
+            else:
+                raise DatasetError(
+                    f"{output_file} already contains {field} and force_overwrite=False"
+                )
+        output[name] = data
 
 
 class InMemory(MultiParticleDataset):
@@ -516,14 +570,17 @@ class InMemory(MultiParticleDataset):
         output_file: str | Path | None = None,
         force_overwrite: bool | None = None,
         particle_type: str | None = None,
+        fields: Collection[str] | None = None,
+        skip_positions: bool = False,
+        skip_index: bool = False,
     ):
         """Save sorted particle data and shuffle-list to disk in an HDF5 file
 
         Parameters
         ----------
         output_file: str | Path, optional
-            The name of the output file. Note this field is optional to match
-            the superclass, however, specifying None will raise a ValueError.
+            The name of the output file. Defaults to `self.filepath`. Since
+            this is `""` unless specified, will raise a `ValueError`.
 
         force_overwrite: bool, optional
             Force overwriting position and index data if the output file
@@ -533,10 +590,20 @@ class InMemory(MultiParticleDataset):
             Save positions under a different particle type than
             `self.particle_type`
 
+        fields: Collection[str], optional
+            Collection of fields in `self.extras` to save in addition to
+            `self.positions` and `self.index`
+
+        skip_positions: bool, optional
+            Do not save `self.positions` if `True`. Default `False`.
+
+        skip_index: bool, optional
+            Do not save `self.index` if `True`. Default `False`.
+
         Raises
         ------
             ValueError
-                If no output_file is specified
+                If no output_file or the empty string (`""`) is specified
         """
         output_file = self.filepath if output_file is None else output_file
         if not output_file:
@@ -547,22 +614,30 @@ class InMemory(MultiParticleDataset):
 
         particle_type = self.particle_type if particle_type is None else particle_type
 
-        extras = getattr(self, "_extras", {})
-        fields = ["Coordinates", "index", *extras]
-        arrays = [self._positions, self._index, *extras.values()]
+        fields = self._extras if fields is None else set(fields)
+        if not fields <= self._extras:
+            raise ValueError(
+                f"""
+                Requested {self._extras - fields} but they are not present in
+                this dataset.
+                """
+            )
 
+        data = {field: self.__dict__[field] for field in fields}
+        if not skip_positions:
+            data["Coordinates"] = self.positions
+        if not skip_index:
+            data["index"] = self.index
+
+        for field, array in data.items():
+            save_hdf5_field(
+                output_file=output_file,
+                force_overwrite=force_overwrite,
+                particle_type=particle_type,
+                field=field,
+                data=array,
+            )
         with h5py.File(output_file, "a") as output:
-            for field, array in zip(fields, arrays, strict=True):
-                name = f"{particle_type}/{field}"
-                if name in output:
-                    if force_overwrite:
-                        del output[name]
-                    else:
-                        raise DatasetError(
-                            f"{output_file} already contains {name} "
-                            "and force_overwrite=False"
-                        )
-                output[name] = array
             output[particle_type].attrs["use_sorted"] = True
 
 
@@ -852,6 +927,9 @@ class HDF5Dataset(MultiParticleDataset):
         output_file: str | Path | None = None,
         force_overwrite: bool | None = None,
         particle_type: str | None = None,
+        fields: Collection[str] | None = None,
+        skip_positions: bool = False,
+        skip_index: bool = False,
     ):
         """Save sorted particle positions and shuffle list to provided file
 
@@ -867,30 +945,44 @@ class HDF5Dataset(MultiParticleDataset):
         particle_type: str, optional
             Save positions under a different particle type than
             `self.particle_type`
+
+        fields: Collection[str], optional
+            Collection of fields in `self.extras` to save in addition to
+            `self.positions` and `self.index`
+
+        skip_positions: bool, optional
+            Do not save `self.positions` if `True`. Default `False`.
+
+        skip_index: bool, optional
+            Do not save `self.index` if `True`. Default `False`.
         """
         output_file = self._sorted_file_name if output_file is None else output_file
 
         particle_type = self.particle_type if particle_type is None else particle_type
 
-        extras = getattr(self, "_extras", {})
-        fields = [self._positions_field, "index", *extras]
-        arrays = [self._positions, self._index, *extras.values()]
+        fields = self._extras if fields is None else set(fields)
+        if not fields <= self._extras:
+            raise ValueError(
+                f"""
+                Requested {self._extras - fields} but they are not present in
+                this dataset.
+                """
+            )
+        data = {field: self.__dict__[field] for field in fields}
+        if not skip_positions:
+            data[self._positions_field] = self.positions
+        if not skip_index:
+            data["index"] = self.index
 
+        for field, array in data.items():
+            save_hdf5_field(
+                output_file=output_file,
+                force_overwrite=force_overwrite,
+                particle_type=particle_type,
+                field=field,
+                data=array,
+            )
         with h5py.File(output_file, "a") as output:
-            for field, array in zip(
-                fields,
-                arrays,
-                strict=True,
-            ):
-                name = f"{particle_type}/{field}"
-                if name in output and force_overwrite:
-                    del output[name]
-                else:
-                    raise DatasetError(
-                        f"{output_file} already contains {name} "
-                        "and force_overwrite=False"
-                    )
-                output[name] = array
             output[particle_type].attrs["use_sorted"] = True
 
 
