@@ -596,6 +596,8 @@ def Cubes(
             cube_tree=cube_trees,
             **kwargs,
         )
+    # Only attach dataset if we used (converted) it
+    cubes._dataset = dataset if isinstance(dataset, MultiParticleDataset) else None
     return cubes
 
 
@@ -632,6 +634,7 @@ def make_MultiCubes(
     )
     for pt in particle_types:
         multi._cubes_dict[pt] = Cubes(dataset=mpdataset, particle_type=pt, **kwargs)
+    multi._dataset = mpdataset
     return multi
 
 
