@@ -98,7 +98,7 @@ dataset.positions
 ??? tip "Eager Loading"
     `GadgetishHDF5Datasets` eagerly load `positions` data, so you can specify
     which particle type you want to load first by setting the
-    `initial_particle_type` parameter in the constructor.
+    `particle_type` parameter in the constructor.
 
 ### From positions in memory
 
@@ -137,14 +137,10 @@ at this time for the GadgetishHDF5Dataset[^2][^3].
     starts with `"Part"`, and the first element of `dataset.particle_types`. 
 [^3]: We don't need to specify the particle type for InMemory datasets because
     they only have one, `"PartTypeIM"`. This is just a dummy name used when
-    saving the particles out, however; you can change it with 
+    saving the particles out, however; you can change it on initialization or with 
     `inmem_dataset.particle_type = "NewName"`. Note that the new name would
     need to start with `"Part"` for it to be picked up by 
     `GadgetishHDF5Dataset`.
-
-Note that the first time you run `Cubes`, it will take a little bit to 
-Just-In-Time compile some of the functions. Subsequent invocations will be
-faster.
 
 ```python
 cubes = packingcubes.Cubes(dataset, particle_type="PartType0")
@@ -215,14 +211,68 @@ dataset_reloaded.positions
 
 Note the sorted positions!
 
+## Sorting additional fields
+Once the dataset is sorted, we can include additional fields to be linked to
+the particles. The process takes two steps:
+
+1. Define a mapping between names and fields. Names are what you want the field
+   to be referenceable as (say `mass`), and fields are the actual data. All
+   datasets support two types: `N` length vectors and `N`x`M` sized matrices. For
+   HDF5-based `Datasets`, a string corresponding to the name of the HDF5
+   dataset on disk is also supported (e.g., if you provide `field_name`,
+   `packingcubes` will look for a dataset in the form
+   `current_particle_type/field_name`).
+   Example:
+   ```python
+   calculated_field = calculation()
+   extra_fields = {"Mass":"Mass", "vx":"Velocity_x", "cf":calculated_field}
+   ```
+2. Provide the mapping to the dataset. This will sort the data using the shuffle
+   list in a one-time pass. Note that this means this step must be done
+   **after** the cubing process! Otherwise the field will retain the original
+   order.
+    ```python
+    dataset.process_extra_fields(extra_fields)
+    ```
+
+The extra fields will now be available as dataset attributes:
+```python
+mass = dataset.Mass
+vx = dataset.vx
+dcf = dataset.cf
+```
+    
+??? info "Keeping the same name for on-disk fields"
+    In the future we expect to allow lists of strings if you prefer to keep the
+    on-disk names. Until then, you can use a dict comprehension 
+    (`extra_fields = {f:f for f in fields}`).
+??? danger "Already sorted data"
+    If your data is already spatially sorted, you **must** provide a tuple of
+    `(field, True)` instead of the field directly. This will skip the sorting
+    step when adding that particular field, e.g.
+    ```python
+    dataset.process_extra_fields(
+        {
+            "sf":(already_sorted, True),
+            "sdf":("already_sorted_on_disk",True),
+            "nsf":"not_sorted",
+        }
+    )
+    ```
+    Otherwise the field will be re-ordered using the shuffle list, *un-sorting*
+    it. 
+    
+    You can specify a tuple for non-sorted fields as well, (like 
+    `("not_sorted", False)`), but it's obviously not necessary.
+
 
 
 ## All-in-one
 As mentioned previously, the `Cubes` command combines a number of the above
 steps into one command. So if you don't need any additional flexibility, or
-access to the dataset positions/shuffle list/etc., you can include the dataset
-saving in the initial `Cubes` call via the `sorted_filepath` and `save_dataset`
-parameters, like so:
+direct access to the dataset positions/shuffle list/etc., you can include the
+dataset saving and extra fields in the initial `Cubes` call via the 
+`sorted_filepath`, `save_dataset`, and `extras` parameters, like so:
 
 ```python
 cubes = packingcubes.Cubes(
@@ -230,8 +280,11 @@ cubes = packingcubes.Cubes(
     particle_type="PartType0",
     sorted_filepath="sorted_positions.hdf5",
     save_dataset=True,
+    extras={"Mass":"Mass","vx":"Velocity_x"},
 )
 ```
+
+The `Dataset` is then available via `cubes.dataset`.
 
 <script id="MathJax-script" src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
 <script>
