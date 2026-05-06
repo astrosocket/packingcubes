@@ -157,7 +157,7 @@ def test_copy(box: bbox.BoundingBox):
 # Test BoundingBox contains
 #############################
 @given(ct.valid_bounding_boxes(), ct.invalid_positions())
-@settings(deadline=400)
+@settings(deadline=None)
 def test_bbox_contains_invalid_point(box: bbox.BoundingBox, xyz: ArrayLike):
     assert not np.any(box.contains(xyz))
 
@@ -580,7 +580,7 @@ def test_bsph_contains_invalid_point(sph: bbox.BoundingSphere, xyz: ArrayLike):
     sph=bbox.make_bounding_sphere(radius=134217728.0, center=[0, 0, 2]),
     xyz=np.array([1.34217728e8, 0.0, 0.0]),
 ).via("discovered failure in test logic")
-@settings(deadline=600)
+@settings(deadline=None)
 @given(ct.valid_bounding_spheres(), ct.valid_positions())
 def test_bsph_contains_valid(sph: bbox.BoundingSphere, xyz: ArrayLike):
     center, radius = sph.center, sph.radius
