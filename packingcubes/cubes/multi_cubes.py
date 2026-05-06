@@ -225,6 +225,7 @@ class MultiCubes:
             inds[pt] = self._cubes_dict[pt]._get_particle_index_list_in_shape(
                 data=data,
                 shape=shape,
+                strict=strict,
                 use_data_indices=use_data_indices,
             )
         return inds
