@@ -373,7 +373,7 @@ class BoundingBox(BoundingVolume):
         Parameters
         ----------
         index: int
-            Z-order (0-based) index of vertex
+            Z-order (1-based) index of vertex
 
         jitter: float, optional
             Jitter direction. Default 0 (no jitter)

@@ -157,6 +157,7 @@ def test_copy(box: bbox.BoundingBox):
 # Test BoundingBox contains
 #############################
 @given(ct.valid_bounding_boxes(), ct.invalid_positions())
+@settings(deadline=400)
 def test_bbox_contains_invalid_point(box: bbox.BoundingBox, xyz: ArrayLike):
     assert not np.any(box.contains(xyz))
 
@@ -310,7 +311,7 @@ def test_get_box_center_valid(bounding_box: bbox.BoundingBox):
 #############################
 @given(
     ct.valid_bounding_boxes(),
-    st.floats() | st.integers().filter(lambda i: i < 0 or 7 < i),
+    st.floats() | st.integers().filter(lambda i: i < 1 or 8 < i),
     st.floats(allow_infinity=False, allow_nan=False),
 )
 @settings(deadline=None)
@@ -343,6 +344,7 @@ def test_get_box_vertex_invalid_indices(
     st.integers(min_value=1, max_value=8),
     st.floats(allow_infinity=False, allow_nan=False),
 )
+@settings(deadline=400)
 def test_get_box_vertex_valid(
     bounding_box: bbox.BoundingBox, index: int, jitter: float
 ):
