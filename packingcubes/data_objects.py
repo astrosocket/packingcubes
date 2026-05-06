@@ -628,7 +628,7 @@ class HDF5Dataset(MultiParticleDataset):
         name: str | None = None,
         filepath: str | Path,
         sorted_filepath: str | Path | None = None,
-        initial_particle_type: str | None = None,
+        particle_type: str | None = None,
         data_slices=None,
         **kwargs,
     ):
@@ -647,7 +647,7 @@ class HDF5Dataset(MultiParticleDataset):
             Will also search for positions data from this file before
             searching filepath.
 
-        initial_particle_type: str, optional
+        particle_type: str, optional
             Initial particle type to (eagerly) load.
 
         data_slices: np.s_ | dict[str, np.s_], optional
@@ -662,7 +662,7 @@ class HDF5Dataset(MultiParticleDataset):
         """
         super().__init__(name=name, filepath=filepath)
 
-        self._preload(sorted_filepath, initial_particle_type)
+        self._preload(sorted_filepath, particle_type)
 
         self._process_slices(data_slices)
 
@@ -673,7 +673,7 @@ class HDF5Dataset(MultiParticleDataset):
     def _preload(
         self,
         sorted_filepath: str | Path | None,
-        initial_particle_type: str | None = None,
+        particle_type: str | None = None,
     ):
         """Load certain attributes at initialization
 
@@ -905,7 +905,7 @@ class GadgetishHDF5Dataset(HDF5Dataset):
         name: str | None = None,
         filepath: str | Path,
         sorted_filepath: str | Path | None = None,
-        initial_particle_type: str | None = None,
+        particle_type: str | None = None,
         data_slices=None,
         **kwargs,
     ):
@@ -925,7 +925,7 @@ class GadgetishHDF5Dataset(HDF5Dataset):
             searching filepath. Defaults to `filepath.parent/filepath.stem +
             "_sorted.hdf5"`
 
-        initial_particle_type: str, optional
+        particle_type: str, optional
             Initial particle type to (eagerly) load. Defaults to the first HDF5
             group that starts with "Part".
 
@@ -942,14 +942,14 @@ class GadgetishHDF5Dataset(HDF5Dataset):
             name=name,
             filepath=filepath,
             sorted_filepath=sorted_filepath,
-            initial_particle_type=initial_particle_type,
+            particle_type=particle_type,
             data_slices=data_slices,
         )
 
     def _preload(
         self,
         sorted_filepath: str | Path | None,
-        initial_particle_type: str | None = None,
+        particle_type: str | None = None,
     ):
         # TODO handle case where particles are split across multiple files...
         particle_types = []
@@ -980,9 +980,7 @@ class GadgetishHDF5Dataset(HDF5Dataset):
 
         # set initial particle type
         self._particle_type = (
-            particle_types[0]
-            if initial_particle_type is None
-            else initial_particle_type
+            particle_types[0] if particle_type is None else particle_type
         )
         _particle_numbers = self._header["NumPart_Total"]
         _particle_numbers = _particle_numbers[_particle_numbers > 0]

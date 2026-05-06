@@ -472,7 +472,6 @@ def _handle_dataset_types(dataset=None, **kwargs):
     elif isinstance(dataset, str):
         dataset = GadgetishHDF5Dataset(
             filepath=dataset,
-            initial_particle_type=kwargs.get("particle_type"),
             **kwargs,
         )
     return dataset
