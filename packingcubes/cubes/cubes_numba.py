@@ -702,6 +702,65 @@ def get_particle_index_list_in_shape(
     return _parallel_expand_all_array(slices, data._index)
 
 
+@njit
+def get_array_in_shape(
+    cubes: List[BoundingBox],
+    trees: List[PackedTreeNumba],
+    cube_offsets: NDArray,
+    shape: bbox.BoundingVolume,
+    data_positions: NDArray,
+    array: NDArray,
+    strict: bool,  # noqa: FBT001, FBT002
+) -> NDArray[np.int_]:
+    """Get the array of particle indices in the specified shape
+
+    If the data argument is specified, will do additional
+    containment-checks at the particle level
+
+    Parameters
+    ----------
+    cubes:
+        List of cube bounding boxes
+
+    trees:
+        List of cube PackedTreeNumbas
+
+    cube_offsets:
+        Array of cube offset indices into the data
+
+    shape:
+        BoundingVolume to check
+
+    data_positions: NDArray
+        Particle positions information. If data is not available and you want
+        non-strict containment, consider calling
+        [_parallel_expand_all_array][_parallel_expand_all_array] or
+        [_parallel_expand_all_matrix][_parallel_expand_all_matrix]
+        directly.
+
+    array: NDArray
+        The actual array to expand.
+
+    strict: bool
+        If `False`, only check whether node is within shape, which is
+        equivalent to expanding the node start/stops from
+        `_get_particle_indices_in_shape`. Default `True`.
+
+
+    Returns
+    -------
+    indices: NDArray[int]]
+        List of particle indices contained within shape. Will contain
+        any additional particles that can be found in the same nodes if
+        data is not provided
+    """
+    slices = get_particle_indices_in_shape(cubes, trees, cube_offsets, shape)
+
+    if strict:
+        return _parallel_expand_array(slices, shape, data_positions, array)
+    return _parallel_expand_all_array(slices, array)
+
+
 @njit(parallel=False)
 def _get_closest_cube(
     cubes: List[BoundingBox],
