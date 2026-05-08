@@ -11,31 +11,33 @@ icon: lucide/rocket
 ## Basic Usage
 
 ### Searching Data
-The steps for searching data are pretty straightforward:
 
-1. Create ParticleCubes object(s)
-2. Search object
+If you just want to find the values of a particular field in a spherical region
+of your dataset, the simplest way to do it is the following "one-liner":
 
-#### Creating a ParticleCubes object
-Basic steps to creating a 
-[ParticleCubes](Reference/Cubes#packingcubes.cubes.ParticleCubes) object.
-
-Of course, there are a number of optional arguments that you can specify, along
-with more complicated paths if you want to reuse information, save out data, etc.
-See the [tutorials](Tutorials) and [package overview](Reference) for more information.
-
-##### From already loaded data
-If you already have the data loaded in memory, creation is trivial. 
-
-In the following, assume `positions_data` is an `Nx3` numpy matrix.
-
-``` python
+```python
 import packingcubes
-cubes = packingcubes.Cubes(positions_data)
+
+field_in_sph = packingcubes.Cubes(
+    positions_array, # (1)!
+    extras={"field_name":field_array} # (2)!
+).Sphere(center, radius, fields="all").field_name
 ```
 
-That's it, move on to [Searching](#searching-a-particlecubes-object).
+1. `positions_array` is a 3D array of particle position data
+2. `field_array` is an array with `N` or `NxM` elements, where `N` is the
+    number of particles. `"field_name"` can be whatever you want to later call it.
 
+That's it.
+
+
+??? tip "Positions Only?"
+    Position data is always included, so if that's all you need, the "one-liner"
+    is even shorter: 
+    ```python
+    pos_in_sph = packingcubes.Cubes(positions_array).Sphere(center, radius).positions
+    ```
+    
 ??? info "1D/2D and ND matrices"
     For technical reasons, direct `ParticleCubes` creation from 1D and 2D
     matrices are not supported. See 
@@ -43,41 +45,55 @@ That's it, move on to [Searching](#searching-a-particlecubes-object).
     for an example of converting 2D data to 3D. 4D and higher dimensional
     matrices are not supported.
 
+In the next couple sections, we'll briefly explain what each step does, but for
+more information, see the [:lucide-info: Tutorials](Tutorials),
+[:lucide-cooking-pot: Recipes](Recipes), and [:lucide-library: Reference](Reference)
+sections.
 
-##### From a snapshot
-Creation is _slightly_ more complicated from a snapshot, since there's the potential
-for multiple particle types. Here we'll assume we want the gas particles
-(`PartType0`) in an IllustrisTNG snapshot.
+#### Creating a Dataset and ParticleCubes object
+The `packingcubes.Cubes(...)` function as used here combines three steps into one:
 
-``` python
-import packingcubes
-cubes = packingcubes.Cubes(
-    "path/to/IllustrisTNG/snapshot.hdf5", particle_type="PartType0"
-)
-```
+1. Create Dataset object (an
+   [InMemory](Reference/Data-Objects#packingcubes.data_objects.InMemory) object
+   in this case)
+2. Sort the positions and create a
+   [ParticleCubes](Reference/Cubes#packingcubes.cubes.ParticleCubes) object
+3. Sort the extra field `field_array` and attach it to the Dataset.
+
+[`Dataset`](Reference/Data-Objects)s are multifunctional objects whose main
+purpose is to unify various forms of positions data in a common format (as
+`dataset.positions`). It's also used to sort any extra fields via the "shuffle
+list" (`dataset.index`), an array containing the orginal index for each sorted
+position. In this example, it acts as thin wrapper on the array, but it can
+also be used for loading entire [snapshots](Tutorials/Working_with_datasets).
+
+[`ParticleCubes`](Reference/Cubes#packingcubes.cubes.ParticleCubes) are the
+main workhorses of `packingcubes`; they contain the cubed-octree
+structure/metadata that produces all the cool features. Constructing a
+`ParticleCubes` object performs the initial sorting of the positions data
+(in parallel!) and creates the "cubes" and 
+["octrees"](Reference/#packingcubes.PackedTree). 
+
+#### Searching the ParticleCubes
+The next part, [`.Sphere(...)`](Reference/#packingcubes.ParticleCubes.Sphere), searches the ParticleCubes object and finds
+all particles contained within the specified spherical region. It then creates
+a subdataset containing the particle positions and any additional fields
+(specified with the `fields` parameter, `"all"` includes everything available
+in `dataset.extras`) corresponding to solely those particles that are contained
+(but see note about Extra Particles).
 
 
-#### Searching a ParticleCubes object
-Let's say we want to grab the particle indices in a sphere centered on 
-`(500, 23, 7654.4)`, with radius `600`.
-
-```python
-center = [500, 23, 7654.4]
-radius = 600
-index_array = cubes.get_indices_in_sphere(center, radius)
-```
-
-`index_array` will be an `Nx3` integer array where each row corresponds to a chunk of
-data in the form `[start, stop, partial]`. `start` and `stop` are the start/stop 
-indices of the chunk (e.g. `data[start:stop]`) and `partial` denotes whether the
-chunk was partially (`1`) or entirely (`0`) contained within the sphere.
-
-For performance reasons, these data chunks may contain particles nearby the sphere,
-but not actually contained inside (for an example, see 
-[:lucide-package-search: Finding Particles within a Shape](Tutorials/ParticlesWithinShape#actually-do-the-search_1)).
-If you want stricter control, see 
-[get_particle_index_list_in_sphere](Reference#packingcubes.ParticleCubes.get_particle_index_list_in_sphere).
-
+??? info "Extra particles"
+    By default, searches on `ParticleCubes` are assumed to be not _strict_ for
+    maximal performance. So particle containment is tested on an octree node
+    level, i.e. if the node overlaps the containment region, all particles in
+    the node are considered to be contained. This may increase the number
+    of returned particles by a small fraction. If this is unacceptable, several
+    of the search methods, including `Sphere` and `Box`, allow passing a
+    `strict` parameter, which forces `packingcubes` to test each position in
+    nodes that only partially overlap for containment. This imposes an
+    additional, usually minor, performance penalty.
+    
 ??? note "Data wrapping"
     `packingcubes` does not (yet!) support toroidal topology for snapshots. Meaning 
     if the snapshot has `x` bounds `[0, 100]`, a sphere with radius `10` centered
@@ -93,25 +109,50 @@ If you want stricter control, see
     doesn't match (e.g. if it is in `Mpc/h`). See 
     [Issue #21](https://github.com/astrosocket/packingcubes/issues/21).
 
-#### Saving a ParticleCubes object
-Saving is also simple:
-``` python
-cubes.save("path/to/output.hdf5")
+Lastly, we access the specified field attribute of our new subdataset.
+
+#### Multiline approach
+The "one-liner" above can be broken up into multiple lines to better highlight
+the object pipeline:
+
+```python
+dataset = packingcubes.InMemory(positions=positions_array)
+cubes = packingcubes.Cubes(dataset)
+dataset.process_extra_fields({"field_name":field_array})
+sphere = cubes.Sphere(center, radius, fields="field_name")
+field_in_sph = sphere.field_name
 ```
+
+
+### Saving a Dataset/ParticleCubes
+Saving is simple, though it does break up the "one-liner":
+``` python
+cubes = packingcubes.Cubes(
+    positions_array,
+    save_dataset=True, # (1)!
+    sorted_filepath="path/to/output.hdf5",
+    extras={"field_name":field_array}
+)
+cubes.save("cubes_output.hdf5") # (2)!
+sphere = cubes.Sphere(
+    center, radius,
+    save_filepath="sphere_output.hdf5", # (3)!
+    fields="all",
+)
+```
+
+1. Saves the sorted dataset (including anything in `extras`) to the
+   `sorted_filepath`.
+2. Recommend using the same file as `sorted_filepath`.
+3. Should **not** be the same as `sorted_filepath`, unless you *want* to
+   overwrite everything...
 
 Loading it is identical to loading a snapshot:
 ``` python
 cubes = packingcubes.Cubes("path/to/output.hdf5", particle_type="gas")
 ```
 
-??? info "Data saving"
-    Saving cubes information **only** saves information about the cubes. If you want
-    to save the sorted dataset information, specify the `save_dataset=True`
-    and the `sorted_filepath="path"` option on the initial `Cubes` call or see 
-    [Saving sorted datasets](Tutorials/Working_with_datasets#saving-a-dataset). Note
-    that while this second option does require more initial setup, it's more flexible.
-
-#### Specifying Number of Threads
+### Specifying Number of Threads
 Both the `ParticleCubes` creation and search operate in parallel using `numba`'s
 [threading layers](https://numba.readthedocs.io/en/stable/user/threading-layer.html).
 
