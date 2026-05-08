@@ -33,7 +33,8 @@ not supported, and at least some features are >Python 3.12.
 Visualization (the `viz` group):
 
 * `matplotlib` - to use basic octree visualization and plotting (see
-   Basic_Usage in the Examples)
+  [Finding Particles Within a Shape](https://packingcubes.readthedocs.io/en/latest/Users-Guide/Tutorials/ParticlesWithinShape/)
+  or Basic_Usage in the Examples)
 * `pygfx` - to do interactive octree visualization (see Example_PackedTree in
    the Examples)
 * `rendercanvas` - to do interactive octree visualization
