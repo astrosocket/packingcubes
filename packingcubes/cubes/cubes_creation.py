@@ -525,7 +525,8 @@ def Cubes(
         [`GadgetishHDF5Dataset`][HDF5Dataset.process_extra_fields]
 
     **kwargs
-        Extra arguments to [`MultiParticleDataset`][MultiParticleDataset],
+        Extra arguments to [`InMemory`][InMemory]/
+        [`GadgetishHDF5Dataset`][GadgetishHDF5Dataset],
         [`make_cubes`][make_cubes], and [`ParticleCubes`][ParticleCubes] for a
         description.
 
