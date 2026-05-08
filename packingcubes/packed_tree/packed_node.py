@@ -54,12 +54,19 @@ class PackedNodeNumba:
     ):
         """Initialize a packed root node
 
-        Args:
-            node_end: int
-            Number of particles in dataset
+        Parameters
+        ----------
+        node_start: int
+            Starting index of node in dataset
 
-            box: BoxLike
-            Bounding box of dataset
+        node_end: int
+            End index of node in dataset
+
+        box: BoxLike
+            Bounding box of node
+
+        tag: str, optional
+            Tag describing node. Default is "0" (root)
         """
         self.node_start = node_start
         self.node_end = node_end
