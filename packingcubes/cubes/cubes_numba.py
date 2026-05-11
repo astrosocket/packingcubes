@@ -565,7 +565,7 @@ def _parallel_expand_array(
             ind += 1
 
     # not parallelizable since we're shrinking the array
-    output_tight = np.empty((num_contained,), dtype=np.int_)
+    output_tight = np.empty((num_contained,), dtype=array.dtype)
     ind = 0
     for i in range(len(output_full)):
         if use_flag[i]:
