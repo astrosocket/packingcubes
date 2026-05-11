@@ -533,7 +533,7 @@ class ParticleCubes:
         LOGGER.debug("Expanding and adding remaining fields")
         for field in fields:
             full_field = np.squeeze(getattr(dataset, field))
-            if full_field.shape == 2:
+            if len(full_field.shape) == 2:
                 field_arr = (
                     cubba._parallel_expand_matrix(
                         slices, shape, dataset.positions, full_field
