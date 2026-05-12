@@ -40,11 +40,13 @@ from packingcubes.data_objects import (
 )
 from packingcubes.packed_tree.fixed_distance_heap import FixedDistanceHeap
 from packingcubes.packed_tree.packed_tree_numba import (
+    PackedNodeNumba,
     PackedTreeNumba,
     _construct_tree,
     _index_tuple_type,
     _list_index_tuple,
     _process_slice_against_heap,
+    pack_node_type,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -386,6 +388,61 @@ def get_particle_indices_in_shape(
             current_index += 1
 
     return flattened_indices
+
+
+@njit()
+def get_packednodes_in_shape(
+    cubes: List[BoundingBox],
+    trees: List[PackedTreeNumba],
+    cube_offsets: NDArray,
+    shape: bbox.BoundingVolume,
+) -> tuple[List[PackedNodeNumba], List[PackedNodeNumba]]:
+    """Get the PackedNodes contained within the shape
+
+    This is not done in parallel, unlike
+    [get_particle_indices_in_shape][get_particle_indices_in_shape], and is not
+    expected to be especially performant, though is otherwise implemented
+    similarly.
+
+    Parameters
+    ----------
+    cubes:
+        List of cube bounding boxes
+    trees:
+        List of cube PackedTreeNumbas
+    cube_offsets:
+        Array of cube offset indices into the data
+    shape:
+        BoundingVolume to check
+
+    Returns
+    -------
+    entire: List[PackedNode]
+        List of PackedNodes entirely contained within shape
+
+    partial: List[PackedNode]
+        List of PackedNodes partially contained within shape
+    """
+    entire = List.empty_list(pack_node_type)
+    partial = List.empty_list(pack_node_type)
+
+    # get particle indices from each tree
+    for i in range(len(cubes)):
+        # Note: prange indices are uint64 in parallel mode but current
+        # TypedList _get_item implementation casts to intp type, which can
+        # be int64. We'll explicitly cast to avoid the warning and because
+        # len(cubes) **better** be < 2**63 !
+        li = np.int_(i)
+        overlap = shape.check_box_overlap(cubes[li])
+        if overlap:
+            subentire, subpartial = trees[li]._get_nodes_in_shape(containment_obj=shape)
+            indices = trees[li]._get_particle_indices_in_shape(containment_obj=shape)
+            num_partial = 0
+            for _, _, p in indices:
+                num_partial += p
+            entire.extend(subentire)
+            partial.extend(subpartial)
+    return entire, partial
 
 
 @njit(parallel=True)
