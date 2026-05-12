@@ -80,8 +80,6 @@ docs = ["griffe-pydantic", "zensical", "mkdocstrings-python", "mkdocstrings"]
 
 [project.scripts]
 packcubes = "packingcubes.cubes.cubes_creation:cli"
-packcubes_timing_run = "tests.performance.timing:cli"
-packcubes_timing_plot = "tests.performance.plot_timings:cli"
 
 [tool.setuptools]
 packages = ["packingcubes"]
