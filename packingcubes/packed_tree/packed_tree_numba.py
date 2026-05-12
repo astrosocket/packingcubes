@@ -755,6 +755,11 @@ class PackedTreeNumba:
             entire_nodes.append(_create_from_current_node(node))
             return entire_nodes, partial_leaves
 
+        if overlap and is_leaf(node):
+            # root has no children
+            partial_leaves.append(_create_from_current_node(node))
+            return entire_nodes, partial_leaves
+
         next_child = List([0])
         while next_child:
             child = next_child[-1]
