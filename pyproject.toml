@@ -80,6 +80,7 @@ docs = ["griffe-pydantic", "zensical", "mkdocstrings-python", "mkdocstrings"]
 
 [project.scripts]
 packcubes = "packingcubes.cubes.cubes_creation:cli"
+packcubes_viz_demo = "packingcubes.demo:main"
 
 [tool.setuptools]
 packages = ["packingcubes"]
