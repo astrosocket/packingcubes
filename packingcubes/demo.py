@@ -11,15 +11,16 @@ import sys
 import textwrap
 from functools import partial
 from time import perf_counter_ns
+from typing import cast
 
 import matplotlib as mpl
 import numpy as np
 from numpy.typing import NDArray
 
 try:
-    import pygfx as gfx
-    from rendercanvas import UpdateMode
-    from rendercanvas.auto import loop
+    import pygfx as gfx  # type: ignore
+    from rendercanvas import UpdateMode  # type: ignore
+    from rendercanvas.auto import loop  # type: ignore
 except ImportError as ie:
     print(  # noqa: T201
         "\
@@ -117,7 +118,7 @@ def generate_data(
 
 def cubify_data(
     xyz: NDArray, vxyz: NDArray, box: bbox.BoundingBox, *, with_cubes: bool = False
-) -> tuple[pc.InMemory, pc.ParticleCubes]:
+) -> tuple[pc.InMemory, pc.ParticleCubes | None]:
     """Process data through packingcubes"""
     if with_cubes:
         leafsize = 10 if len(xyz) < 40_000 else pc.octree._DEFAULT_PARTICLE_THRESHOLD
@@ -130,7 +131,7 @@ def cubify_data(
         )
         stop = perf_counter_ns()
         LOGGER.info(f"Done, took {(stop - start) / 1e6:.3} ms")
-        return cubes.dataset, cubes
+        return cast(pc.InMemory, cubes.dataset), cubes
     dataset = pc.InMemory(positions=xyz, bounding_box=box)
     return dataset, None
 
@@ -242,7 +243,7 @@ def _setup_scene(xyz: NDArray, box: bbox.BoundingBox):
     return (canvas, scene), objects
 
 
-def _plot_all_positions(canvas_scene, dataset: pc.Dataset):
+def _plot_all_positions(canvas_scene, dataset: pc.data_objects.Dataset):
     LOGGER.info("Plotting particles")
 
     tree_vis.plot_positions_mesh(
