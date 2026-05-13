@@ -10,7 +10,7 @@ from typing import Any
 import h5py  # type: ignore
 import numpy as np
 from numba.typed import List
-from numpy.typing import NDArray
+from numpy.typing import ArrayLike, NDArray
 
 import packingcubes.bounding_box as bbox
 import packingcubes.cubes.cubes_numba as cubba
@@ -591,7 +591,7 @@ class ParticleCubes:
 
     def Sphere(
         self,
-        center: NDArray,
+        center: ArrayLike,
         radius: float,
         *,
         dataset: Dataset | None = None,
