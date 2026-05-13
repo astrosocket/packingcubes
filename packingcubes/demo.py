@@ -61,7 +61,7 @@ ongoing_effects = {
 search_size = 5.0
 
 
-def generate_data(
+def _generate_data(
     *,
     num_particles: int | None = None,
     temperature: float | None = None,
@@ -116,7 +116,7 @@ def generate_data(
     return xyz, vxyz, box
 
 
-def cubify_data(
+def _cubify_data(
     xyz: NDArray, vxyz: NDArray, box: bbox.BoundingBox, *, with_cubes: bool = False
 ) -> tuple[pc.InMemory, pc.ParticleCubes | None]:
     """Process data through packingcubes"""
@@ -149,7 +149,7 @@ def _do_search(center: NDArray, radius: float, objects, *, strict: bool):
     cubes = objects["cubes"]
     if cubes is None:
         (xyz, vxyz, box) = objects["data"]
-        dataset, cubes = cubify_data(xyz, vxyz, box, with_cubes=True)
+        dataset, cubes = _cubify_data(xyz, vxyz, box, with_cubes=True)
         objects["dataset"] = dataset
         objects["cubes"] = cubes
 
@@ -437,12 +437,12 @@ def main():
     LOGGER.setLevel(logging.INFO)
     args = parse_args()
 
-    xyz, vxyz, box = generate_data(
+    xyz, vxyz, box = _generate_data(
         num_particles=args.num_particles, temperature=args.temperature, box=args.box
     )
 
     # no cubes for faster startup?
-    dataset, cubes = cubify_data(xyz, vxyz, box, with_cubes=True)
+    dataset, cubes = _cubify_data(xyz, vxyz, box, with_cubes=True)
     _precompile(cubes)
 
     canvas_scene, objects = _setup_scene(xyz, box)
