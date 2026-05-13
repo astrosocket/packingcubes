@@ -672,6 +672,9 @@ class ParticleCubes:
 
         Parameters
         ----------
+        box: BoxLike
+            The box to search in
+
         dataset: Dataset, optional
             Dataset containing the particle positions. Defaults to self.dataset.
 
