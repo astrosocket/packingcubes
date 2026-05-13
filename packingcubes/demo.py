@@ -136,6 +136,16 @@ def cubify_data(
     return dataset, None
 
 
+def _precompile(cubes: pc.ParticleCubes):
+    """Do generic search to ensure Numba portions are warmed up"""
+    LOGGER.info("Doing some warmup stretches...")
+    cubes.Sphere([-10, -10, -10], 1, fields="all")
+    cubes.Sphere([-10, -10, -10], 1, fields="all", strict=True)
+    cubes._get_packednodes_in_shape(
+        pc.bounding_box.make_bounding_sphere(1, center=[-10, -10, -10])
+    )
+
+
 def _do_search(center: NDArray, radius: float, objects, *, strict: bool):
     cubes = objects["cubes"]
     if cubes is None:
@@ -434,6 +444,7 @@ def main():
 
     # no cubes for faster startup?
     dataset, cubes = cubify_data(xyz, vxyz, box, with_cubes=True)
+    _precompile(cubes)
 
     canvas_scene, objects = _setup_scene(xyz, box)
 
