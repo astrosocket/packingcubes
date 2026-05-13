@@ -120,20 +120,19 @@ def cubify_data(
     xyz: NDArray, vxyz: NDArray, box: bbox.BoundingBox, *, with_cubes: bool = False
 ) -> tuple[pc.InMemory, pc.ParticleCubes | None]:
     """Process data through packingcubes"""
-    if with_cubes:
-        leafsize = 10 if len(xyz) < 40_000 else pc.octree._DEFAULT_PARTICLE_THRESHOLD
-        LOGGER.info(f"Creating dataset and Cubing ({leafsize=})")
-        extras = {f"v{ax}": vxyz[:, i] for i, ax in enumerate("xyz")}
-        extras["velocity"] = vxyz
-        start = perf_counter_ns()
-        cubes = pc.Cubes(
-            xyz, bounding_box=box, extras=extras, particle_threshold=leafsize
-        )
-        stop = perf_counter_ns()
-        LOGGER.info(f"Done, took {(stop - start) / 1e6:.3} ms")
-        return cast(pc.InMemory, cubes.dataset), cubes
-    dataset = pc.InMemory(positions=xyz, bounding_box=box)
-    return dataset, None
+    if not with_cubes:
+        dataset = pc.InMemory(positions=xyz, bounding_box=box)
+        return dataset, None
+
+    leafsize = 10 if len(xyz) < 40_000 else pc.octree._DEFAULT_PARTICLE_THRESHOLD
+    LOGGER.info(f"Creating dataset and Cubing ({leafsize=})")
+    extras = {f"v{ax}": vxyz[:, i] for i, ax in enumerate("xyz")}
+    extras["velocity"] = vxyz
+    start = perf_counter_ns()
+    cubes = pc.Cubes(xyz, bounding_box=box, extras=extras, particle_threshold=leafsize)
+    stop = perf_counter_ns()
+    LOGGER.info(f"Done, took {(stop - start) / 1e6:.3} ms")
+    return cast(pc.InMemory, cubes.dataset), cubes
 
 
 def _precompile(cubes: pc.ParticleCubes):
