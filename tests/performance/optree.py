@@ -4,15 +4,15 @@
 from numpy.typing import NDArray
 
 import packingcubes.octree as octree
-from packingcubes.packed_tree import KDTree
+from packingcubes.packed_tree import OpTree
 
 
-def packed_kdtree_creation(ds):
-    return KDTree(data=ds, leafsize=octree._DEFAULT_PARTICLE_THRESHOLD)
+def optree_creation(ds):
+    return OpTree(data=ds, leafsize=octree._DEFAULT_PARTICLE_THRESHOLD)
 
 
-def packed_kdtree_query_ball_point(
-    tree: KDTree,
+def optree_query_ball_point(
+    tree: OpTree,
     *,
     centers: list[NDArray],
     radii: list[float],
@@ -38,6 +38,6 @@ def packed_kdtree_query_ball_point(
             )
 
 
-def packed_kdtree_query(tree: KDTree, *, centers: list[NDArray], k: int, **kwargs):
+def optree_query(tree: OpTree, *, centers: list[NDArray], k: int, **kwargs):
     for c in centers:
         dd, ii = tree.query(c, k=k, return_data_indices=True, return_sorted=True)
