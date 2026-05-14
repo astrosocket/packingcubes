@@ -108,10 +108,51 @@ def _generate_data(
     )
     rng = np.random.default_rng()
 
-    xyz = rng.uniform(size=(num_particles, 3)) * box.size + box.position
+    # we want to split particles up into 3 gaussian blobs + background junk (5%)
+    # 1 large(45%), 1 medium(30%), and 1 small(15%)
+    num_large = int(0.45 * num_particles)
+    num_medium = int(0.30 * num_particles)
+    num_small = int(0.15 * num_particles)
+    num_junk = num_particles - (num_large + num_medium + num_small)
+    xyz = np.empty(shape=(num_particles, 3), dtype=float)
+    vxyz = np.empty(shape=(num_particles, 3), dtype=float)
+
+    box_center = box.midplane()
+    offset = 0
+    for i, num in enumerate([num_large, num_medium, num_small]):
+        blob_center = np.array(
+            box.project_point_on_box(
+                rng.normal(loc=box_center, scale=box.size / (9 - 3 * i), size=(3,))
+            )
+        )
+        # want roughly spheroids
+        blob_radius = min(box.size) / (3 + i) ** 3
+        blob_size = rng.normal(loc=blob_radius, scale=blob_radius / 4, size=(3,))
+        blob = rng.normal(loc=blob_center, scale=blob_size, size=(num, 3))
+        extents = np.vstack((np.min(blob, axis=0), np.max(blob, axis=0))).transpose()
+        xyz[offset : (offset + num), :] = blob
+        blob_temp = 10 ** (np.log10(temperature) - i)
+        # assume particles have unit mass (1 GeV)
+        vxyz[offset : (offset + num), :] = rng.normal(
+            scale=np.sqrt(kB * blob_temp), size=(num, 3)
+        )
+        with np.printoptions(precision=3):
+            LOGGER.info(
+                f"""
+Generating {num} particle blob at {blob_center} with
+radius {blob_radius:.4g} and size {blob_size}.
+Extents: {extents}
+Temperature of {blob_temp}.
+"""
+            )
+        offset += num
+
+    xyz[offset:, :] = rng.uniform(size=(num_junk, 3)) * box.size + box.position
 
     # assume particles have unit mass (1 GeV)
-    vxyz = rng.normal(scale=np.sqrt(kB * temperature), size=(num_particles, 3))
+    vxyz[offset:, :] = rng.normal(
+        scale=np.sqrt(kB * 10 * temperature), size=(num_junk, 3)
+    )
 
     return xyz, vxyz, box
 
@@ -120,14 +161,15 @@ def _cubify_data(
     xyz: NDArray, vxyz: NDArray, box: bbox.BoundingBox, *, with_cubes: bool = False
 ) -> tuple[pc.InMemory, pc.ParticleCubes | None]:
     """Process data through packingcubes"""
+    extras = {f"v{ax}": vxyz[:, i] for i, ax in enumerate("xyz")}
+    extras["velocity"] = vxyz
     if not with_cubes:
         dataset = pc.InMemory(positions=xyz, bounding_box=box)
+        dataset.process_extra_fields(extra=extras)
         return dataset, None
 
     leafsize = 10 if len(xyz) < 40_000 else pc.octree._DEFAULT_PARTICLE_THRESHOLD
     LOGGER.info(f"Creating dataset and Cubing ({leafsize=})")
-    extras = {f"v{ax}": vxyz[:, i] for i, ax in enumerate("xyz")}
-    extras["velocity"] = vxyz
     start = perf_counter_ns()
     cubes = pc.Cubes(xyz, bounding_box=box, extras=extras, particle_threshold=leafsize)
     stop = perf_counter_ns()
@@ -190,7 +232,7 @@ def _do_search(center: NDArray, radius: float, objects, *, strict: bool):
     )
 
     tree_vis.plot_positions_mesh(
-        ds=sphere, canvas_scene=(None, scene), sizes=3, colors=colors
+        ds=sphere, canvas_scene=(None, scene), sizes=1, colors=colors
     )
     found_data = scene.children[-1]
     found_data.material.alpha_mode = "blend"
@@ -255,10 +297,17 @@ def _setup_scene(xyz: NDArray, box: bbox.BoundingBox):
 def _plot_all_positions(canvas_scene, dataset: pc.data_objects.Dataset):
     LOGGER.info("Plotting particles")
 
+    temp = (dataset.vx**2 + dataset.vy**2 + dataset.vz**2) / kB
+    LOGGER.info(f"Min temp: {min(temp):.4g}, max: {max(temp):4g}")
+    colors = mpl.colormaps.get_cmap("Blues_r")(
+        mpl.colors.LogNorm(vmax=1e6, vmin=10, clip=True)(temp)
+    )
+
     tree_vis.plot_positions_mesh(
         canvas_scene=canvas_scene,
         positions=dataset.positions,
         sizes=1,
+        colors=colors,
     )
 
     all_data = canvas_scene[1].children[-1]
