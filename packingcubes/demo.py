@@ -342,8 +342,9 @@ def _clear_search_results(objects):
 
 def _reset(objects):
     objects["search"].visible = True
-    search_offset = 30
-    search_size = 5
+    search_offset = -50
+    ongoing_effects["search_position"] = 0
+    search_size = 10
     objects["all_data"].visible = True
     _clear_search_results(objects)
 
@@ -370,7 +371,8 @@ def _before_draw(objects, camera):
     search = objects["search"]
     if ongoing_effects["search_position"]:
         # update 1 per second
-        search.local.z = -ongoing_effects["search_position"] * dt / 1e9
+        search.local.z += -ongoing_effects["search_position"] * dt / 1e9
+        ongoing_effects["search_position"] *= 1.05
     search.local.scale = search_size
 
     help_board = objects["help"]
