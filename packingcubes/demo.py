@@ -482,19 +482,20 @@ def _process_event(event, objects, gfx_stuff):
     LOGGER.debug(event)
 
 
-def main():
+def main(argv=None):
     """Run demo"""
     logging.basicConfig()
     LOGGER.setLevel(logging.INFO)
-    args = parse_args()
+    args = parse_args(argv)
 
     xyz, vxyz, box = _generate_data(
         num_particles=args.num_particles, temperature=args.temperature, box=args.box
     )
 
     # no cubes for faster startup?
-    dataset, cubes = _cubify_data(xyz, vxyz, box, with_cubes=True)
-    _precompile(cubes)
+    dataset, cubes = _cubify_data(xyz, vxyz, box, with_cubes=not args.fast_startup)
+    if not args.fast_startup:
+        _precompile(cubes)
 
     canvas_scene, objects = _setup_scene(xyz, box)
 
@@ -540,6 +541,15 @@ def parse_args(argv=None):
         "--temperature",
         help="Temperature of particles",
         type=float,
+    )
+    parser.add_argument(
+        "--fast-startup",
+        help=(
+            "Skip initial cubing and precompilation. Note that this will cause "
+            "the demo to hang when you first perform the various searches, but "
+            "the demo should recover."
+        ),
+        action="store_true",
     )
     box_args = parser.add_argument_group(
         "Box parameters",
