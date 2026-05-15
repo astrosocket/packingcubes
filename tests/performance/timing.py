@@ -763,30 +763,30 @@ def manual_timing(
 ) -> dict:
     """Time a set of creation and search tests on the provided dataset
 
-    Args
-    ----
-        ds: Dataset
-            Dataset to run creation and timing tests on
-        centers: list[NDArray]
-            Search ball centers as list of length-3 vectors
-        radii: list[float]]
-            Search ball radii
-        particle_numbers: list[int]
-            List of number of particles in each search ball for verification
-        creation_list: list[str]
-            List of creation-type tests
-        search_list: list[str]
-            List of search-type tests
-        dry_run: bool, optional
-            Flag to run everything except the actual tests. Default False
-        creation_cache: dict, optional
-            Dictionary containing search objects referenced by type (e.g.
-            "packed":PackedTree). Search objects not present in the cache, or
-            if no cache is provided, will be generated (and possibly timed) on
-            first use and then cached. Default None.
-        number_threads: int, optional
-            Number of threads to use in numba functions. Default is all threads
-            available to numba (config.NUMBA_NUM_THREADS)
+    Parameters
+    ----------
+    ds: Dataset
+        Dataset to run creation and timing tests on
+    centers: list[NDArray]
+        Search ball centers as list of length-3 vectors
+    radii: list[float]]
+        Search ball radii
+    particle_numbers: list[int]
+        List of number of particles in each search ball for verification
+    creation_list: list[str]
+        List of creation-type tests
+    search_list: list[str]
+        List of search-type tests
+    dry_run: bool, optional
+        Flag to run everything except the actual tests. Default False
+    creation_cache: dict, optional
+        Dictionary containing search objects referenced by type (e.g.
+        "packed":PackedTree). Search objects not present in the cache, or
+        if no cache is provided, will be generated (and possibly timed) on
+        first use and then cached. Default None.
+    number_threads: int, optional
+        Number of threads to use in numba functions. Default is all threads
+        available to numba (config.NUMBA_NUM_THREADS)
 
     Returns
     -------
