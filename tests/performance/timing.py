@@ -673,6 +673,18 @@ def _process_time_vec(
     return (min(time_vec), time_vec)
 
 
+def _copy_dataset(dataset: data_objects.Dataset):
+    """Copy the positions **only**"""
+    # This means we are currently skipping any extra fields
+    return data_objects.InMemory(
+        positions=dataset.positions.copy(),
+        name=dataset.name,
+        filepath=dataset.filepath,
+        particle_type=getattr(dataset, "particle_type", None),
+        bounding_box=dataset.bounding_box,
+    )
+
+
 def get_search_obj(
     *,
     name: str,
@@ -729,8 +741,11 @@ def get_search_obj(
             f"{len(time_vec)} runs: {results[name][0]:.3g}"
         )
 
-    so = creation_fun(dataset)
-    so.data_container = dataset.data_container
+    # datasets don't have a copy functionality so we need to do this
+    # by hand
+    data_copy = _copy_dataset(dataset)
+    so = creation_fun(data_copy)
+    so.data_container = data_copy.data_container
     return so
 
 
@@ -1242,8 +1257,8 @@ def cli(argv=None):
         creation_list.append(t)
         search_list.append(t)
     # ensure no duplicate tests
-    creation_list = set(creation_list)
-    search_list = set(search_list)
+    creation_list = sorted(set(creation_list))
+    search_list = sorted(set(search_list))
 
     results = {}
     if creation_list:
