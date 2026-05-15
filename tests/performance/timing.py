@@ -862,7 +862,7 @@ def manual_timing(
         get_search_obj(
             name=test,
             dataset=ds,
-            creation_dict=creation_dict,
+            creation_fun=creation_dict[test],
             results=results,
             dry_run=dry_run,
         )
