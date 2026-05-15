@@ -37,6 +37,7 @@ Functions
 
 import argparse
 import contextlib
+import datetime
 import json
 import logging
 import pickle
@@ -1226,6 +1227,7 @@ def save_results(
     *,
     results: dict,
     snapshot_info: dict,
+    run_info: dict,
     outfilepath: str,
     raw_results: dict | None = None,
 ):
@@ -1233,6 +1235,7 @@ def save_results(
     if raw_results is not None:
         results["raw"] = raw_results
     results["snapshot_info"] = snapshot_info
+    results["run_info"] = run_info
     with open(outfilepath, "w") as outfile:
         json.dump(
             results,
@@ -1248,6 +1251,13 @@ def cli(argv=None):
     args = parse_arguments(argv)
     logging.basicConfig()
     LOGGER.info(f"Running with packingcubes v{packingcubes.__version__}")
+
+    runinfo = {
+        "version": packingcubes.__version__,
+        "args": args,
+        "start_time": datetime.datetime.now(tz=datetime.UTC).timestamp(),
+    }
+
     if args.dry:
         LOGGER.info("Dry run only. Actual timing will be skipped")
     creation_list = args.creation_list if args.creation_list else []
@@ -1305,11 +1315,13 @@ def cli(argv=None):
                     number_threads=num_threads,
                 )
                 # update results on each search ball size, since this can be slow
+                runinfo["end_time"] = datetime.datetime.now(tz=datetime.UTC).timestamp()
                 if args.save:
                     save_results(
                         results=collate_results(results=results),
                         outfilepath=args.save,
                         snapshot_info=snapshot_info,
+                        run_info=runinfo,
                     )
     print(collate_results(results=results))  # noqa: T201
     return
