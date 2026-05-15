@@ -923,7 +923,7 @@ def parse_arguments(argv=None):
         default=[1],
         help="""
         The decimation interval (e.g. -d 10 specifies use every 10th particle).
-        Can be provided as a list
+        Default 1. Can be provided as a list
         """,
         type=int,
         nargs="+",
@@ -943,7 +943,10 @@ def parse_arguments(argv=None):
     parser.add_argument(
         "-n",
         "--number-balls",
-        help="Number of search balls to create. More balls = better statistics",
+        help="""
+        Number of search balls to create (default: %(default)s).
+        More balls = better statistics
+        """,
         type=int,
         default=10,
     )
@@ -951,9 +954,10 @@ def parse_arguments(argv=None):
         "-s",
         "--number-search",
         help="""
-        Number of particles in a search ball. Can be provided as a list
+        Number of particles in a search ball (default: 1000). Can be provided as a list
         """,
         type=int,
+        default=[1000],
         nargs="+",
     )
     parser.add_argument(
@@ -1224,9 +1228,9 @@ def save_results(
         )
 
 
-def cli():
+def cli(argv=None):
     """Run the CLI for timing"""
-    args = parse_arguments()
+    args = parse_arguments(argv)
     logging.basicConfig()
     LOGGER.info(f"Running with packingcubes v{packingcubes.__version__}")
     if args.dry:

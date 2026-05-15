@@ -472,9 +472,9 @@ def load_sim_results(
     return sims
 
 
-def cli():
+def cli(argv=None):
     """Run the CLI for plot_timings"""
-    args = parse_arguments()
+    args = parse_arguments(argv)
     logging.basicConfig()
     LOGGER.info(f"Running with packingcubes v{packingcubes.__version__}")
 
