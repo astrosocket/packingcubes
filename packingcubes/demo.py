@@ -250,14 +250,29 @@ def _setup_scene(xyz: NDArray, box: bbox.BoundingBox):
     objects["canvas"] = canvas
     objects["scene"] = scene
 
-    search_mat = gfx.MeshBasicMaterial(wireframe=True, side="front", color="green")
+    sun = gfx.PointLight()
+    sun.cast_shadow = True
+    sun.visible = True
+    sun.local.position = box.midplane()
+    sun.local.z *= 10
+    # sun.look_at()
+    sunhelp = gfx.PointLightHelper()
+    sun.add(sunhelp)
+    scene.add(sun)
+
+    search_mat = gfx.MeshBasicMaterial(
+        wireframe=True, wireframe_thickness=5, side="front", color="green"
+    )
+    search_mat.receive_shadow = True
     sphere_geom = gfx.tetrahedron_geometry(subdivisions=3)
     search = gfx.Mesh(sphere_geom, search_mat)
     search.visible = True
     search.local.z = -50
+    search.local.euler_x = 0.1
     search.local.scale = 10
 
     result_mat = gfx.MeshBasicMaterial(wireframe=True, side="front", color="orange")
+    result_mat.receive_shadow = True
     result = gfx.Mesh(sphere_geom, result_mat)
     result.visible = False
     scene.add(result)
@@ -312,6 +327,7 @@ def _plot_all_positions(canvas_scene, dataset: pc.data_objects.Dataset):
 
     all_data = canvas_scene[1].children[-1]
     all_data.material.alpha_mode = "blend"
+    all_data.material.receive_shadow = True
     return all_data
 
 
