@@ -721,7 +721,7 @@ def get_search_obj(
         )
         test_name = (
             (name + f" ({get_num_threads()} threads)")
-            if "cubes" in name or "kdtree" in name
+            if "cubes" in name or "optree" in name
             else name
         )
         LOGGER.info(
@@ -1082,9 +1082,9 @@ def parse_arguments(argv=None):
 
     if args.combined_list and "most" in args.combined_list:
         args.combined_list.remove("most")
-        args.combined_list.extend(["packed", "kdtree", "scipy"])
+        args.combined_list.extend(["packed", "optree", "kdtree"])
         args.search_list = [] if args.search_list is None else args.search_list
-        args.search_list.extend(["kdq", "sciq"])
+        args.search_list.extend(["opq", "kdq"])
 
     if args.verbose >= 2:
         loglvl = logging.DEBUG

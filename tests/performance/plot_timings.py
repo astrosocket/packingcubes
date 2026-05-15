@@ -36,24 +36,24 @@ line_styles = ["-", "--", "-.", ":", (5, 3)]
 metrics = {
     "creation": {
         "packed": "tab:blue",
-        "kdtree": "tab:orange",
+        "optree": "tab:orange",
         "cubes": "tab:purple",
-        "scipy": "tab:green",
+        "kdtree": "tab:green",
     },
     "search": {
         "brute-search": "k",
         "packed-search": "tab:blue",
         "packli-search": "tab:brown",
         "packnumb-search": "tab:olive",
-        "kdtree-search": "tab:orange",
+        "optree-search": "tab:orange",
         "cubes-search": "tab:purple",
-        "scipy-search": "tab:green",
+        "kdtree-search": "tab:green",
     },
     # "size": {
     #     "dataset": "k",
     #     "python": "tab:blue",
     #     "packed": "tab:orange",
-    #     "scipy": "tab:green",
+    #     "kdtree": "tab:green",
     # },
 }
 
@@ -230,7 +230,7 @@ def plot_normalized_times(sims: TSims, **kwargs) -> TPlots:
         figs.append(fig)
         axs.append(ax)
         for m, c in metrics[t].items():
-            scipy_name = "scipy" + ("-search" if "search" in m else "")
+            scipy_name = "kdtree" + ("-search" if "search" in m else "")
             for sim in sims:
                 if f"{t}:{m}" in ignore_metrics or scipy_name not in sim[t]:
                     continue
