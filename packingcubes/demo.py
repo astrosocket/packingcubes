@@ -312,7 +312,7 @@ def _setup_scene(xyz: NDArray, box: bbox.BoundingBox):
 def _plot_all_positions(canvas_scene, dataset: pc.data_objects.Dataset):
     LOGGER.info("Plotting particles")
 
-    temp = (dataset.vx**2 + dataset.vy**2 + dataset.vz**2) / kB
+    temp = (dataset.vx**2 + dataset.vy**2 + dataset.vz**2) / kB  # type: ignore
     LOGGER.info(f"Min temp: {min(temp):.4g}, max: {max(temp):4g}")
     colors = mpl.colormaps.get_cmap("Blues_r")(
         mpl.colors.LogNorm(vmax=1e6, vmin=10, clip=True)(temp)
