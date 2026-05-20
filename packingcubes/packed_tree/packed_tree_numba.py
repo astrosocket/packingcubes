@@ -29,7 +29,7 @@ from numpy.typing import NDArray
 import packingcubes.bounding_box as bbox
 import packingcubes.octree as octree
 from packingcubes.configuration import FIELD_FORMAT
-from packingcubes.data_objects import DataContainer, dc_type
+from packingcubes.data_objects import DataContainer
 from packingcubes.packed_tree.fixed_distance_heap import FixedDistanceHeap
 from packingcubes.packed_tree.packed_node import (
     CurrentNode,
@@ -443,7 +443,7 @@ _index_tuple_type = types.UniTuple(uint32, 3)
 _list_index_tuple = types.ListType(_index_tuple_type)
 
 
-@jitclass([("data", dc_type), ("tree", uint32[:]), ("particle_threshold", int64)])
+@jitclass([("box", bbox.bbn_type), ("tree", uint32[:]), ("particle_threshold", int64)])
 class PackedTreeNumba:
     """Private jitted octree interface
 
