@@ -394,9 +394,12 @@ def parse_arguments(argv=None) -> dict:
         "--name-map",
         type=str,
         help="""
-        Nicer names for the timing output files. E.g. instead of 
-        /blahblah/SIMNAME/extra_folder/snapshot_005.hdf5, just use SIMNAME.
-        Note, must have same number of entries as the number of timing outputs.
+        JSON file containing nicer names for the timing output files. E.g.
+        instead of /blahblah/SIMNAME/extra_folder/snapshot_005.hdf5, just
+        use SIMNAME.
+        File should only contain a dict of FILE:SIMNAME mappings. Filenames
+        are matched by the name stem (so ignore extension). Missing files will
+        use the name stored in the output.
         """,
     )
     parser.add_argument(
@@ -431,13 +434,13 @@ def parse_arguments(argv=None) -> dict:
     if not args.plot_list:
         args.plot_list = plot_list
 
-    if args.name_map and len(args.name_map) != len(args.timing_output):
-        raise argparse.ArgumentError(
-            f"""
-            Mismatch between number of name maps ({len(args.name_map)}) and
-            number of timing outputs ({len(args.timing_output)})!
-            """
-        )
+    if args.name_map:
+        try:
+            with open(args.name_map) as name_map_file:
+                args.name_map = json.load(name_map_file)
+        except (FileNotFoundError, json.JSONDecodeError) as excp:
+            LOGGER.warning(excp)
+            args.name_map = None
 
     if args.verbose >= 2:
         loglvl = logging.DEBUG
@@ -451,7 +454,7 @@ def parse_arguments(argv=None) -> dict:
 
 
 def load_sim_results(
-    output_list: list[str], *, name_map: list[str] | None = None
+    output_list: list[str], *, name_map: dict[str, str] | None = None
 ) -> dict:
     """Load list of output files into dictionary"""
     sims = []
@@ -470,11 +473,15 @@ def load_sim_results(
             sim["query"]["optree"] = sim["opq-search"]["search"]
         if "kdq-search" in sim:
             sim["query"]["kdtree"] = sim["kdq-search"]["search"]
-        name = name_map[i] if name_map else snapshot_info["name"]
-        sim["name"] = name
+        sim["name"] = (
+            name_map.get(Path(outfilepath).stem, snapshot_info["name"])
+            if name_map
+            else snapshot_info["name"]
+        )
         sim["marker"] = markers[i]
         sim["ls"] = line_styles[i]
         sims.append(sim)
+        LOGGER.info(f"Loaded sim {sim['name']}({outfilepath})")
 
     return sims
 
