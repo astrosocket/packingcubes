@@ -466,10 +466,10 @@ def load_sim_results(
         snapshot_info = sim["snapshot_info"]
         sim["n"] = snapshot_info["n"] / sim["decimations"]
         sim["query"] = {}
+        if "opq-search" in sim:
+            sim["query"]["optree"] = sim["opq-search"]["search"]
         if "kdq-search" in sim:
             sim["query"]["kdtree"] = sim["kdq-search"]["search"]
-        if "sciq-search" in sim:
-            sim["query"]["scipy"] = sim["sciq-search"]["search"]
         name = name_map[i] if name_map else snapshot_info["name"]
         sim["name"] = name
         sim["marker"] = markers[i]
