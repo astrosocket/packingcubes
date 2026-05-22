@@ -463,11 +463,16 @@ def load_sim_results(
     """Load list of output files into dictionary"""
     sims = []
     for i, outfilepath in enumerate(output_list):
-        with open(outfilepath) as outfile:
-            sim = json.load(
-                outfile,
-                object_hook=as_unyt,
-            )
+        try:
+            with open(outfilepath) as outfile:
+                sim = json.load(
+                    outfile,
+                    object_hook=as_unyt,
+                )
+        except (FileNotFoundError, json.JSONDecodeError):
+            continue
+        if "decimations" not in sim:
+            continue
         for name in ["decimations", "m", "num_threads"]:
             sim[name] = np.array(sim[name])
         snapshot_info = sim["snapshot_info"]
