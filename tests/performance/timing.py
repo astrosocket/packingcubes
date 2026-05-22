@@ -411,19 +411,24 @@ def _remove_problem_classes_from_state(self):
             # PackedTreeNumba has 3 fields:
             #   particle_threshold - 4 byte int,
             #   tree - 128 bytes + 4 bytes*length
-            #   data - not included
+            #   box - see above
             tree_len = len(state[k].tree)
-            state[k] = bytes(np.maximum(4 + (128 + 4 * tree_len) - 33, 0))
+            state[k] = bytes(
+                np.maximum(
+                    4 + (128 + 4 * tree_len) + fixed_jitclass_sizes["BoundingBox"] - 33,
+                    0,
+                )
+            )
 
     return state
 
 
-def tree_sizes(decimation_factor=10):
+def tree_sizes(num_particles):
     """Print the sizes of search objects on a standard dataset"""
     # print(".Precompiling") # noqa
     # precompile()
     # print(".Loading data")  # noqa
-    ds = _process_data(decimation_factor=decimation_factor)
+    ds = get_data(None, loading_factor=None, random_size=num_particles)
     b = pickle.dumps(ds.positions)
     print(f"Positions: {len(b)}")  # noqa
 
