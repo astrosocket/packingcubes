@@ -28,6 +28,7 @@ units = {
     "creation": "s",
     "search": "us",
     "size": "bytes",
+    "query": "us",
 }
 
 markers = ["s", "o", "+", "x", "*", "1", "d"]
@@ -49,6 +50,10 @@ metrics = {
         "cubes-search": "tab:purple",
         "kdtree-search": "tab:green",
     },
+    "query": {
+        "kdtree": "tab:green",
+        "optree": "tab:orange",
+    },
     # "size": {
     #     "dataset": "k",
     #     "python": "tab:blue",
@@ -65,18 +70,22 @@ expected = {
     # "search": lambda n: np.sqrt(n),
     # "size":lambda n: 1.2*n/10**(np.floor(np.log10(n/particle_threshold)))
     # "size": lambda n: n,
+    "query": lambda n: np.log2(n),
 }
 expected_label = {
     "creation": r"$n\; \log(n)$",
     "search": r"$\log(n)$",
     # "size": r"$n$",
+    "query": r"$\log(n)$",
 }
 
 m_expected = {
     "search": lambda m: 1,
+    "query": lambda m: 1,
 }
 m_expected_label = {
-    "search": r""  # r"$m \times$"
+    "search": r"",  # r"$m \times$"
+    "query": r"",
 }
 
 ignore_metrics = ["search:brute"]
@@ -461,8 +470,6 @@ def load_sim_results(
             sim["query"]["kdtree"] = sim["kdq-search"]["search"]
         if "sciq-search" in sim:
             sim["query"]["scipy"] = sim["sciq-search"]["search"]
-        if not sim["query"]:
-            del sim["query"]
         name = name_map[i] if name_map else snapshot_info["name"]
         sim["name"] = name
         sim["marker"] = markers[i]
