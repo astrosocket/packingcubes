@@ -99,11 +99,11 @@ def _save_fig(
     save_prefix: str | None = None,
     **kwargs,
 ):
-    fig.suptitle(fig_type.title())
     if save_dir is None:
+        fig.suptitle(fig_type.title())
         return
     save_prefix = "timing" if save_prefix is None else save_prefix
-    filename = Path(save_dir) / (save_prefix + "-" + fig_type + ".png")
+    filename = Path(save_dir) / (save_prefix + "-" + fig_type + ".svg")
     fig.savefig(str(filename), bbox_inches="tight")
 
 
