@@ -80,12 +80,12 @@ We benchmark the following functions:
     | Name | Search Object | Function/Method |
     | ---- | ------------- | --------------- | 
     | packed-search | PackedTree |`get_particle_indices_in_sphere`|
-    | packli-search | PackedTree | `get_particle_index_list_in_sphere`   |
-    | packnumb-search | PackedTree |`get_particle_indices_in_sphere`[^2] |
-    | cubes-search | ParticleCubes | `get_particle_indices_in_sphere` |
+    | packli-search[^2] | PackedTree | `get_particle_index_list_in_sphere`   |
+    | packnumb-search[^2] | PackedTree |`get_particle_indices_in_sphere`[^3] |
+    | cubes-search[^2] | ParticleCubes | `get_particle_indices_in_sphere` |
     | cubeli-search | ParticleCubes | `get_particle_index_list_in_sphere` |
     | optree-search | OpTree | `query_ball_point` |
-    | kdtree-search | KDTree | `query_ball_point` |
+    | kdtree-search[^4] | KDTree | `query_ball_point` |
 
 - **Query**
 
@@ -96,7 +96,9 @@ We benchmark the following functions:
   
 </div>
 
-[^2]: Called from within another jitted function
+[^2]: Used in regression testing only
+[^3]: Called from within another jitted function 
+[^4]: Used in comparison benchmarking only
 
 ## Results
 ### Raw Timing
@@ -123,9 +125,9 @@ Consider, for example, tree creation, which involves (and is dominated by) a
 sorting of the data. Sorting is classically an $O(n\log n)$ process, and, if
 we normalize and divide out $n\log n$, we would expect a flat line. We can see
 this behavior in the first panel for the `PackedTree`. The `KDTree` does a
-little worse than $n \log n$ (the slight upwards trend); `Cubes` does slightly better[^3].
+little worse than $n \log n$ (the slight upwards trend); `Cubes` does slightly better[^5].
 
-[^3]: This is much more likely due more to the normalization and/or 
+[^5]: This is much more likely due more to the normalization and/or 
 parallelization then because we've achieved an improvement over general search.
 
 <div class="grid cards" markdown>
