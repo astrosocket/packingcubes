@@ -5,11 +5,15 @@ on:
     paths:
       - "**"
       - "!.github/**"
+      - "!docs/**"
+      - "!benchmarks/**"
       - ".github/workflows/ci.yml"
   pull_request:
     paths:
       - "**"
       - "!.github/**"
+      - "!docs/**"
+      - "!benchmarks/**"
       - ".github/workflows/ci.yml"
   workflow_dispatch:
 
