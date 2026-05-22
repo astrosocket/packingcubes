@@ -58,7 +58,12 @@ import packingcubes.packed_tree as optree
 
 from ._json_parsing import UnytEncoder
 from .brute import brute_force_creation, brute_force_search
-from .cubes import ParticleCubes, cubes_creation, cubes_query_ball_points
+from .cubes import (
+    ParticleCubes,
+    cubes_creation,
+    cubes_get_particle_index_list_in_sphere,
+    cubes_query_ball_points,
+)
 from .octree import python_octree_creation, python_octree_query_ball_point
 from .optree import (
     OpTree,
@@ -495,6 +500,11 @@ def get_creation_search_dicts() -> tuple[
         "cubes": {
             "fun": cubes_query_ball_points,
             "tree": "cubes",
+        },
+        "cubesli": {
+            "fun": cubes_get_particle_index_list_in_sphere,
+            "tree": "cubes",
+            "config": {"strict": False},
         },
         "optree": {
             "fun": optree_query_ball_point,
