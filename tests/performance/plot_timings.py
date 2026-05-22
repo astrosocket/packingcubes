@@ -125,13 +125,16 @@ def plot_raw_times(sims: TSims, **kwargs) -> TPlots:
         figs.append(fig)
         axs.append(ax)
         for m, c in metrics[t].items():
+            metric_plotted = False
             for sim in sims:
                 n = sim["n"]
                 if m not in sim[t]:
                     continue
+                metric_plotted = True
                 y = sim[t][m].to(units[t])
                 axs[i].loglog(n, y, color=c, marker=sim["marker"], ls=sim["ls"])
-            axs[i].plot(np.nan, np.nan, color=c, label=m)
+            if metric_plotted:
+                axs[i].plot(np.nan, np.nan, color=c, label=m)
 
         axs[i].set_xlabel(f"n [{units['n']}]")
         axs[i].set_ylabel(f"{t} [{units[t]}]")
@@ -167,8 +170,9 @@ def plot_expected_times(sims: TSims, **kwargs) -> TPlots:
         axs.append(ax)
         used_m = False
         for m, c in metrics[t].items():
+            metric_plotted = False
             for sim in sims:
-                if f"{t}:{m}" in ignore_metrics:
+                if f"{t}:{m}" in ignore_metrics or m not in sim[t]:
                     continue
                 n = sim["n"]
                 scale_index = min(len(n) - 1, n_scale_index)
@@ -191,10 +195,11 @@ def plot_expected_times(sims: TSims, **kwargs) -> TPlots:
                         * expected[t](n[scale_index])
                         / expected[t](n)
                     )
+                metric_plotted = True
                 axs[i].loglog(
                     n, expected_y, color=c, marker=sim["marker"], ls=sim["ls"]
                 )
-            axs[i].plot(np.nan, np.nan, color=c, label=m)
+            axs[i].plot(np.nan, np.nan, color=c, label=m if metric_plotted else "")
 
         axs[i].set_xlabel(f"n [{units['n']}]")
         axs[i].set_ylabel(f"{t}/{t}" r"$_0$ $/$ expected")
@@ -240,8 +245,13 @@ def plot_normalized_times(sims: TSims, **kwargs) -> TPlots:
         axs.append(ax)
         for m, c in metrics[t].items():
             scipy_name = "kdtree" + ("-search" if "search" in m else "")
+            metric_plotted = False
             for sim in sims:
-                if f"{t}:{m}" in ignore_metrics or scipy_name not in sim[t]:
+                if (
+                    f"{t}:{m}" in ignore_metrics
+                    or scipy_name not in sim[t]
+                    or m not in sim[t]
+                ):
                     continue
                 n = sim["n"]
                 yk = sim[t][scipy_name]
@@ -253,8 +263,9 @@ def plot_normalized_times(sims: TSims, **kwargs) -> TPlots:
                         norm_y[:, j] = y[:, j] / yk
                 else:
                     norm_y = y / yk
+                metric_plotted = True
                 axs[i].loglog(n, norm_y, color=c, marker=sim["marker"], ls=sim["ls"])
-            axs[i].plot(np.nan, np.nan, color=c, label=m)
+            axs[i].plot(np.nan, np.nan, color=c, label=m if metric_plotted else "")
 
         axs[i].set_xlabel(f"n [{units['n']}]")
         axs[i].set_ylabel(f"{t}/{t}" r"$_{\text{scipy}}$")
