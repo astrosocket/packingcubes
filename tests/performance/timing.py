@@ -909,9 +909,12 @@ class _LoadFromFile(argparse.Action):
 
         # parse arguments in the file and store them in a blank namespace
         data = parser.parse_args(contents.split(), namespace=None)
+        LOGGER.debug(f"Loaded {str(data)} from config file")
         for k, v in vars(data).items():
             # set arguments in the target namespace if they have not been set yet
-            if getattr(namespace, k, None) is None:
+            value = getattr(namespace, k, None)
+            if value is None or value == parser.get_default(k):
+                LOGGER.debug(f"Setting {k} to {v} from config file")
                 setattr(namespace, k, v)
 
 
@@ -951,7 +954,6 @@ def parse_arguments(argv=None):
     parser.add_argument(
         "-d",
         "--decimation-factor",
-        default=[1],
         help="""
         The decimation interval (e.g. -d 10 specifies use every 10th particle).
         Default 1. Can be provided as a list
@@ -979,7 +981,6 @@ def parse_arguments(argv=None):
         More balls = better statistics
         """,
         type=int,
-        default=10,
     )
     parser.add_argument(
         "-s",
@@ -988,13 +989,11 @@ def parse_arguments(argv=None):
         Number of particles in a search ball (default: 1000). Can be provided as a list
         """,
         type=int,
-        default=[1000],
         nargs="+",
     )
     parser.add_argument(
         "-t",
         "--number-threads",
-        default=[get_num_threads()],
         help=f"""
         For those tests which can benefit from parallelization (cubes, optree),
         specify the number of threads to run on (e.g. for use in scaling 
@@ -1092,7 +1091,6 @@ def parse_arguments(argv=None):
         Set the amount of randomly generated data. Default is 100 million (10^8)
         particles.
         """,
-        default=100_000_000,
         type=int,
     )
     parser.add_argument(
@@ -1107,6 +1105,18 @@ def parse_arguments(argv=None):
     parser.add_argument("--save", type=str, help="Text file to output results")
 
     args = parser.parse_args(argv)
+
+    # we use the following instead of setting the default so that the config
+    # file parsing is simpler
+    args.decimation_factor = (
+        [1] if args.decimation_factor is None else args.decimation_factor
+    )
+    args.number_balls = 10 if args.number_balls is None else args.number_balls
+    args.number_search = [1000] if args.number_search is None else args.number_search
+    args.number_threads = (
+        [get_num_threads()] if args.number_threads is None else args.number_threads
+    )
+    args.random_size = 100_000_000 if args.random_size is None else args.random_size
 
     if args.combined_list and "all" in args.combined_list:
         args.combined_list.remove("all")
@@ -1128,6 +1138,7 @@ def parse_arguments(argv=None):
     else:
         loglvl = LOGGER.level
     LOGGER.setLevel(loglvl)
+    LOGGER.debug(f"Arguments: {str(args)}")
     return args
 
 
@@ -1263,13 +1274,13 @@ def save_results(
 
 def cli(argv=None):
     """Run the CLI for timing"""
-    args = parse_arguments(argv)
     logging.basicConfig()
+    args = parse_arguments(argv)
     LOGGER.info(f"Running with packingcubes v{packingcubes.__version__}")
 
     runinfo = {
         "version": packingcubes.__version__,
-        "args": args,
+        "args": str(args),
         "start_time": datetime.datetime.now(tz=datetime.UTC).timestamp(),
     }
 
