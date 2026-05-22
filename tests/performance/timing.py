@@ -1322,11 +1322,11 @@ def cli(argv=None, *, return_results: bool = False):
     )
     for df in args.decimation_factor:
         ds = set_decimation(ds=ds_full, decimation_factor=df)
+        radii_pn_dict = {
+            ns: random_search_balls(ds, num_particles=ns, centers=centers)
+            for ns in args.number_search
+        }
         for num_threads in args.number_threads:
-            radii_pn_dict = {
-                ns: random_search_balls(ds, num_particles=ns, centers=centers)
-                for ns in args.number_search
-            }
             creation_cache = {}
             for ns in args.number_search:
                 radii, particle_numbers = radii_pn_dict[ns]
