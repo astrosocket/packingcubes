@@ -58,7 +58,12 @@ import packingcubes.packed_tree as optree
 
 from ._json_parsing import UnytEncoder
 from .brute import brute_force_creation, brute_force_search
-from .cubes import ParticleCubes, cubes_creation, cubes_query_ball_points
+from .cubes import (
+    ParticleCubes,
+    cubes_creation,
+    cubes_get_particle_index_list_in_sphere,
+    cubes_query_ball_points,
+)
 from .octree import python_octree_creation, python_octree_query_ball_point
 from .optree import (
     OpTree,
@@ -406,19 +411,24 @@ def _remove_problem_classes_from_state(self):
             # PackedTreeNumba has 3 fields:
             #   particle_threshold - 4 byte int,
             #   tree - 128 bytes + 4 bytes*length
-            #   data - not included
+            #   box - see above
             tree_len = len(state[k].tree)
-            state[k] = bytes(np.maximum(4 + (128 + 4 * tree_len) - 33, 0))
+            state[k] = bytes(
+                np.maximum(
+                    4 + (128 + 4 * tree_len) + fixed_jitclass_sizes["BoundingBox"] - 33,
+                    0,
+                )
+            )
 
     return state
 
 
-def tree_sizes(decimation_factor=10):
+def tree_sizes(num_particles):
     """Print the sizes of search objects on a standard dataset"""
     # print(".Precompiling") # noqa
     # precompile()
     # print(".Loading data")  # noqa
-    ds = _process_data(decimation_factor=decimation_factor)
+    ds = get_data(None, loading_factor=None, random_size=num_particles)
     b = pickle.dumps(ds.positions)
     print(f"Positions: {len(b)}")  # noqa
 
@@ -495,6 +505,11 @@ def get_creation_search_dicts() -> tuple[
         "cubes": {
             "fun": cubes_query_ball_points,
             "tree": "cubes",
+        },
+        "cubesli": {
+            "fun": cubes_get_particle_index_list_in_sphere,
+            "tree": "cubes",
+            "config": {"strict": False},
         },
         "optree": {
             "fun": optree_query_ball_point,
@@ -894,9 +909,12 @@ class _LoadFromFile(argparse.Action):
 
         # parse arguments in the file and store them in a blank namespace
         data = parser.parse_args(contents.split(), namespace=None)
+        LOGGER.debug(f"Loaded {str(data)} from config file")
         for k, v in vars(data).items():
             # set arguments in the target namespace if they have not been set yet
-            if getattr(namespace, k, None) is None:
+            value = getattr(namespace, k, None)
+            if value is None or value == parser.get_default(k):
+                LOGGER.debug(f"Setting {k} to {v} from config file")
                 setattr(namespace, k, v)
 
 
@@ -936,7 +954,6 @@ def parse_arguments(argv=None):
     parser.add_argument(
         "-d",
         "--decimation-factor",
-        default=[1],
         help="""
         The decimation interval (e.g. -d 10 specifies use every 10th particle).
         Default 1. Can be provided as a list
@@ -964,7 +981,6 @@ def parse_arguments(argv=None):
         More balls = better statistics
         """,
         type=int,
-        default=10,
     )
     parser.add_argument(
         "-s",
@@ -973,13 +989,11 @@ def parse_arguments(argv=None):
         Number of particles in a search ball (default: 1000). Can be provided as a list
         """,
         type=int,
-        default=[1000],
         nargs="+",
     )
     parser.add_argument(
         "-t",
         "--number-threads",
-        default=[get_num_threads()],
         help=f"""
         For those tests which can benefit from parallelization (cubes, optree),
         specify the number of threads to run on (e.g. for use in scaling 
@@ -1077,7 +1091,6 @@ def parse_arguments(argv=None):
         Set the amount of randomly generated data. Default is 100 million (10^8)
         particles.
         """,
-        default=100_000_000,
         type=int,
     )
     parser.add_argument(
@@ -1092,6 +1105,18 @@ def parse_arguments(argv=None):
     parser.add_argument("--save", type=str, help="Text file to output results")
 
     args = parser.parse_args(argv)
+
+    # we use the following instead of setting the default so that the config
+    # file parsing is simpler
+    args.decimation_factor = (
+        [1] if args.decimation_factor is None else args.decimation_factor
+    )
+    args.number_balls = 10 if args.number_balls is None else args.number_balls
+    args.number_search = [1000] if args.number_search is None else args.number_search
+    args.number_threads = (
+        [get_num_threads()] if args.number_threads is None else args.number_threads
+    )
+    args.random_size = 100_000_000 if args.random_size is None else args.random_size
 
     if args.combined_list and "all" in args.combined_list:
         args.combined_list.remove("all")
@@ -1113,6 +1138,7 @@ def parse_arguments(argv=None):
     else:
         loglvl = LOGGER.level
     LOGGER.setLevel(loglvl)
+    LOGGER.debug(f"Arguments: {str(args)}")
     return args
 
 
@@ -1246,15 +1272,15 @@ def save_results(
         )
 
 
-def cli(argv=None):
+def cli(argv=None, *, return_results: bool = False):
     """Run the CLI for timing"""
-    args = parse_arguments(argv)
     logging.basicConfig()
+    args = parse_arguments(argv)
     LOGGER.info(f"Running with packingcubes v{packingcubes.__version__}")
 
     runinfo = {
         "version": packingcubes.__version__,
-        "args": args,
+        "args": str(args),
         "start_time": datetime.datetime.now(tz=datetime.UTC).timestamp(),
     }
 
@@ -1297,11 +1323,13 @@ def cli(argv=None):
     for df in args.decimation_factor:
         ds = set_decimation(ds=ds_full, decimation_factor=df)
         for num_threads in args.number_threads:
+            radii_pn_dict = {
+                ns: random_search_balls(ds, num_particles=ns, centers=centers)
+                for ns in args.number_search
+            }
             creation_cache = {}
             for ns in args.number_search:
-                radii, particle_numbers = random_search_balls(
-                    ds, num_particles=ns, centers=centers
-                )
+                radii, particle_numbers = radii_pn_dict[ns]
                 res_name = f"out_df={df}_sb={ns}_threads={num_threads}"
                 results[res_name] = manual_timing(
                     ds=ds,
@@ -1324,7 +1352,10 @@ def cli(argv=None):
                         run_info=runinfo,
                     )
     print(collate_results(results=results))  # noqa: T201
-    return
+    collated = collate_results(results=results)
+    collated["data_info"] = snapshot_info
+    collated["run_info"] = runinfo
+    return collated if return_results else None
 
 
 if __name__ == "__main__":

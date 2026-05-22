@@ -1,0 +1,1 @@
+--cubes -v -t 1 2 4 6 8 10 12 14 16 -s 1000 --save benchmarks/data/parallel.json

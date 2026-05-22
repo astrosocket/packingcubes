@@ -28,6 +28,7 @@ units = {
     "creation": "s",
     "search": "us",
     "size": "bytes",
+    "query": "us",
 }
 
 markers = ["s", "o", "+", "x", "*", "1", "d"]
@@ -49,6 +50,10 @@ metrics = {
         "cubes-search": "tab:purple",
         "kdtree-search": "tab:green",
     },
+    "query": {
+        "kdtree": "tab:green",
+        "optree": "tab:orange",
+    },
     # "size": {
     #     "dataset": "k",
     #     "python": "tab:blue",
@@ -65,18 +70,22 @@ expected = {
     # "search": lambda n: np.sqrt(n),
     # "size":lambda n: 1.2*n/10**(np.floor(np.log10(n/particle_threshold)))
     # "size": lambda n: n,
+    "query": lambda n: np.log2(n),
 }
 expected_label = {
     "creation": r"$n\; \log(n)$",
     "search": r"$\log(n)$",
     # "size": r"$n$",
+    "query": r"$\log(n)$",
 }
 
 m_expected = {
     "search": lambda m: 1,
+    "query": lambda m: 1,
 }
 m_expected_label = {
-    "search": r""  # r"$m \times$"
+    "search": r"",  # r"$m \times$"
+    "query": r"",
 }
 
 ignore_metrics = ["search:brute"]
@@ -90,11 +99,11 @@ def _save_fig(
     save_prefix: str | None = None,
     **kwargs,
 ):
-    fig.suptitle(fig_type.title())
     if save_dir is None:
+        fig.suptitle(fig_type.title())
         return
     save_prefix = "timing" if save_prefix is None else save_prefix
-    filename = Path(save_dir) / (save_prefix + "-" + fig_type + ".png")
+    filename = Path(save_dir) / (save_prefix + "-" + fig_type + ".svg")
     fig.savefig(str(filename), bbox_inches="tight")
 
 
@@ -116,13 +125,16 @@ def plot_raw_times(sims: TSims, **kwargs) -> TPlots:
         figs.append(fig)
         axs.append(ax)
         for m, c in metrics[t].items():
+            metric_plotted = False
             for sim in sims:
                 n = sim["n"]
                 if m not in sim[t]:
                     continue
+                metric_plotted = True
                 y = sim[t][m].to(units[t])
                 axs[i].loglog(n, y, color=c, marker=sim["marker"], ls=sim["ls"])
-            axs[i].plot(np.nan, np.nan, color=c, label=m)
+            if metric_plotted:
+                axs[i].plot(np.nan, np.nan, color=c, label=m)
 
         axs[i].set_xlabel(f"n [{units['n']}]")
         axs[i].set_ylabel(f"{t} [{units[t]}]")
@@ -158,8 +170,9 @@ def plot_expected_times(sims: TSims, **kwargs) -> TPlots:
         axs.append(ax)
         used_m = False
         for m, c in metrics[t].items():
+            metric_plotted = False
             for sim in sims:
-                if f"{t}:{m}" in ignore_metrics:
+                if f"{t}:{m}" in ignore_metrics or m not in sim[t]:
                     continue
                 n = sim["n"]
                 scale_index = min(len(n) - 1, n_scale_index)
@@ -182,10 +195,11 @@ def plot_expected_times(sims: TSims, **kwargs) -> TPlots:
                         * expected[t](n[scale_index])
                         / expected[t](n)
                     )
+                metric_plotted = True
                 axs[i].loglog(
                     n, expected_y, color=c, marker=sim["marker"], ls=sim["ls"]
                 )
-            axs[i].plot(np.nan, np.nan, color=c, label=m)
+            axs[i].plot(np.nan, np.nan, color=c, label=m if metric_plotted else "")
 
         axs[i].set_xlabel(f"n [{units['n']}]")
         axs[i].set_ylabel(f"{t}/{t}" r"$_0$ $/$ expected")
@@ -231,8 +245,13 @@ def plot_normalized_times(sims: TSims, **kwargs) -> TPlots:
         axs.append(ax)
         for m, c in metrics[t].items():
             scipy_name = "kdtree" + ("-search" if "search" in m else "")
+            metric_plotted = False
             for sim in sims:
-                if f"{t}:{m}" in ignore_metrics or scipy_name not in sim[t]:
+                if (
+                    f"{t}:{m}" in ignore_metrics
+                    or scipy_name not in sim[t]
+                    or m not in sim[t]
+                ):
                     continue
                 n = sim["n"]
                 yk = sim[t][scipy_name]
@@ -244,8 +263,9 @@ def plot_normalized_times(sims: TSims, **kwargs) -> TPlots:
                         norm_y[:, j] = y[:, j] / yk
                 else:
                     norm_y = y / yk
+                metric_plotted = True
                 axs[i].loglog(n, norm_y, color=c, marker=sim["marker"], ls=sim["ls"])
-            axs[i].plot(np.nan, np.nan, color=c, label=m)
+            axs[i].plot(np.nan, np.nan, color=c, label=m if metric_plotted else "")
 
         axs[i].set_xlabel(f"n [{units['n']}]")
         axs[i].set_ylabel(f"{t}/{t}" r"$_{\text{scipy}}$")
@@ -281,14 +301,18 @@ def plot_parallel_scaling(sims: TSims, **kwargs) -> TPlots:
     simsizes = {}
     simmarkers = {}
     simlss = {}
-    test = "kdtree"
     for sim in sims:
         if "num_threads" not in sim:
             continue
         num_threads = sim["num_threads"]
-        if test not in sim["threads"]:
+        for test in ["optree", "cubes"]:
+            if test in sim["threads"]:
+                core_scaling = sim["threads"][test]
+                break
+        else:  # nobreak
+            # No useful scaling in this sim
+            LOGGER.info(f"Sim {sim['name']} has no parallelism benchmarking")
             continue
-        core_scaling = sim["threads"][test]
         name = sim["name"]
         c = colors.get(name, "tab:gray")
         n = max(sim["n"])
@@ -385,9 +409,12 @@ def parse_arguments(argv=None) -> dict:
         "--name-map",
         type=str,
         help="""
-        Nicer names for the timing output files. E.g. instead of 
-        /blahblah/SIMNAME/extra_folder/snapshot_005.hdf5, just use SIMNAME.
-        Note, must have same number of entries as the number of timing outputs.
+        JSON file containing nicer names for the timing output files. E.g.
+        instead of /blahblah/SIMNAME/extra_folder/snapshot_005.hdf5, just
+        use SIMNAME.
+        File should only contain a dict of FILE:SIMNAME mappings. Filenames
+        are matched by the name stem (so ignore extension). Missing files will
+        use the name stored in the output.
         """,
     )
     parser.add_argument(
@@ -422,13 +449,13 @@ def parse_arguments(argv=None) -> dict:
     if not args.plot_list:
         args.plot_list = plot_list
 
-    if args.name_map and len(args.name_map) != len(args.timing_output):
-        raise argparse.ArgumentError(
-            f"""
-            Mismatch between number of name maps ({len(args.name_map)}) and
-            number of timing outputs ({len(args.timing_output)})!
-            """
-        )
+    if args.name_map:
+        try:
+            with open(args.name_map) as name_map_file:
+                args.name_map = json.load(name_map_file)
+        except (FileNotFoundError, json.JSONDecodeError) as excp:
+            LOGGER.warning(excp)
+            args.name_map = None
 
     if args.verbose >= 2:
         loglvl = logging.DEBUG
@@ -442,32 +469,39 @@ def parse_arguments(argv=None) -> dict:
 
 
 def load_sim_results(
-    output_list: list[str], *, name_map: list[str] | None = None
+    output_list: list[str], *, name_map: dict[str, str] | None = None
 ) -> dict:
     """Load list of output files into dictionary"""
     sims = []
     for i, outfilepath in enumerate(output_list):
-        with open(outfilepath) as outfile:
-            sim = json.load(
-                outfile,
-                object_hook=as_unyt,
-            )
+        try:
+            with open(outfilepath) as outfile:
+                sim = json.load(
+                    outfile,
+                    object_hook=as_unyt,
+                )
+        except (FileNotFoundError, json.JSONDecodeError):
+            continue
+        if "decimations" not in sim:
+            continue
         for name in ["decimations", "m", "num_threads"]:
             sim[name] = np.array(sim[name])
         snapshot_info = sim["snapshot_info"]
         sim["n"] = snapshot_info["n"] / sim["decimations"]
         sim["query"] = {}
+        if "opq-search" in sim:
+            sim["query"]["optree"] = sim["opq-search"]["search"]
         if "kdq-search" in sim:
             sim["query"]["kdtree"] = sim["kdq-search"]["search"]
-        if "sciq-search" in sim:
-            sim["query"]["scipy"] = sim["sciq-search"]["search"]
-        if not sim["query"]:
-            del sim["query"]
-        name = name_map[i] if name_map else snapshot_info["name"]
-        sim["name"] = name
+        sim["name"] = (
+            name_map.get(Path(outfilepath).stem, snapshot_info["name"])
+            if name_map
+            else snapshot_info["name"]
+        )
         sim["marker"] = markers[i]
         sim["ls"] = line_styles[i]
         sims.append(sim)
+        LOGGER.info(f"Loaded sim {sim['name']}({outfilepath})")
 
     return sims
 
