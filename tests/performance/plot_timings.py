@@ -290,14 +290,18 @@ def plot_parallel_scaling(sims: TSims, **kwargs) -> TPlots:
     simsizes = {}
     simmarkers = {}
     simlss = {}
-    test = "kdtree"
     for sim in sims:
         if "num_threads" not in sim:
             continue
         num_threads = sim["num_threads"]
-        if test not in sim["threads"]:
+        for test in ["optree", "cubes"]:
+            if test in sim["threads"]:
+                core_scaling = sim["threads"][test]
+                break
+        else:  # nobreak
+            # No useful scaling in this sim
+            LOGGER.info(f"Sim {sim['name']} has no parallelism benchmarking")
             continue
-        core_scaling = sim["threads"][test]
         name = sim["name"]
         c = colors.get(name, "tab:gray")
         n = max(sim["n"])
