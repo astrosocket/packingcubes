@@ -1272,7 +1272,7 @@ def save_results(
         )
 
 
-def cli(argv=None):
+def cli(argv=None, *, return_results: bool = False):
     """Run the CLI for timing"""
     logging.basicConfig()
     args = parse_arguments(argv)
@@ -1352,7 +1352,10 @@ def cli(argv=None):
                         run_info=runinfo,
                     )
     print(collate_results(results=results))  # noqa: T201
-    return
+    collated = collate_results(results=results)
+    collated["data_info"] = snapshot_info
+    collated["run_info"] = runinfo
+    return collated if return_results else None
 
 
 if __name__ == "__main__":
