@@ -47,8 +47,7 @@ viz = [
 jupyter = [
     "jupyter-rfb",
 ]
-benchmark = ["scipy", "unyt", "matplotlib"]
-all = ["packingcubes[viz]", "packingcubes[jupyter]", "packingcubes[benchmark]"]
+all = ["packingcubes[viz]", "packingcubes[jupyter]",]
 
 
 [dependency-groups]
@@ -59,6 +58,7 @@ test = [
 profile = [
     "pyinstrument", "scalene>=1.5.55,<2", "profila>=0.3.2,<0.4",
 ]
+benchmark = ["scipy", "unyt", "matplotlib"]
 jupyter = [
     "ipywidgets",
     "ipykernel",

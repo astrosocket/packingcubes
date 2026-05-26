@@ -5401,12 +5401,8 @@ packages:
   - rendercanvas ; extra == 'viz'
   - pyside6 ; extra == 'viz'
   - jupyter-rfb ; extra == 'jupyter'
-  - scipy ; extra == 'benchmark'
-  - unyt ; extra == 'benchmark'
-  - matplotlib ; extra == 'benchmark'
   - packingcubes[viz] ; extra == 'all'
   - packingcubes[jupyter] ; extra == 'all'
-  - packingcubes[benchmark] ; extra == 'all'
   requires_python: '>=3.12'
 - pypi: https://files.pythonhosted.org/packages/0d/fe/6bea5c9162869c5beba5d9c8abbed835ec85bf1ec1fba05a3822325c45f3/build-1.5.0-py3-none-any.whl
   name: build
