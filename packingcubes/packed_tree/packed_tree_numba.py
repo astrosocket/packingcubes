@@ -1246,11 +1246,13 @@ class PackedTreeNumba:
         node = self._get_containing_node_of_point(np.array([px, py, pz]))
         node = node if node is not None else self._make_root_node()
 
-        # because we need the kth nearest particles, make sure the node we're
-        # looking at has at least that many particles. This means it might not
-        # be a leaf, not that that should matter
-        while len(node) < k and not is_root(node):
+        while not is_root(node):
+            current_index = node.my_index
             _move_to_parent(self.tree, node)
+            if len(node) > k:
+                _move_to_child(self.tree, node, current_index)
+                break
+        # len(node) <= k, but len(node.parent) could be greater (if not root)
 
         heap = FixedDistanceHeap(k, len(data))
 
@@ -1264,42 +1266,74 @@ class PackedTreeNumba:
             use_shuffle,
         )
 
-        max_distance = heap.max_distance
-
-        if max_distance == 0 or is_root(node):
+        if is_root(node) or heap.max_distance == 0:
             # We've found k particles that are as close as possible or we
             # already looked at all particles. We're done
-            if return_sorted:
-                # heap sorting will return early if max_distance==0, so this
-                # won't do much extra work
-                heap.sorted()
-            return heap.distances, heap.indices
 
-        dist = min(max_distance, distance_upper_bound)
+            # heap sorting will return early if max_distance==0, so this
+            # won't do much extra work
+            return heap.sorted() if return_sorted else (heap.distances, heap.indices)
+
+        rbox = self.box
+        d = min(heap.max_distance, distance_upper_bound, max(rbox.dx, rbox.dy, rbox.dz))
+        orig_start, orig_end = node.node_start, node.node_end
+
         search_box = bbox.BoundingBox(
-            np.array([x - dist, y - dist, z - dist, 2 * dist, 2 * dist, 2 * dist])
+            np.array([px - d, py - d, pz - d, 2 * d, 2 * d, 2 * d])
         )
+        search_box.clip_to_box(rbox)
+        search_ball = bbox.BoundingSphere(xyz, d)
 
-        # clip search box to tree bounding box
-        clip = search_box.clip_to_box(self.box)
-        if not clip:
-            raise octree.OctreeError("Search box entirely outside of tree")
+        # find first parent bigger than box
+        # we know at least one parent exists because we would have already returned if
+        # root and we've clipped to the root box
+        _move_to_parent(self.tree, node)
+        while not is_root(node) and node.box.check_box_overlap(search_box) < 8:
+            _move_to_parent(self.tree, node)
 
-        box_inds = self._get_particle_indices_in_shape(search_box)
+        # traverse the tree
+        # The search speed-up comes from the fact that we will reduce the
+        # search-ball for every leaf we encounter, letting us prune entire
+        # branches later
+        next_child = List([0])
+        while next_child:
+            child = next_child[-1]
+            while child < 8 and not _move_to_child(self.tree, node, child):
+                child = child + 1
 
-        for s, e, _ in box_inds:
-            # skip slice if it's a subslice of the node we already looked at
-            if node.node_start <= s < node.node_end:
+            if child >= 8:
+                # no more children to visit
+                next_child.pop()
+                _move_to_parent(self.tree, node)
                 continue
-            _process_slice_against_heap(
-                heap, data, xyz, distance_function, s, e, use_shuffle
-            )
+            next_child[-1] = child + 1
 
-        distances, indices = heap.distances, heap.indices
-        if return_sorted:
-            distances, indices = heap.sorted()
+            # Compute node overlap
+            overlap = search_ball.check_box_overlap(node.box)
+            if not overlap:
+                # skip entire branch
+                _move_to_parent(self.tree, node)
+                continue
 
-        return distances, indices
+            if is_leaf(node):
+                # update heap and search ball
+                _process_slice_against_heap(
+                    heap,
+                    data,
+                    xyz,
+                    distance_function,
+                    node.node_start,
+                    node.node_end + 1,
+                    use_shuffle,
+                )
+                search_ball.radius = heap.max_distance
+                _move_to_parent(self.tree, node)
+                continue
+
+            # move to child
+            next_child.append(0)
+
+        return heap.sorted() if return_sorted else (heap.distances, heap.indices)
 
 
 try:
