@@ -8,7 +8,7 @@
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/charliermarsh/ruff/main/assets/badge/v2.json)](https://github.com/charliermarsh/ruff)
 
 
-Compact octree implementation used for Socket
+Compact octree implementation for fast search.
 
 `packingcubes` aims to provide a fast, minimal-memory-usage octree
 implementation, specialized for use in astronomical/astrophysical contexts.

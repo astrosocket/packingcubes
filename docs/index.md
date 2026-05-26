@@ -6,18 +6,18 @@ icon: lucide/box
 
 ## Key Features
 
-- **Separation between data and tree (meta)data**: Unlike competitors (e.g.
-    SciPy's `spatial.KDTree` or `pykdtree`), `packingcubes` sorts your dataset
-    using a chunked octree and doesn't associate any positional information
-    with the nodes. This leads to a number of useful properties:
+- **Separation between data and tree (meta)data**: Unlike other implementations
+    (e.g. SciPy's `spatial.KDTree` or `pykdtree`), `packingcubes` sorts your
+    dataset using a chunked octree and doesn't associate any positional
+    information with the nodes. This leads to a number of useful properties:
 
     - **Low-memory**: Each node contains only minimal information (20 bytes per
-      node), meaning a `PackedTree` with the same number of nodes can be ~100x
+      node), meaning a `PackedTree` with a similar depth can be ~100x
       smaller than a `KDTree` on the same data
     - **Fast tree traversal**: Tree searches on big datasets are usually memory
       bound. Smaller trees can more easily fit in cache/memory -> much faster
       tree traversal
-    - **Easy Serialization**: the tree information is trivially represented with
+    - **Easy serialization**: the tree information is trivially represented with
       collections of numpy arrays and can easily/quickly be saved to and loaded
       from storage.
     
@@ -28,7 +28,7 @@ icon: lucide/box
 - **Useability**: `packingcubes` is designed to work with datasets that contain
   information associated with the position information to make spatially
   searching other fields easy. E.g. finding a basic quantity like the mass of
-  all particles in a sphere is a simple one-liner.
+  all particles in a sphere is a simple "one-liner".
 - **Parallelization**: The cubes in `packingcubes` are created and searched
   in parallel, with the cubes creation exhibiting strong scaling.
 - **Pure Python**: There's no C/Rust/etc. extensions and we're available on
