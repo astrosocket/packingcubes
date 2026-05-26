@@ -167,8 +167,8 @@ zbuild = "zensical build"
 
 [tool.pixi.feature.dev.tasks]
 test = {cmd = "pytest --cov=packingcubes", env = { NUMBA_JIT_COVERAGE="1" }}
-bench = "python -m tests.performance.timing"
-plotbench = "python -m tests.performance.plot_timings"
+bench = "python -m benchmarks.performance.timing"
+plotbench = "python -m benchmarks.performance.plot_timings"
 format = "ruff format"
 check = "ruff check --fix"
 lint = "mypy -p packingcubes"
