@@ -405,6 +405,16 @@ def parse_arguments(argv=None) -> dict:
             action="append_const",
             const=plot,
         )
+    metrics_list = metrics.keys()
+    for metric in metrics_list:
+        plot_group.add_argument(
+            f"--plot-{metric}",
+            help=f"Include {metric} in all plots",
+            dest="metrics_list",
+            action="append_const",
+            const=metric,
+        )
+
     parser.add_argument(
         "--name-map",
         type=str,
@@ -446,8 +456,11 @@ def parse_arguments(argv=None) -> dict:
     )
     args = parser.parse_args(argv)
 
-    if not args.plot_list:
-        args.plot_list = plot_list
+    args.plot_list = plot_list if args.plot_list is None else args.plot_list
+    args.metrics_list = metrics_list if args.metrics_list is None else args.metrics_list
+
+    for metric in metrics.keys() - args.metrics_list:
+        del metrics[metric]
 
     if args.name_map:
         try:
