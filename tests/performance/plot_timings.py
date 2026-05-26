@@ -328,7 +328,7 @@ def plot_parallel_scaling(sims: TSims, **kwargs) -> TPlots:
         simlss[name] = sim["ls"]
         axs[0].loglog(
             num_threads,
-            core_scaling,
+            core_scaling.to("s"),
             color=c,
             marker=sim["marker"],
             ls=sim["ls"],
@@ -357,7 +357,7 @@ def plot_parallel_scaling(sims: TSims, **kwargs) -> TPlots:
         )
     )
     axs[0].xaxis.set_major_formatter(mpl.ticker.LogFormatter(base=2))
-    axs[0].set_ylabel("Strong Scaling [ms]")
+    axs[0].set_ylabel("Strong Scaling [s]")
     axs[1].set_ylabel("Parallel Efficiency ($t_1/n/t_n$)")
     axs[1].set_xlabel("Number of Cores")
 
