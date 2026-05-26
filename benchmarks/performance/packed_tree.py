@@ -65,3 +65,17 @@ def packed_octree_qbp_jitted(
         spheres.append(sph)
     num_reps = _NUM_REPS
     _packed_octree_qbp_jitted(tree._tree, spheres, num_reps)
+
+
+def packed_octree_query(
+    tree: PackedTree,
+    *,
+    data: data_objects.DataContainer,
+    centers: list[NDArray],
+    k: int,
+    **kwargs,
+):
+    for c in centers:
+        dd, ii = tree.get_closest_particles(
+            xyz=c, data=data, k=k, use_data_indices=True, return_sorted=False
+        )

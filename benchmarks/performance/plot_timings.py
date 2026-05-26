@@ -51,6 +51,7 @@ metrics = {
         "kdtree-search": "tab:green",
     },
     "query": {
+        "packed": "tab:blue",
         "kdtree": "tab:green",
         "optree": "tab:orange",
     },
@@ -506,6 +507,8 @@ def load_sim_results(
             sim["query"]["optree"] = sim["opq-search"]["search"]
         if "kdq-search" in sim:
             sim["query"]["kdtree"] = sim["kdq-search"]["search"]
+        if "packq-search" in sim:
+            sim["query"]["packed"] = sim["packq-search"]["search"]
         sim["name"] = (
             name_map.get(Path(outfilepath).stem, snapshot_info["name"])
             if name_map

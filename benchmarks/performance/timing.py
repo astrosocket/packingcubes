@@ -76,6 +76,7 @@ from .packed_tree import (
     PackedTree,
     packed_octree_creation,
     packed_octree_qbp_jitted,
+    packed_octree_query,
     packed_octree_query_ball_point,
     packed_octree_query_ball_point_indices,
 )
@@ -500,6 +501,15 @@ def get_creation_search_dicts() -> tuple[
             "scaling": _NUM_PACKED_QUERY_REPS,
             "extended_description": """
             Compute timing as if run from jitted code instead of normal python.
+            """,
+        },
+        "packq": {
+            "fun": packed_octree_query,  # needs dataset + tree
+            "tree": "packed",
+            "local": {"data": "data"},
+            "config": {"k": _DEFAULT_QUERY_SIZE},
+            "extended_description": f"""
+            Returns k(={_DEFAULT_QUERY_SIZE})-closest particles.
             """,
         },
         "cubes": {
