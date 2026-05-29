@@ -52,6 +52,7 @@ metrics = {
     },
     "query": {
         "packed": "tab:blue",
+        "packed (jitted)": "tab:olive",
         "kdtree": "tab:green",
         "optree": "tab:orange",
     },
@@ -61,6 +62,13 @@ metrics = {
     #     "packed": "tab:orange",
     #     "kdtree": "tab:green",
     # },
+}
+
+query_metrics = {
+    "opq": "optree",
+    "kdq": "kdtree",
+    "packq": "packed",
+    "packnumbq": "packed (jitted)",
 }
 
 particle_threshold = 400
@@ -503,12 +511,10 @@ def load_sim_results(
         snapshot_info = sim["snapshot_info"]
         sim["n"] = snapshot_info["n"] / sim["decimations"]
         sim["query"] = {}
-        if "opq-search" in sim:
-            sim["query"]["optree"] = sim["opq-search"]["search"]
-        if "kdq-search" in sim:
-            sim["query"]["kdtree"] = sim["kdq-search"]["search"]
-        if "packq-search" in sim:
-            sim["query"]["packed"] = sim["packq-search"]["search"]
+        for query_option, query_name in query_metrics.items():
+            search_str = f"{query_option}-search"
+            if search_str in sim:
+                sim["query"][query_name] = sim[search_str]["search"]
         sim["name"] = (
             name_map.get(Path(outfilepath).stem, snapshot_info["name"])
             if name_map

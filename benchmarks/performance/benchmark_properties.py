@@ -28,6 +28,7 @@ from .packed_tree import (
     packed_octree_query,
     packed_octree_query_ball_point,
     packed_octree_query_ball_point_indices,
+    packed_octree_query_jitted,
 )
 from .scipy import (
     KDTree,
@@ -86,6 +87,17 @@ def get_creation_search_dicts() -> tuple[
             "scaling": _NUM_PACKED_QUERY_REPS,
             "extended_description": """
             Compute timing as if run from jitted code instead of normal python.
+            """,
+        },
+        "packnumbq": {
+            "fun": packed_octree_query_jitted,  # needs dataset + tree
+            "tree": "packed",
+            "local": {"data": "data"},
+            "scaling": _NUM_PACKED_QUERY_REPS,
+            "config": {"k": _DEFAULT_QUERY_SIZE},
+            "extended_description": f"""
+            Returns k(={_DEFAULT_QUERY_SIZE})-closest particles as if run
+            from jitted code, instead of normal python
             """,
         },
         "packq": {

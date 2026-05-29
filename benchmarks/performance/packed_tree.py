@@ -1,6 +1,7 @@
 # ruff: noqa: D103
 """Creation and search methods for PackedTrees"""
 
+import numpy as np
 from numba import njit
 from numba.typed import List
 from numpy.typing import NDArray
@@ -10,7 +11,7 @@ import packingcubes.data_objects as data_objects
 import packingcubes.packed_tree as optree
 from packingcubes.packed_tree import PackedTree
 
-_NUM_REPS = 10_000
+_NUM_REPS = 1_000
 
 
 def packed_octree_creation(ds):
@@ -79,3 +80,40 @@ def packed_octree_query(
         dd, ii = tree.get_closest_particles(
             xyz=c, data=data, k=k, use_data_indices=True, return_sorted=False
         )
+
+
+@njit
+def _packed_octree_query(
+    tree: optree.packed_tree_numba.PackedTreeNumba,
+    data: data_objects.DataContainer,
+    centers: NDArray,
+    k: int,
+    num_reps: int,
+):
+    dist_func = optree.packed_tree_numba.euclidean_distance_particle
+    for i in range(len(centers)):
+        xyz = centers[i, :]
+        for _ in range(num_reps):
+            dd, ii = tree.get_closest_particles(
+                data,
+                xyz,
+                dist_func,
+                1e100,
+                k,
+                False,  # noqa: FBT003
+                False,  # noqa: FBT003
+            )
+
+
+def packed_octree_query_jitted(
+    tree: PackedTree,
+    *,
+    data: data_objects.DataContainer,
+    k: int,
+    centers: list[NDArray],
+    radii: list[float],
+    **kwargs,
+):
+    centers = np.array(centers)
+    num_reps = _NUM_REPS
+    _packed_octree_query(tree._tree, data, centers, k, num_reps)
