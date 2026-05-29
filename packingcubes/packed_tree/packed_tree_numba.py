@@ -1379,32 +1379,32 @@ class PackedTreeNumba:
 
         # traverse the tree
         num_found = 0
-        next_child = List([0])
-        first_nodes = List([0])
-        first_nodes.pop()
-        while next_child:
-            child = next_child[-1]
+        next_child = node.tag.copy()  # tag is the deepest we can go
+        first_nodes = node.tag.copy()
+        current_level = 0
+        while current_level >= 0:
+            child = next_child[current_level]
             if not child:
-                first_nodes.append(_compute_first_node(x, y, z, node.box))
+                first_nodes[current_level] = _compute_first_node(x, y, z, node.box)
 
             while child < 8 and not _move_to_child(
                 self.tree,
                 node,
-                (traversal_order[first_nodes[-1]] & (7 << (3 * child))) >> (3 * child),
+                (traversal_order[first_nodes[current_level]] & (7 << (3 * child)))
+                >> (3 * child),
             ):
                 child = child + 1
 
             if child >= 8:
                 # no more children to visit
-                next_child.pop()
-                first_nodes.pop()
+                current_level -= 1
                 # check if we can end early
                 overlap = node.box.check_box_overlap(search_box)
                 if overlap == 8 or heap.max_distance == 0:
                     break
                 _move_to_parent(self.tree, node)
                 continue
-            next_child[-1] = child + 1
+            next_child[current_level] = child + 1
 
             if num_found > k and not search_ball.check_box_overlap(node.box):
                 # Only compute node overlap if we have already found sufficient
@@ -1430,7 +1430,8 @@ class PackedTreeNumba:
                 continue
 
             # move to child
-            next_child.append(0)
+            current_level += 1
+            next_child[current_level] = 0
 
         return heap.sorted() if return_sorted else (heap.distances, heap.indices)
 
