@@ -680,37 +680,39 @@ class PackedTreeNumba:
         return _create_from_current_node(node)
 
     def _top_down_containing_node(
-        self, node: CurrentNode | None, xyz: NDArray
+        self, node: CurrentNode | None, x: float, y: float, z: float
     ) -> CurrentNode | None:
         """Given point, return the smallest child node that contains point or None"""
         if node is None:
             node = self._make_root_node()
-        if not node.box.contains_point(xyz[0], xyz[1], xyz[2]):
+        if not node.box.contains_point(x, y, z):
             return None
         while not is_leaf(node):
-            children = get_children(node)
-            for child in children:
-                _move_to_child(self.tree, node, child)
-                if node.box.contains_point(xyz[0], xyz[1], xyz[2]):
-                    break
+            for child in range(8):
+                if not _move_to_child(self.tree, node, child):
+                    continue
+                if node.box.contains_point(x, y, z):
+                    break  # for loop
                 _move_to_parent(self.tree, node)
             else:
                 break  # while loop
-        return node if node.box.contains_point(xyz[0], xyz[1], xyz[2]) else None
+        return node if node.box.contains_point(x, y, z) else None
 
     def _bottom_up_containing_node(
-        self, node: CurrentNode, xyz: NDArray
+        self, node: CurrentNode, x: float, y: float, z: float
     ) -> CurrentNode | None:
         """Given point, return the smallest parent node that contains point or None"""
         while not is_root(node):
-            if node.box.contains_point(xyz[0], xyz[1], xyz[2]):
+            if node.box.contains_point(x, y, z):
                 return node
             _move_to_parent(self.tree, node)
-        return node if node.box.contains_point(xyz[0], xyz[1], xyz[2]) else None
+        return node if node.box.contains_point(x, y, z) else None
 
     def _get_containing_node_of_point(
         self,
-        xyz: NDArray,
+        x: float,
+        y: float,
+        z: float,
         start_node: CurrentNode | None = None,
         top_down: bool = True,  # noqa: FBT001, FBT002
     ) -> CurrentNode | None:
@@ -723,13 +725,13 @@ class PackedTreeNumba:
             raise ValueError("start_node **must** be provided for bottom-up traversal!")
         node = self._make_root_node() if start_node is None else start_node
         if top_down:
-            return self._top_down_containing_node(node, xyz)
+            return self._top_down_containing_node(node, x, y, z)
 
         # find first parent that contains point, then see if parent
         # can be refined
-        containing_node = self._bottom_up_containing_node(node, xyz)
+        containing_node = self._bottom_up_containing_node(node, x, y, z)
         if containing_node is not None:
-            return self._top_down_containing_node(containing_node, xyz)
+            return self._top_down_containing_node(containing_node, x, y, z)
         return None
 
     def _get_containing_node_of_pointlist(
@@ -750,14 +752,17 @@ class PackedTreeNumba:
         # bounding-box but only octree-aligned boxes are allowed)
         node = None
         for point in points:
+            x, y, z = point[0], point[1], point[2]
             if node is None:
                 node = self._get_containing_node_of_point(
-                    point,
+                    x,
+                    y,
+                    z,
                     start_node,
                     top_down,
                 )
             else:
-                node = self._bottom_up_containing_node(node, point)
+                node = self._bottom_up_containing_node(node, x, y, z)
         return node if node is not None else self._make_root_node()
 
     def _get_nodes_in_shape(
@@ -1291,7 +1296,7 @@ class PackedTreeNumba:
         # ensure point is in octree, project if not
         x, y, z = xyz
         px, py, pz = self.box.project_point_on_box(xyz)
-        node = self._get_containing_node_of_point(np.array([px, py, pz]))
+        node = self._get_containing_node_of_point(px, py, pz)
         node = node if node is not None else self._make_root_node()
 
         while not is_root(node):
