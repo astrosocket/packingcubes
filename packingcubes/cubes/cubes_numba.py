@@ -946,7 +946,16 @@ def get_closest_particles(
         )
     )
 
-    slices = get_particle_indices_in_shape(cubes, trees, cube_indices, search_box)
+    remaining_cubes = List([*cubes[:containing_cube], *cubes[(containing_cube + 1) :]])
+    remaining_trees = List([*trees[:containing_cube], *trees[(containing_cube + 1) :]])
+    remaining_indices = np.empty((len(cube_indices) - 1,), dtype=cube_indices.dtype)
+    ind = 0
+    for i in range(len(cube_indices)):
+        remaining_indices[ind] = cube_indices[i]
+        ind += i != containing_cube
+    slices = get_particle_indices_in_shape(
+        remaining_cubes, remaining_trees, remaining_indices, search_box
+    )
 
     for i in range(slices.shape[0]):
         s, e = slices[i, 0], slices[i, 1]
