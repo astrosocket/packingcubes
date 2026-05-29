@@ -479,7 +479,7 @@ class PackedTree(octree.Octree):
 
         return self._tree.get_closest_particles(
             data if isinstance(data, DataContainer) else data.data_container,
-            xyz,
+            xyz.astype(float),
             distance_fun,
             distance_upper_bound,
             k,
