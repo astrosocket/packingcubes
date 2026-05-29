@@ -68,7 +68,7 @@ def euclidean_d2(
     return (x - px) ** 2 + (y - py) ** 2 + (z - pz) ** 2
 
 
-@njit
+@njit(fastmath=True)
 def _process_slice_against_heap(
     heap: FixedDistanceHeap,
     data: DataContainer,
@@ -85,13 +85,20 @@ def _process_slice_against_heap(
         indices = data._index[start:end]
 
     num_particles = end - start
+    max_dist = heap.max_distance
     for i in range(num_particles):
-        px, py, pz = positions[i, :]
-        dist = np.float64(distance_function(x, y, z, px, py, pz))
+        dist = np.float64(
+            distance_function(
+                x, y, z, positions[i, 0], positions[i, 1], positions[i, 2]
+            )
+        )
+        if dist > max_dist:
+            continue
         index = np.int_(start + i)
         if use_shuffle:
             index = np.int_(indices[i])
         heap.try_replace(dist, index)
+        max_dist = heap.max_distance
 
 
 @njit
