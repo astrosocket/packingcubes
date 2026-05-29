@@ -446,8 +446,9 @@ class OpTree:
         if workers is not None and workers != 1:
             warnings.warn(
                 """
-                OpTrees are single-threaded. For multi-threading consider
-                switching to the Cubes API. Proceeding with workers=1.
+                Cubes use all available threads by default. 
+                To reduce the number of threads used, run with the NUMBA_NUM_THREADS=N
+                environmental variable set. Proceeding with workers=-1.
                 """,
                 OpTreeWarning,
                 stacklevel=1,
