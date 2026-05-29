@@ -835,6 +835,34 @@ def _get_closest_cube(
     return np.argmin(cube_dists)
 
 
+@njit()
+def _pad_heap(
+    heap: FixedDistanceHeap,
+    data: DataContainer,
+    xyz: NDArray,
+    distance_function: Callable[[float, float, float, float, float, float], float],
+    cube_start: int,
+    cube_end: int,
+    use_shuffle: bool,  # noqa: FBT001, FBT002
+):
+    # count how many we need
+    num_missing = 0
+    for d in heap.distances:
+        if np.isinf(d):
+            num_missing += 1
+    # try to evenly distribute
+    below = max(0, int(cube_start - num_missing / 2))
+    num_below = cube_start - below
+    above = min(len(data), cube_end + num_missing - num_below)
+
+    _process_slice_against_heap(
+        heap, data, xyz, distance_function, below, cube_start, use_shuffle
+    )
+    _process_slice_against_heap(
+        heap, data, xyz, distance_function, cube_end + 1, above, use_shuffle
+    )
+
+
 @njit
 def get_closest_particles(
     cubes: List[BoundingBox],
@@ -933,6 +961,15 @@ def get_closest_particles(
 
     # separate in case we allow making FDHs from arrays
     max_dist = heap.max_distance
+    # if heap is not full, pad with neighbors
+    if np.isinf(max_dist):
+        _pad_heap(heap, data, xyz, distance_function, cube_start, cube_end, use_shuffle)
+        max_dist = heap.max_distance
+
+    if np.isinf(max_dist):
+        # there are insufficient particles to fill, return what we have
+        return heap.sorted() if return_sorted else (heap.distances, heap.indices)
+
     search_box = BoundingBox(
         np.array(
             [
@@ -953,6 +990,7 @@ def get_closest_particles(
     for i in range(len(cube_indices)):
         remaining_indices[ind] = cube_indices[i]
         ind += i != containing_cube
+
     slices = get_particle_indices_in_shape(
         remaining_cubes, remaining_trees, remaining_indices, search_box
     )
@@ -966,8 +1004,4 @@ def get_closest_particles(
             heap, data, xyz, distance_function, s, e, use_shuffle
         )
 
-    distances, indices = heap.distances, heap.indices
-    if return_sorted:
-        distances, indices = heap.sorted()
-
-    return distances, indices
+    return heap.sorted() if return_sorted else (heap.distances, heap.indices)
