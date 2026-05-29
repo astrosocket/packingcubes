@@ -114,12 +114,46 @@ tree = PackedTree(dataset=ds)
 center = np.array([15000, 15000, 15000])
 radius = 1000
 
+from numba import njit  # noqa: E402
+
+from packingcubes.packed_tree.packed_tree_numba import (  # noqa: E402
+    euclidean_distance_particle,
+)
+
+
+@njit()
+def _repeat_query(ntree, center, data, dist_fun, num_reps=1000):
+    xyz = center.astype(np.float64)
+    for _ in range(num_reps):
+        ntree.get_closest_particles(data, xyz, dist_fun, 1e100, 10, False, True)  # noqa: FBT003
+
+
+_repeat_query(
+    tree._tree, center, ds.data_container, euclidean_distance_particle, 10_000
+)
+
+# %% [markdown] jp-MarkdownHeadingCollapsed=true
+# ### Profile search
+
 # %%
 # %%profila
 
 start = time()
 while (time() - start) < 30:
     sph_inds = tree.get_particle_indices_in_sphere(center=center, radius=radius)
+
+# %% [markdown]
+# ### Profile query
+
+# %%
+# %%profila
+
+start = time()
+while (time() - start) < 30:
+    # dd, ii = tree.get_closest_particles(data, center, data=ds.data_container, k=10)
+    _repeat_query(
+        tree._tree, center, ds.data_container, euclidean_distance_particle, 10_000
+    )
 
 # %% [markdown] jp-MarkdownHeadingCollapsed=true
 # ## Profile cubes creation
@@ -234,6 +268,16 @@ radius = 1000
 start = time()
 while (time() - start) < 30:
     sph_inds = tree.get_particle_indices_in_sphere(center=center, radius=radius)
+
+# %% [markdown]
+# ### Packed query
+
+# %%
+# %%pyinstrument
+
+start = time()
+while (time() - start) < 30:
+    dd, ii = tree.get_closest_particles(xyz=center, data=ds.data_container, k=100)
 
 # %% [markdown]
 # ## Cubes
