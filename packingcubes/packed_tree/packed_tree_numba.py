@@ -215,7 +215,7 @@ def _move_to_child(tree: Sequence, node: CurrentNode, child_ind: int) -> int:
 
 
 @njit
-def _move_to_parent(tree: Sequence, node: CurrentNode):
+def _move_to_parent(tree: Sequence, node: CurrentNode) -> int:
     """Move pointer to parent node and return offset (0 if at root)"""
     # currently at node boundary
     # amount to move back is at end of node, or skip_length-1 fields from
@@ -227,6 +227,47 @@ def _move_to_parent(tree: Sequence, node: CurrentNode):
         _update_current_node(tree, node.index - pl, node, 0)
 
     return pl
+
+
+@njit
+def _move_to_node_tag(tree: Sequence, node: CurrentNode, tag: NDArray[np.uint8]) -> int:
+    """Move pointer node to specified tag
+
+    Note that moving to a node that doesn't exist will leave the pointer node
+    at the closest leaf to the non-existent node
+
+    Parameters
+    ----------
+    tree: Sequence
+        Sequence of fields representing the packed tree
+    node: CurrentNode
+        Pointer to the current node
+    tag: (64,) array of uint8
+        Tag of the node. See [PackedNodeNumba.tag][PackedNodeNumba.tag] for
+        definition
+
+    Returns
+    -------
+    offset:int
+        Total number of fields moved (up + down)
+    """
+    assert tag.shape == (64,)
+
+    # move to most recent shared ancestor
+    lvl = node.level
+    move_up = 0
+    while lvl > 0 and (lvl > tag[63] or node.tag[lvl] != tag[lvl]):
+        move_up += _move_to_parent(tree, node)
+        # no error checking because we can always move to a parent
+
+    # move back down branch
+    move_down = 0
+    while node.level < tag[63]:
+        moved = _move_to_child(tree, node, node.level + 1)
+        if not moved:
+            break
+        move_down += moved
+    return move_up + move_down
 
 
 @njit
