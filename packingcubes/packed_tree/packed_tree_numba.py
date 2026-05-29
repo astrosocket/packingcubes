@@ -69,6 +69,36 @@ def euclidean_d2(
 
 
 @njit(fastmath=True)
+def _compute_first_node(x: float, y: float, z: float, box: bbox.BoundingBox) -> int:
+    """Compute first visited node of position given box
+
+    Note that we do not require the position to be inside the box
+
+    This is effectively computing the (0-based) morton encoding of the
+    projected point on the box
+    """
+    mx, my, mz = box.midplane()
+    return (x >= mx) + 2 * (y >= my) + 4 * (z >= mz)
+
+
+@njit(fastmath=True)
+def _update_search_box(
+    search_box: bbox.BoundingBox,
+    search_ball: bbox.BoundingSphere,
+    rbox: bbox.BoundingBox,
+):
+    """Adjust search_box to enclose search_ball, clipping against rbox"""
+    r = search_ball.radius
+    search_box.box[0] = search_ball.center[0] - r
+    search_box.box[1] = search_ball.center[1] - r
+    search_box.box[2] = search_ball.center[2] - r
+    search_box.box[3] = 2 * r
+    search_box.box[4] = 2 * r
+    search_box.box[5] = 2 * r
+    search_box.clip_to_box(rbox)
+
+
+@njit(fastmath=True)
 def _process_slice_against_heap(
     heap: FixedDistanceHeap,
     data: DataContainer,
@@ -1293,78 +1323,92 @@ class PackedTreeNumba:
             if something goes wrong with the search process
 
         """
-        # ensure point is in octree, project if not
         x, y, z = xyz
-        px, py, pz = self.box.project_point_on_box(xyz)
-        node = self._get_containing_node_of_point(px, py, pz)
-        node = node if node is not None else self._make_root_node()
 
-        while not is_root(node):
-            current_index = node.my_index
-            _move_to_parent(self.tree, node)
-            if len(node) > k:
-                _move_to_child(self.tree, node, current_index)
-                break
-        # len(node) <= k, but len(node.parent) could be greater (if not root)
+        # from starting octant, order of remaining octant traversal following
+        # Elsberg2012:
+        # 1. closest octant (already visited)
+        # 2. 3 direct neighbors
+        # 3. 3 direct neighbors of those neighbors
+        # 4. Most distant octant
+        traversal_order = np.array(
+            [
+                0b_111_110_101_011_100_010_001_000,
+                0b_110_111_100_010_101_011_000_001,
+                0b_101_111_100_001_110_011_000_010,
+                0b_100_110_101_000_111_010_001_011,
+                0b_011_111_010_001_110_101_000_100,
+                0b_010_110_011_000_111_100_001_101,
+                0b_001_101_011_000_111_100_010_110,
+                0b_000_100_010_001_110_101_011_111,
+            ],
+            dtype=np.uint32,
+        )
 
         heap = FixedDistanceHeap(k, len(data))
 
-        _process_slice_against_heap(
-            heap,
-            data,
-            xyz,
-            distance_function,
-            node.node_start,
-            node.node_end + 1,
-            use_shuffle,
+        rbox = self.box
+        d = min(distance_upper_bound, max(rbox.dx, rbox.dy, rbox.dz))
+
+        search_ball = bbox.BoundingSphere(xyz, d)
+        search_box = bbox.BoundingBox(
+            np.array(
+                [x - d, y - d, z - d, 2 * d, 2 * d, 2 * d],
+            )
         )
+        if not search_box.clip_to_box(rbox):
+            # search volume is entirely excluded, return early
+            #  we don't need to worry about sorting, because our
+            # heap is effectively empty
+            return heap.distances, heap.indices
 
-        if is_root(node) or heap.max_distance == 0:
-            # We've found k particles that are as close as possible or we
-            # already looked at all particles. We're done
+        node = self._make_root_node()
 
-            # heap sorting will return early if max_distance==0, so this
-            # won't do much extra work
+        if is_leaf(node):
+            # need to process leafy root separately because otherwise skipped
+            _process_slice_against_heap(
+                heap,
+                data,
+                xyz,
+                distance_function,
+                node.node_start,
+                node.node_end + 1,
+                use_shuffle,
+            )
             return heap.sorted() if return_sorted else (heap.distances, heap.indices)
 
-        rbox = self.box
-        d = min(heap.max_distance, distance_upper_bound, max(rbox.dx, rbox.dy, rbox.dz))
-        orig_start, orig_end = node.node_start, node.node_end
-
-        search_box = bbox.BoundingBox(
-            np.array([px - d, py - d, pz - d, 2 * d, 2 * d, 2 * d])
-        )
-        search_box.clip_to_box(rbox)
-        search_ball = bbox.BoundingSphere(xyz, d)
-
-        # find first parent bigger than box
-        # we know at least one parent exists because we would have already returned if
-        # root and we've clipped to the root box
-        _move_to_parent(self.tree, node)
-        while not is_root(node) and node.box.check_box_overlap(search_box) < 8:
-            _move_to_parent(self.tree, node)
-
         # traverse the tree
-        # The search speed-up comes from the fact that we will reduce the
-        # search-ball for every leaf we encounter, letting us prune entire
-        # branches later
+        num_found = 0
         next_child = List([0])
+        first_nodes = List([0])
+        first_nodes.pop()
         while next_child:
             child = next_child[-1]
-            while child < 8 and not _move_to_child(self.tree, node, child):
+            if not child:
+                first_nodes.append(_compute_first_node(x, y, z, node.box))
+
+            while child < 8 and not _move_to_child(
+                self.tree,
+                node,
+                (traversal_order[first_nodes[-1]] & (7 << (3 * child))) >> (3 * child),
+            ):
                 child = child + 1
 
             if child >= 8:
                 # no more children to visit
                 next_child.pop()
+                first_nodes.pop()
+                # check if we can end early
+                overlap = node.box.check_box_overlap(search_box)
+                if overlap == 8 or heap.max_distance == 0:
+                    break
                 _move_to_parent(self.tree, node)
                 continue
             next_child[-1] = child + 1
 
-            # Compute node overlap
-            overlap = search_ball.check_box_overlap(node.box)
-            if not overlap:
-                # skip entire branch
+            if num_found > k and not search_ball.check_box_overlap(node.box):
+                # Only compute node overlap if we have already found sufficient
+                # potential candidates
                 _move_to_parent(self.tree, node)
                 continue
 
@@ -1380,7 +1424,9 @@ class PackedTreeNumba:
                     use_shuffle,
                 )
                 search_ball.radius = heap.max_distance
+                _update_search_box(search_box, search_ball, rbox)
                 _move_to_parent(self.tree, node)
+                num_found += len(node)
                 continue
 
             # move to child
