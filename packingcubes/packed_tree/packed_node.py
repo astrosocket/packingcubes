@@ -296,7 +296,7 @@ def _update_node_state(node: CurrentNode, child_index: int, old_my_index: int):
         # moving to parent - need index of current node to remove offsets
         # need zero-based for positions
         node.tag[node.tag[63]] = 0
-        node.tag[63] = max(node.tag[63] - 1, 1)
+        node.tag[63] = max(node.tag[63] - 1, 0)
         curr_child_index = old_my_index - 1  # need 0-based index
         node.box.box[0] -= node.box.box[3] * (curr_child_index & 1)
         node.box.box[1] -= node.box.box[4] * ((curr_child_index & 2) >> 1)
