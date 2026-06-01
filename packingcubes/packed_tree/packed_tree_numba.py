@@ -122,7 +122,7 @@ def _process_slice_against_heap(
                 x, y, z, positions[i, 0], positions[i, 1], positions[i, 2]
             )
         )
-        if dist > max_dist:
+        if dist >= max_dist:
             continue
         index = np.int_(start + i)
         if use_shuffle:
