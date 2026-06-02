@@ -89,16 +89,29 @@ We benchmark the following functions:
 
 - **Query**
 
-    | Name | Search Object | Function/Method |
+    | Name[^5] | Search Object | Function/Method |
     | ---- | ------------- | --------------- |
-    | Optree | Optree | `query` |
-    | KDTree | KDTree | `query` |
+    | packed[^2] | PackedTree | `get_closest_particles` |
+    | packed (jitted) | PackedTree | `get_closest_particles`[^3] |
+    | optree | Optree | `query` |
+    | kdtree | KDTree | `query` |
   
 </div>
 
 [^2]: Used in regression testing only
 [^3]: Called from within another jitted function 
 [^4]: Used in comparison benchmarking only
+[^5]: Names in caption. Actual option names are generally name + 'q', e.g.
+    `--packq-search` or `--packnumbq-search`. Use the help option (`-h` or
+    `--help` for more.
+
+Finally, we show results across 3 different machines:
+
+| Name | Details |
+| ---- | ------- |
+| Laptop | 8-core laptop, used for development |
+| Stampede3 | 80 cores per node, NVDIMM partition on the TACC Stampede3 cluster ([link](https://docs.tacc.utexas.edu/hpc/stampede3/#table1)) |
+| CI | 4-core VM. The `ubuntu-latest` runner on GitHub ([link](https://docs.github.com/en/actions/reference/runners/github-hosted-runners#standard-github-hosted-runners-for-public-repositories))
 
 ## Results
 ### Raw Timing
@@ -125,9 +138,9 @@ Consider, for example, tree creation, which involves (and is dominated by) a
 sorting of the data. Sorting is classically an $O(n\log n)$ process, and, if
 we normalize and divide out $n\log n$, we would expect a flat line. We can see
 this behavior in the first panel for the `PackedTree`. The `KDTree` does a
-little worse than $n \log n$ (the slight upwards trend); `Cubes` does slightly better[^5].
+little worse than $n \log n$ (the slight upwards trend); `Cubes` does slightly better[^6].
 
-[^5]: This is much more likely due more to the normalization and/or 
+[^6]: This is much more likely due more to the normalization and/or 
 parallelization then because we've achieved an improvement over general search.
 
 <div class="grid cards" markdown>
