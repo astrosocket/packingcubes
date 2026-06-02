@@ -1,3 +1,117 @@
+## [0.6.0] - 2026-06-02
+
+### 🚀 Features
+
+- Add _move_to_node_tag, fix typing ([fe45353](https://github.com/astrosocket/packingcubes/commit/fe45353c8b9cf7ade924eabd76e43f73fbbd15a5))
+- Add optional collated results output ([4e9e3fc](https://github.com/astrosocket/packingcubes/commit/4e9e3fc067f07c2e09a8d07e95ce70b88f979803))
+- Handle non-results files gracefully ([49c2aeb](https://github.com/astrosocket/packingcubes/commit/49c2aeba236d6b25673cd906f2a800242822c1a2))
+- Add support for plotting parallel scaling for cubes ([658e412](https://github.com/astrosocket/packingcubes/commit/658e412847cffce32bff9e204872ce4b0995c18c))
+- Change plot output format, title ([4460044](https://github.com/astrosocket/packingcubes/commit/4460044e308f1f716a5f7a3ab256c735dcae3887))
+- Enhance name_map functionality ([b343f81](https://github.com/astrosocket/packingcubes/commit/b343f8196de782418a94c504c36f54ee78db1103))
+- Add query specific plot ([bee4b72](https://github.com/astrosocket/packingcubes/commit/bee4b727a7f1852a422bfc3579668efad24f6dc6))
+- Add tasks for linting ([b68b9c5](https://github.com/astrosocket/packingcubes/commit/b68b9c5fb6e6f4f8aff5714ec9d9ca6d968e71ec))
+- Add benchmark running/plotting tasks ([3bdc35e](https://github.com/astrosocket/packingcubes/commit/3bdc35e7d89002bdf1d8779f86dcd016ad03eb5a))
+- Add lights and shadows ([ee7c88b](https://github.com/astrosocket/packingcubes/commit/ee7c88bf76a968d7c37c914de58c8f840042f218))
+- Allow specifying delayed compilation for faster startup ([cd08fac](https://github.com/astrosocket/packingcubes/commit/cd08fac71fb31b73649a3e4db655b21b22244e48))
+- Add data blobs ([e22a797](https://github.com/astrosocket/packingcubes/commit/e22a7970821806b28d42a22fdc22831c334b2a98))
+- Add precompile stage for searching ([b926f65](https://github.com/astrosocket/packingcubes/commit/b926f652b80b0f85d41211d2ea7764282a6b511f))
+- Export demo as external script ([6bba613](https://github.com/astrosocket/packingcubes/commit/6bba613c81305d8606fd6505161185c25ab394e7))
+- Create demo program for packingcubes ([eeeb61f](https://github.com/astrosocket/packingcubes/commit/eeeb61f2ea90e5c5d980a5454165df31cd19b05a))
+- Add private method to get the returned PackedNodes from a search ([85998b1](https://github.com/astrosocket/packingcubes/commit/85998b14467caa711595f0e1622c309ea52ee5d3))
+
+### 🐛 Bug Fixes
+
+- Handle case where cube didn't contain enough particles ([f460c2b](https://github.com/astrosocket/packingcubes/commit/f460c2b82a86f348816d620b53f78261f440352a))
+- Fix old error message ([96efd40](https://github.com/astrosocket/packingcubes/commit/96efd40b72ea337e825723f89d34e5d2b119f581))
+- Ensure query point is float ([25cc6a1](https://github.com/astrosocket/packingcubes/commit/25cc6a1975aca66572d1fc54d960a0c19ef1a868))
+- Fix off-by-one error when updating node tag ([f2ea2c8](https://github.com/astrosocket/packingcubes/commit/f2ea2c8ddf8237da93fa2466b5426b69e94371de))
+- Convert times to seconds before plotting ([f0f0fc9](https://github.com/astrosocket/packingcubes/commit/f0f0fc990b6e4da827792d29c2df3cab19dcbcb3))
+- Missing quotes around message ([4127389](https://github.com/astrosocket/packingcubes/commit/41273890fc5d54fa5b6aad673b9031e82606824d))
+- Only plot actually present metrics ([19211f8](https://github.com/astrosocket/packingcubes/commit/19211f88c95f35407e5f1a7ac575e1babd935874))
+- Fix config file parsing ([951aa70](https://github.com/astrosocket/packingcubes/commit/951aa70659eeffea0782e56b2f3234b1786840a7))
+- Update object size calculations ([85a1405](https://github.com/astrosocket/packingcubes/commit/85a1405cc03a2d80c754689a425cc02c1767a92c))
+- Fix old name for kdtree ([bf3591f](https://github.com/astrosocket/packingcubes/commit/bf3591f005f279c3775319ef30b9faa44350dc3b))
+- Remove data copy ([531c8d1](https://github.com/astrosocket/packingcubes/commit/531c8d16a184536d7f4058e83953dfea5c1d43c2))
+- Swap box for data in jitclass definition ([9a1c451](https://github.com/astrosocket/packingcubes/commit/9a1c451a6881534e2951f9db7ada3726dbaa857d))
+- Fix benchmark cross-contamination ([bbbbb85](https://github.com/astrosocket/packingcubes/commit/bbbbb85810f87447469af336e8ddf944dcf47e98))
+- Fix missed change in get_Search_obj API ([5b4ef8d](https://github.com/astrosocket/packingcubes/commit/5b4ef8d91436aa697b58302c47dc2ce8784e5c71))
+- Fix missed kdtree->optree, scipy->kdtree conversions ([d70b258](https://github.com/astrosocket/packingcubes/commit/d70b25861b15d8f4b8005642362a2f8d00fb08c8))
+- Fix bugs in search object movement ([82de23d](https://github.com/astrosocket/packingcubes/commit/82de23de93b9c02b9aca4bb8a81aa6de440fd36c))
+- Add missing case where tree only had partially overlapped root node ([ecdaecf](https://github.com/astrosocket/packingcubes/commit/ecdaecfa9212ff22d811489b488f440778786426))
+- Fix some minor but important bugs ([#44](https://github.com/astrosocket/packingcubes/issues/44)) ([fe79afa](https://github.com/astrosocket/packingcubes/commit/fe79afa984b4f42eb2927e5b65a9bb4d9732262e))
+- Check size of tuple not contents ([238a759](https://github.com/astrosocket/packingcubes/commit/238a7594a1296af45d20fd8698f72ca65baa49c4))
+- Fix wrong typing ([c6dd7e1](https://github.com/astrosocket/packingcubes/commit/c6dd7e13a21d143258b8d919155f49ffe66a6d21))
+
+### 💼 Other
+
+- Ignore dynamic  vx/vy/vz ([d89fefb](https://github.com/astrosocket/packingcubes/commit/d89fefb3538fe9def13d34c478518e6b8a28c36d))
+
+### 🚜 Refactor
+
+- Move benchmark properties to separate file ([caa6f23](https://github.com/astrosocket/packingcubes/commit/caa6f23f1b2fb62728600b4c5bb000d47775348d))
+- Move benchmarking package to benchmarks ([829deac](https://github.com/astrosocket/packingcubes/commit/829deacae598264e85fc14d8410e24055f8e6d83))
+- Make functions private ([c7812fd](https://github.com/astrosocket/packingcubes/commit/c7812fd41718469994b7abfc8247da29c370b667))
+- Move shorter branch to if statement ([22d352b](https://github.com/astrosocket/packingcubes/commit/22d352bd2b47cbf795fbddae06e9dd38bfa1c53b))
+- Expand allowed types for center ([07ca030](https://github.com/astrosocket/packingcubes/commit/07ca030ec50febaf7c8105004955c5dc4712555e))
+- Add missing type annotation ([d766fd0](https://github.com/astrosocket/packingcubes/commit/d766fd0f06bf4cce6e5e75ee1b22381294593519))
+- Remove benchmarking 'scripts' ([75f12b6](https://github.com/astrosocket/packingcubes/commit/75f12b6ba7e0b4a2568c69d7635bc1ff1cd31148))
+
+### 📚 Documentation
+
+- Update stampede3 benchmarks ([f766833](https://github.com/astrosocket/packingcubes/commit/f76683328cc3c22f430a0aaf74fddeec79108d46))
+- Add section on machines, update query description table ([82c4c9f](https://github.com/astrosocket/packingcubes/commit/82c4c9f0cecd6e0e1fc52c831289b9b3be51ed13))
+- Update devtop benchmarks ([9367a19](https://github.com/astrosocket/packingcubes/commit/9367a19f062829d19076baaaea097dfb80256838))
+- Remove socket mention, slight wording changes ([c26e38b](https://github.com/astrosocket/packingcubes/commit/c26e38b6c2ebf4938a26e94086422dcbdd3e4edb))
+- Add stampede3 to parallelism plot ([a832cd5](https://github.com/astrosocket/packingcubes/commit/a832cd5aadb6dca2d1f588795d81c807bfa8fdc0))
+- Add footnote about regression/comparison testing ([36be484](https://github.com/astrosocket/packingcubes/commit/36be48483df7704732601ec1d27af5838bf1f069))
+- Add results to Benchmarking and ParallelChunking docs ([20e17bc](https://github.com/astrosocket/packingcubes/commit/20e17bc536b191fafbbc1ded3227e8d36a3540f9))
+- Set repo url to get code link in header ([10b5651](https://github.com/astrosocket/packingcubes/commit/10b56517964c231943803720696237d479947b02))
+- Switch to numpy style ([3263478](https://github.com/astrosocket/packingcubes/commit/32634787cf89b718098a39491c7a3cee79978b69))
+- Switch picture for diagram/explainer ([97211ae](https://github.com/astrosocket/packingcubes/commit/97211aee2f2eefca079e14ef7269fad7b9024429))
+- Add missing box parameter ([293bf15](https://github.com/astrosocket/packingcubes/commit/293bf158bb6a421b5bd3cdfbe4565bae182da7fe))
+- Missed incorrect formatted docstring ([0426854](https://github.com/astrosocket/packingcubes/commit/04268542dc1a6d6ce4052bd06384593c9a82401c))
+- Update documentation post v0.5.0 ([#43](https://github.com/astrosocket/packingcubes/issues/43)) ([74aa606](https://github.com/astrosocket/packingcubes/commit/74aa6067edb70db4da44380338c67b7a99bb2b0d))
+- Update User's Guide for new pipeline ([cd87da0](https://github.com/astrosocket/packingcubes/commit/cd87da046326f9262086591cd5a44a72c7b703bd))
+- Add tutorial link to README ([ff4b482](https://github.com/astrosocket/packingcubes/commit/ff4b482abedf4d9e7c55759db11c8098fdc4f999))
+- Make API links clearer ([80d3118](https://github.com/astrosocket/packingcubes/commit/80d311803ae4ebfaf6a0cf54f3ad7c97e8c10cff))
+- Fix docs link in Readme ([#42](https://github.com/astrosocket/packingcubes/issues/42)) ([9eb426e](https://github.com/astrosocket/packingcubes/commit/9eb426e3bcb36effcd9284ecb1b791ae633e6edf))
+- Fix docs link in Readme ([480b87e](https://github.com/astrosocket/packingcubes/commit/480b87eea2e4d0b4687472e4fd857a695f90c74e))
+
+### ⚡ Performance
+
+- Switch to array-based stack ([8dd1c16](https://github.com/astrosocket/packingcubes/commit/8dd1c169f5b2ad205c1e6e6519119da73c37e71f))
+- Remove unnecessary churn ([2382178](https://github.com/astrosocket/packingcubes/commit/23821789db204bd87b761f140da4d2e33b19cde5))
+- Switch to array-based stack ([b2fe92e](https://github.com/astrosocket/packingcubes/commit/b2fe92e5fc2cf77e14495c2defbe87fcb88e5e3f))
+- Complete rewrite of get_closest_particles ([a714bbb](https://github.com/astrosocket/packingcubes/commit/a714bbb06cf17a7b2e2b7ae290ae299137292164))
+- Improve node search performance ([90fe104](https://github.com/astrosocket/packingcubes/commit/90fe1047e2b152508524de04a538c43e10999cfc))
+- Speed up slice processing ([8158f65](https://github.com/astrosocket/packingcubes/commit/8158f65fe8d9b97ec427563d7a66538866fc17e2))
+- Skip already searched cube ([d31c7f4](https://github.com/astrosocket/packingcubes/commit/d31c7f4ff7e02199b10398c01176d97c29f70d89))
+- Improve get_closest_particles ([a2fa2df](https://github.com/astrosocket/packingcubes/commit/a2fa2df78b0e8eb80c2060bdcd7055096d2f9c8f))
+- Move search balls outside of thread loop ([d5b7d64](https://github.com/astrosocket/packingcubes/commit/d5b7d64bc236842820990cdb3f153cd6adcc6467))
+- Calculate search balls ahead of time ([c5b6caa](https://github.com/astrosocket/packingcubes/commit/c5b6caa597f2d557058b63e78e810d124314f0ee))
+
+### 🧪 Testing
+
+- Update comparison benchmarks and plots ([4066919](https://github.com/astrosocket/packingcubes/commit/406691989bc8b5729d57e411cc49220298e6525d))
+- Add before/after names for comparisons ([891cf46](https://github.com/astrosocket/packingcubes/commit/891cf46c45c540862b60a070141c3fc664f46f27))
+- Add query to profiling ([4e8c295](https://github.com/astrosocket/packingcubes/commit/4e8c29559055d564573bcd3224ccdd10afae9fd6))
+- Add jitted packed query benchmark ([bdd23eb](https://github.com/astrosocket/packingcubes/commit/bdd23eb8a558fa0bdd072dedf41e456047bf67c4))
+- Add packed tree query benchmark ([964d3a4](https://github.com/astrosocket/packingcubes/commit/964d3a45df8e479325e2dab5c6f0ae65dd77adfa))
+- Add flags to specify only certain metrics ([2cec137](https://github.com/astrosocket/packingcubes/commit/2cec1371c3ced77f128fc468700c42aa44898f51))
+- Add stampede3 benchmarks and update comparison plots ([46ee7d9](https://github.com/astrosocket/packingcubes/commit/46ee7d9036534d8a943a3e955d8ad1a984075461))
+- Add results from standard config benchmarks ([10af864](https://github.com/astrosocket/packingcubes/commit/10af8648eb435b9c887de278b459a12f2d4d3896))
+- Add config files for easier benchmarking ([a181fae](https://github.com/astrosocket/packingcubes/commit/a181fae24a1b907b11c7a4338bd19fb1c0f59963))
+- Add function to benchmark cubes particle index list ([45e8c38](https://github.com/astrosocket/packingcubes/commit/45e8c385152a1fcb443aeb551aceda221f7f7ad4))
+- Add run information to make benchmarking more reproducible ([b3c57d7](https://github.com/astrosocket/packingcubes/commit/b3c57d78f8ebf8f99baa49827ef3ae775db948ff))
+- Update CLI argument handling, fix missing default ([cc9924c](https://github.com/astrosocket/packingcubes/commit/cc9924cc886465d1684a524119edca68d0992cb1))
+- Fix wrong name in performance test ([3d6f95e](https://github.com/astrosocket/packingcubes/commit/3d6f95e0bc4448ef2b6698ea3f362c10b78e9cb6))
+
+### ⚙️ Miscellaneous Tasks
+
+- Remove 1e8 benchmark from CI run ([2e835e7](https://github.com/astrosocket/packingcubes/commit/2e835e76ef3e2c9cd8ef00d24cb27e7f10bbbd44))
+- Add workflow to regenerate benchmark comparison plots ([943764e](https://github.com/astrosocket/packingcubes/commit/943764e3654e7ff6e718ba925b5f3085e94d6cd4))
+- Only run CI tests on code changes ([f1ea735](https://github.com/astrosocket/packingcubes/commit/f1ea7359d1c787620a2918c7b9a628bf23d3002a))
+- Fix OpTree name change, Cubes API update ([a8b17d2](https://github.com/astrosocket/packingcubes/commit/a8b17d2d42bd47b86e8fef21d6faed027f57b222))
 ## [0.5.0] - 2026-05-06
 
 ### 🚀 Features
