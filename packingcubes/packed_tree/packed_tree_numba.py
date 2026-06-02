@@ -948,17 +948,19 @@ class PackedTreeNumba:
             return indices
 
         next_child = List([0])
-        while next_child:
-            child = next_child[-1]
+        next_child = node.tag.copy()  # tag is the deepest we can go
+        current_level = 0
+        while current_level >= 0:
+            child = next_child[current_level]
             while child < 8 and not _move_to_child(self.tree, node, child):
                 child = child + 1
 
             if child >= 8:
                 # no more children to visit
-                next_child.pop()
+                current_level -= 1
                 _move_to_parent(self.tree, node)
                 continue
-            next_child[-1] = child + 1
+            next_child[current_level] = child + 1
 
             # Compute node overlap
             overlap = containment_obj.check_box_overlap(node.box)
@@ -966,7 +968,8 @@ class PackedTreeNumba:
 
             if partial and not is_leaf(node):
                 # visit children
-                next_child.append(0)
+                current_level += 1
+                next_child[current_level] = 0
                 continue
 
             # for remaining cases we will move to parent regardless
