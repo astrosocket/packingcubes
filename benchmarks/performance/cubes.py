@@ -22,3 +22,11 @@ def cubes_query_ball_points(
             center=c,
             radius=r,
         )
+
+
+def cubes_get_particle_index_list_in_sphere(
+    cubes: ParticleCubes, *, centers: list[NDArray], radii: list[float], **kwargs
+):
+    strict = kwargs.get("strict", False)
+    for c, r in zip(centers, radii, strict=True):
+        sph_inds = cubes.get_particle_index_list_in_sphere(c, r, strict=strict)

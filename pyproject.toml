@@ -47,8 +47,7 @@ viz = [
 jupyter = [
     "jupyter-rfb",
 ]
-benchmark = ["scipy", "unyt", "matplotlib"]
-all = ["packingcubes[viz]", "packingcubes[jupyter]", "packingcubes[benchmark]"]
+all = ["packingcubes[viz]", "packingcubes[jupyter]",]
 
 
 [dependency-groups]
@@ -59,6 +58,7 @@ test = [
 profile = [
     "pyinstrument", "scalene>=1.5.55,<2", "profila>=0.3.2,<0.4",
 ]
+benchmark = ["scipy", "unyt", "matplotlib"]
 jupyter = [
     "ipywidgets",
     "ipykernel",
@@ -80,8 +80,7 @@ docs = ["griffe-pydantic", "zensical", "mkdocstrings-python", "mkdocstrings"]
 
 [project.scripts]
 packcubes = "packingcubes.cubes.cubes_creation:cli"
-packcubes_timing_run = "tests.performance.timing:cli"
-packcubes_timing_plot = "tests.performance.plot_timings:cli"
+packcubes_viz_demo = "packingcubes.demo:main"
 
 [tool.setuptools]
 packages = ["packingcubes"]
@@ -168,6 +167,12 @@ zbuild = "zensical build"
 
 [tool.pixi.feature.dev.tasks]
 test = {cmd = "pytest --cov=packingcubes", env = { NUMBA_JIT_COVERAGE="1" }}
+bench = "python -m benchmarks.performance.timing"
+plotbench = "python -m benchmarks.performance.plot_timings"
+format = "ruff format"
+check = "ruff check --fix"
+lint = "mypy -p packingcubes"
+style = [{task="format"}, {task="check"}, {task="lint"}]
 
 [tool.pixi.feature.dev.dependencies]
 pytest-cov = ">=7.0.0,<8"

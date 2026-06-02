@@ -37,6 +37,7 @@ Functions
 
 import argparse
 import contextlib
+import datetime
 import json
 import logging
 import pickle
@@ -56,36 +57,16 @@ import packingcubes.data_objects as data_objects
 import packingcubes.packed_tree as optree
 
 from ._json_parsing import UnytEncoder
-from .brute import brute_force_creation, brute_force_search
-from .cubes import ParticleCubes, cubes_creation, cubes_query_ball_points
-from .octree import python_octree_creation, python_octree_query_ball_point
-from .optree import (
-    OpTree,
-    optree_creation,
-    optree_query,
-    optree_query_ball_point,
-)
-from .packed_tree import _NUM_REPS as _NUM_PACKED_QUERY_REPS
-from .packed_tree import (
-    PackedTree,
-    packed_octree_creation,
-    packed_octree_qbp_jitted,
-    packed_octree_query_ball_point,
-    packed_octree_query_ball_point_indices,
-)
-from .scipy import (
-    KDTree,
-    kdtree_creation,
-    kdtree_query,
-    kdtree_query_ball_point,
-)
+from .benchmark_properties import TSearchObj, get_creation_search_dicts
+from .octree import python_octree_creation
+from .packed_tree import packed_octree_creation
+from .scipy import kdtree_creation
 
 LOGGER = logging.getLogger(__name__)
 
 particle_type = "PartType0"
 
 rng = np.random.default_rng(0xBA55ADE89)
-_DEFAULT_QUERY_SIZE = 100
 
 
 def _get_random_data(random_size: int) -> data_objects.InMemory:
@@ -405,19 +386,24 @@ def _remove_problem_classes_from_state(self):
             # PackedTreeNumba has 3 fields:
             #   particle_threshold - 4 byte int,
             #   tree - 128 bytes + 4 bytes*length
-            #   data - not included
+            #   box - see above
             tree_len = len(state[k].tree)
-            state[k] = bytes(np.maximum(4 + (128 + 4 * tree_len) - 33, 0))
+            state[k] = bytes(
+                np.maximum(
+                    4 + (128 + 4 * tree_len) + fixed_jitclass_sizes["BoundingBox"] - 33,
+                    0,
+                )
+            )
 
     return state
 
 
-def tree_sizes(decimation_factor=10):
+def tree_sizes(num_particles):
     """Print the sizes of search objects on a standard dataset"""
     # print(".Precompiling") # noqa
     # precompile()
     # print(".Loading data")  # noqa
-    ds = _process_data(decimation_factor=decimation_factor)
+    ds = get_data(None, loading_factor=None, random_size=num_particles)
     b = pickle.dumps(ds.positions)
     print(f"Positions: {len(b)}")  # noqa
 
@@ -439,93 +425,6 @@ def tree_sizes(decimation_factor=10):
                 tree.__getstate__ = partial(_remove_problem_classes_from_state, tree)
         b = pickle.dumps(tree)
         print(f"{name}: {len(b)}")  # noqa
-
-
-# The NDArray is for the brute search creation method
-type TSearchObj = PackedTree | ParticleCubes | OpTree | KDTree | NDArray
-""" A search object """
-
-
-def get_creation_search_dicts() -> tuple[
-    dict[str, Callable[[data_objects.Dataset], TSearchObj]], dict
-]:
-    """Get functions to be timed and any additional config options
-
-    For the search dictionary, the "fun" field is the function to be timed,
-    the "tree" field is the search object needed, the "config" field contains
-    any configuration values known ahead of time, and the "local" field contains
-    variables that need to be resolved in the local namespace. The scaling field
-    is for additional scaling of the time taken to account for internal loops
-    """
-    # in the future we should generate these dynamically
-    creation_dict = {
-        "pyoct": python_octree_creation,
-        "packed": packed_octree_creation,
-        "cubes": cubes_creation,
-        "optree": optree_creation,
-        "kdtree": kdtree_creation,
-        "brute": brute_force_creation,
-    }
-    search_dict = {
-        "pyoct": {
-            "fun": python_octree_query_ball_point,
-            "tree": "pyoct",
-        },
-        "packed": {
-            "fun": packed_octree_query_ball_point,
-            "tree": "packed",
-        },
-        "packli": {
-            "fun": packed_octree_query_ball_point_indices,  # needs dataset + tree
-            "tree": "packed",
-            "local": {"data": "data"},
-            "extended_description": """
-            Returns the list of indices, equivalent to KDTree.query_ball_point()
-            """,
-        },
-        "packnumb": {
-            "fun": packed_octree_qbp_jitted,
-            "tree": "packed",
-            "scaling": _NUM_PACKED_QUERY_REPS,
-            "extended_description": """
-            Compute timing as if run from jitted code instead of normal python.
-            """,
-        },
-        "cubes": {
-            "fun": cubes_query_ball_points,
-            "tree": "cubes",
-        },
-        "optree": {
-            "fun": optree_query_ball_point,
-            "tree": "optree",
-        },
-        "opq": {
-            "fun": optree_query,
-            "tree": "optree",
-            "config": {"k": _DEFAULT_QUERY_SIZE},
-            "extended_description": f"""
-            Returns k(={_DEFAULT_QUERY_SIZE})-closest particles, equivalent to 
-            KDTree.query().
-            """,
-        },
-        "brute": {
-            "fun": brute_force_search,
-            "tree": "brute",
-        },
-        "kdtree": {
-            "fun": kdtree_query_ball_point,
-            "tree": "kdtree",
-        },
-        "kdq": {
-            "fun": kdtree_query,
-            "tree": "kdtree",
-            "config": {"k": _DEFAULT_QUERY_SIZE},
-            "extended_description": f"""
-            Returns k(={_DEFAULT_QUERY_SIZE})-closest particles.
-            """,
-        },
-    }
-    return creation_dict, search_dict
 
 
 def _format_time(times: unyt_array | unyt_quantity) -> unyt_array:
@@ -673,6 +572,18 @@ def _process_time_vec(
     return (min(time_vec), time_vec)
 
 
+def _copy_dataset(dataset: data_objects.Dataset):
+    """Copy the positions **only**"""
+    # This means we are currently skipping any extra fields
+    return data_objects.InMemory(
+        positions=dataset.positions.copy(),
+        name=dataset.name,
+        filepath=dataset.filepath,
+        particle_type=getattr(dataset, "particle_type", None),
+        bounding_box=dataset.bounding_box,
+    )
+
+
 def get_search_obj(
     *,
     name: str,
@@ -721,7 +632,7 @@ def get_search_obj(
         )
         test_name = (
             (name + f" ({get_num_threads()} threads)")
-            if "cubes" in name or "kdtree" in name
+            if "cubes" in name or "optree" in name
             else name
         )
         LOGGER.info(
@@ -729,8 +640,11 @@ def get_search_obj(
             f"{len(time_vec)} runs: {results[name][0]:.3g}"
         )
 
-    so = creation_fun(dataset)
-    so.data_container = dataset.data_container
+    # datasets don't have a copy functionality so we need to do this
+    # by hand
+    data_copy = _copy_dataset(dataset)
+    so = creation_fun(data_copy)
+    so.data_container = data_copy.data_container
     return so
 
 
@@ -748,30 +662,30 @@ def manual_timing(
 ) -> dict:
     """Time a set of creation and search tests on the provided dataset
 
-    Args
-    ----
-        ds: Dataset
-            Dataset to run creation and timing tests on
-        centers: list[NDArray]
-            Search ball centers as list of length-3 vectors
-        radii: list[float]]
-            Search ball radii
-        particle_numbers: list[int]
-            List of number of particles in each search ball for verification
-        creation_list: list[str]
-            List of creation-type tests
-        search_list: list[str]
-            List of search-type tests
-        dry_run: bool, optional
-            Flag to run everything except the actual tests. Default False
-        creation_cache: dict, optional
-            Dictionary containing search objects referenced by type (e.g.
-            "packed":PackedTree). Search objects not present in the cache, or
-            if no cache is provided, will be generated (and possibly timed) on
-            first use and then cached. Default None.
-        number_threads: int, optional
-            Number of threads to use in numba functions. Default is all threads
-            available to numba (config.NUMBA_NUM_THREADS)
+    Parameters
+    ----------
+    ds: Dataset
+        Dataset to run creation and timing tests on
+    centers: list[NDArray]
+        Search ball centers as list of length-3 vectors
+    radii: list[float]]
+        Search ball radii
+    particle_numbers: list[int]
+        List of number of particles in each search ball for verification
+    creation_list: list[str]
+        List of creation-type tests
+    search_list: list[str]
+        List of search-type tests
+    dry_run: bool, optional
+        Flag to run everything except the actual tests. Default False
+    creation_cache: dict, optional
+        Dictionary containing search objects referenced by type (e.g.
+        "packed":PackedTree). Search objects not present in the cache, or
+        if no cache is provided, will be generated (and possibly timed) on
+        first use and then cached. Default None.
+    number_threads: int, optional
+        Number of threads to use in numba functions. Default is all threads
+        available to numba (config.NUMBA_NUM_THREADS)
 
     Returns
     -------
@@ -862,7 +776,7 @@ def manual_timing(
         get_search_obj(
             name=test,
             dataset=ds,
-            creation_dict=creation_dict,
+            creation_fun=creation_dict[test],
             results=results,
             dry_run=dry_run,
         )
@@ -878,9 +792,12 @@ class _LoadFromFile(argparse.Action):
 
         # parse arguments in the file and store them in a blank namespace
         data = parser.parse_args(contents.split(), namespace=None)
+        LOGGER.debug(f"Loaded {str(data)} from config file")
         for k, v in vars(data).items():
             # set arguments in the target namespace if they have not been set yet
-            if getattr(namespace, k, None) is None:
+            value = getattr(namespace, k, None)
+            if value is None or value == parser.get_default(k):
+                LOGGER.debug(f"Setting {k} to {v} from config file")
                 setattr(namespace, k, v)
 
 
@@ -920,10 +837,9 @@ def parse_arguments(argv=None):
     parser.add_argument(
         "-d",
         "--decimation-factor",
-        default=[1],
         help="""
         The decimation interval (e.g. -d 10 specifies use every 10th particle).
-        Can be provided as a list
+        Default 1. Can be provided as a list
         """,
         type=int,
         nargs="+",
@@ -943,15 +859,17 @@ def parse_arguments(argv=None):
     parser.add_argument(
         "-n",
         "--number-balls",
-        help="Number of search balls to create. More balls = better statistics",
+        help="""
+        Number of search balls to create (default: %(default)s).
+        More balls = better statistics
+        """,
         type=int,
-        default=10,
     )
     parser.add_argument(
         "-s",
         "--number-search",
         help="""
-        Number of particles in a search ball. Can be provided as a list
+        Number of particles in a search ball (default: 1000). Can be provided as a list
         """,
         type=int,
         nargs="+",
@@ -959,7 +877,6 @@ def parse_arguments(argv=None):
     parser.add_argument(
         "-t",
         "--number-threads",
-        default=[get_num_threads()],
         help=f"""
         For those tests which can benefit from parallelization (cubes, optree),
         specify the number of threads to run on (e.g. for use in scaling 
@@ -1057,7 +974,6 @@ def parse_arguments(argv=None):
         Set the amount of randomly generated data. Default is 100 million (10^8)
         particles.
         """,
-        default=100_000_000,
         type=int,
     )
     parser.add_argument(
@@ -1073,6 +989,18 @@ def parse_arguments(argv=None):
 
     args = parser.parse_args(argv)
 
+    # we use the following instead of setting the default so that the config
+    # file parsing is simpler
+    args.decimation_factor = (
+        [1] if args.decimation_factor is None else args.decimation_factor
+    )
+    args.number_balls = 10 if args.number_balls is None else args.number_balls
+    args.number_search = [1000] if args.number_search is None else args.number_search
+    args.number_threads = (
+        [get_num_threads()] if args.number_threads is None else args.number_threads
+    )
+    args.random_size = 100_000_000 if args.random_size is None else args.random_size
+
     if args.combined_list and "all" in args.combined_list:
         args.combined_list.remove("all")
         args.creation_list = [] if args.creation_list is None else args.creation_list
@@ -1082,9 +1010,9 @@ def parse_arguments(argv=None):
 
     if args.combined_list and "most" in args.combined_list:
         args.combined_list.remove("most")
-        args.combined_list.extend(["packed", "kdtree", "scipy"])
+        args.combined_list.extend(["packed", "optree", "kdtree"])
         args.search_list = [] if args.search_list is None else args.search_list
-        args.search_list.extend(["kdq", "sciq"])
+        args.search_list.extend(["opq", "kdq"])
 
     if args.verbose >= 2:
         loglvl = logging.DEBUG
@@ -1093,6 +1021,7 @@ def parse_arguments(argv=None):
     else:
         loglvl = LOGGER.level
     LOGGER.setLevel(loglvl)
+    LOGGER.debug(f"Arguments: {str(args)}")
     return args
 
 
@@ -1207,6 +1136,7 @@ def save_results(
     *,
     results: dict,
     snapshot_info: dict,
+    run_info: dict,
     outfilepath: str,
     raw_results: dict | None = None,
 ):
@@ -1214,6 +1144,7 @@ def save_results(
     if raw_results is not None:
         results["raw"] = raw_results
     results["snapshot_info"] = snapshot_info
+    results["run_info"] = run_info
     with open(outfilepath, "w") as outfile:
         json.dump(
             results,
@@ -1224,11 +1155,18 @@ def save_results(
         )
 
 
-def cli():
+def cli(argv=None, *, return_results: bool = False):
     """Run the CLI for timing"""
-    args = parse_arguments()
     logging.basicConfig()
+    args = parse_arguments(argv)
     LOGGER.info(f"Running with packingcubes v{packingcubes.__version__}")
+
+    runinfo = {
+        "version": packingcubes.__version__,
+        "args": str(args),
+        "start_time": datetime.datetime.now(tz=datetime.UTC).timestamp(),
+    }
+
     if args.dry:
         LOGGER.info("Dry run only. Actual timing will be skipped")
     creation_list = args.creation_list if args.creation_list else []
@@ -1238,8 +1176,8 @@ def cli():
         creation_list.append(t)
         search_list.append(t)
     # ensure no duplicate tests
-    creation_list = set(creation_list)
-    search_list = set(search_list)
+    creation_list = sorted(set(creation_list))
+    search_list = sorted(set(search_list))
 
     results = {}
     if creation_list:
@@ -1267,12 +1205,14 @@ def cli():
     )
     for df in args.decimation_factor:
         ds = set_decimation(ds=ds_full, decimation_factor=df)
+        radii_pn_dict = {
+            ns: random_search_balls(ds, num_particles=ns, centers=centers)
+            for ns in args.number_search
+        }
         for num_threads in args.number_threads:
             creation_cache = {}
             for ns in args.number_search:
-                radii, particle_numbers = random_search_balls(
-                    ds, num_particles=ns, centers=centers
-                )
+                radii, particle_numbers = radii_pn_dict[ns]
                 res_name = f"out_df={df}_sb={ns}_threads={num_threads}"
                 results[res_name] = manual_timing(
                     ds=ds,
@@ -1286,14 +1226,19 @@ def cli():
                     number_threads=num_threads,
                 )
                 # update results on each search ball size, since this can be slow
+                runinfo["end_time"] = datetime.datetime.now(tz=datetime.UTC).timestamp()
                 if args.save:
                     save_results(
                         results=collate_results(results=results),
                         outfilepath=args.save,
                         snapshot_info=snapshot_info,
+                        run_info=runinfo,
                     )
     print(collate_results(results=results))  # noqa: T201
-    return
+    collated = collate_results(results=results)
+    collated["data_info"] = snapshot_info
+    collated["run_info"] = runinfo
+    return collated if return_results else None
 
 
 if __name__ == "__main__":

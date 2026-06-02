@@ -29,7 +29,7 @@ from numpy.typing import NDArray
 import packingcubes.bounding_box as bbox
 import packingcubes.octree as octree
 from packingcubes.configuration import FIELD_FORMAT
-from packingcubes.data_objects import DataContainer, dc_type
+from packingcubes.data_objects import DataContainer
 from packingcubes.packed_tree.fixed_distance_heap import FixedDistanceHeap
 from packingcubes.packed_tree.packed_node import (
     CurrentNode,
@@ -68,7 +68,37 @@ def euclidean_d2(
     return (x - px) ** 2 + (y - py) ** 2 + (z - pz) ** 2
 
 
-@njit
+@njit(fastmath=True)
+def _compute_first_node(x: float, y: float, z: float, box: bbox.BoundingBox) -> int:
+    """Compute first visited node of position given box
+
+    Note that we do not require the position to be inside the box
+
+    This is effectively computing the (0-based) morton encoding of the
+    projected point on the box
+    """
+    mx, my, mz = box.midplane()
+    return (x >= mx) + 2 * (y >= my) + 4 * (z >= mz)
+
+
+@njit(fastmath=True)
+def _update_search_box(
+    search_box: bbox.BoundingBox,
+    search_ball: bbox.BoundingSphere,
+    rbox: bbox.BoundingBox,
+):
+    """Adjust search_box to enclose search_ball, clipping against rbox"""
+    r = search_ball.radius
+    search_box.box[0] = search_ball.center[0] - r
+    search_box.box[1] = search_ball.center[1] - r
+    search_box.box[2] = search_ball.center[2] - r
+    search_box.box[3] = 2 * r
+    search_box.box[4] = 2 * r
+    search_box.box[5] = 2 * r
+    search_box.clip_to_box(rbox)
+
+
+@njit(fastmath=True)
 def _process_slice_against_heap(
     heap: FixedDistanceHeap,
     data: DataContainer,
@@ -85,13 +115,20 @@ def _process_slice_against_heap(
         indices = data._index[start:end]
 
     num_particles = end - start
+    max_dist = heap.max_distance
     for i in range(num_particles):
-        px, py, pz = positions[i, :]
-        dist = np.float64(distance_function(x, y, z, px, py, pz))
+        dist = np.float64(
+            distance_function(
+                x, y, z, positions[i, 0], positions[i, 1], positions[i, 2]
+            )
+        )
+        if dist >= max_dist:
+            continue
         index = np.int_(start + i)
         if use_shuffle:
             index = np.int_(indices[i])
         heap.try_replace(dist, index)
+        max_dist = heap.max_distance
 
 
 @njit
@@ -208,7 +245,7 @@ def _move_to_child(tree: Sequence, node: CurrentNode, child_ind: int) -> int:
 
 
 @njit
-def _move_to_parent(tree: Sequence, node: CurrentNode):
+def _move_to_parent(tree: Sequence, node: CurrentNode) -> int:
     """Move pointer to parent node and return offset (0 if at root)"""
     # currently at node boundary
     # amount to move back is at end of node, or skip_length-1 fields from
@@ -220,6 +257,47 @@ def _move_to_parent(tree: Sequence, node: CurrentNode):
         _update_current_node(tree, node.index - pl, node, 0)
 
     return pl
+
+
+@njit
+def _move_to_node_tag(tree: Sequence, node: CurrentNode, tag: NDArray[np.uint8]) -> int:
+    """Move pointer node to specified tag
+
+    Note that moving to a node that doesn't exist will leave the pointer node
+    at the closest leaf to the non-existent node
+
+    Parameters
+    ----------
+    tree: Sequence
+        Sequence of fields representing the packed tree
+    node: CurrentNode
+        Pointer to the current node
+    tag: (64,) array of uint8
+        Tag of the node. See [PackedNodeNumba.tag][PackedNodeNumba.tag] for
+        definition
+
+    Returns
+    -------
+    offset:int
+        Total number of fields moved (up + down)
+    """
+    assert tag.shape == (64,)
+
+    # move to most recent shared ancestor
+    lvl = node.level
+    move_up = 0
+    while lvl > 0 and (lvl > tag[63] or node.tag[lvl] != tag[lvl]):
+        move_up += _move_to_parent(tree, node)
+        # no error checking because we can always move to a parent
+
+    # move back down branch
+    move_down = 0
+    while node.level < tag[63]:
+        moved = _move_to_child(tree, node, node.level + 1)
+        if not moved:
+            break
+        move_down += moved
+    return move_up + move_down
 
 
 @njit
@@ -443,7 +521,7 @@ _index_tuple_type = types.UniTuple(uint32, 3)
 _list_index_tuple = types.ListType(_index_tuple_type)
 
 
-@jitclass([("data", dc_type), ("tree", uint32[:]), ("particle_threshold", int64)])
+@jitclass([("box", bbox.bbn_type), ("tree", uint32[:]), ("particle_threshold", int64)])
 class PackedTreeNumba:
     """Private jitted octree interface
 
@@ -632,37 +710,39 @@ class PackedTreeNumba:
         return _create_from_current_node(node)
 
     def _top_down_containing_node(
-        self, node: CurrentNode | None, xyz: NDArray
+        self, node: CurrentNode | None, x: float, y: float, z: float
     ) -> CurrentNode | None:
         """Given point, return the smallest child node that contains point or None"""
         if node is None:
             node = self._make_root_node()
-        if not node.box.contains_point(xyz[0], xyz[1], xyz[2]):
+        if not node.box.contains_point(x, y, z):
             return None
         while not is_leaf(node):
-            children = get_children(node)
-            for child in children:
-                _move_to_child(self.tree, node, child)
-                if node.box.contains_point(xyz[0], xyz[1], xyz[2]):
-                    break
+            for child in range(8):
+                if not _move_to_child(self.tree, node, child):
+                    continue
+                if node.box.contains_point(x, y, z):
+                    break  # for loop
                 _move_to_parent(self.tree, node)
             else:
                 break  # while loop
-        return node if node.box.contains_point(xyz[0], xyz[1], xyz[2]) else None
+        return node if node.box.contains_point(x, y, z) else None
 
     def _bottom_up_containing_node(
-        self, node: CurrentNode, xyz: NDArray
+        self, node: CurrentNode, x: float, y: float, z: float
     ) -> CurrentNode | None:
         """Given point, return the smallest parent node that contains point or None"""
         while not is_root(node):
-            if node.box.contains_point(xyz[0], xyz[1], xyz[2]):
+            if node.box.contains_point(x, y, z):
                 return node
             _move_to_parent(self.tree, node)
-        return node if node.box.contains_point(xyz[0], xyz[1], xyz[2]) else None
+        return node if node.box.contains_point(x, y, z) else None
 
     def _get_containing_node_of_point(
         self,
-        xyz: NDArray,
+        x: float,
+        y: float,
+        z: float,
         start_node: CurrentNode | None = None,
         top_down: bool = True,  # noqa: FBT001, FBT002
     ) -> CurrentNode | None:
@@ -675,13 +755,13 @@ class PackedTreeNumba:
             raise ValueError("start_node **must** be provided for bottom-up traversal!")
         node = self._make_root_node() if start_node is None else start_node
         if top_down:
-            return self._top_down_containing_node(node, xyz)
+            return self._top_down_containing_node(node, x, y, z)
 
         # find first parent that contains point, then see if parent
         # can be refined
-        containing_node = self._bottom_up_containing_node(node, xyz)
+        containing_node = self._bottom_up_containing_node(node, x, y, z)
         if containing_node is not None:
-            return self._top_down_containing_node(containing_node, xyz)
+            return self._top_down_containing_node(containing_node, x, y, z)
         return None
 
     def _get_containing_node_of_pointlist(
@@ -702,14 +782,17 @@ class PackedTreeNumba:
         # bounding-box but only octree-aligned boxes are allowed)
         node = None
         for point in points:
+            x, y, z = point[0], point[1], point[2]
             if node is None:
                 node = self._get_containing_node_of_point(
-                    point,
+                    x,
+                    y,
+                    z,
                     start_node,
                     top_down,
                 )
             else:
-                node = self._bottom_up_containing_node(node, point)
+                node = self._bottom_up_containing_node(node, x, y, z)
         return node if node is not None else self._make_root_node()
 
     def _get_nodes_in_shape(
@@ -753,6 +836,11 @@ class PackedTreeNumba:
         if overlap == 8:
             # if all 8 root vertices enclosed, shape is bigger than tree...
             entire_nodes.append(_create_from_current_node(node))
+            return entire_nodes, partial_leaves
+
+        if overlap and is_leaf(node):
+            # root has no children
+            partial_leaves.append(_create_from_current_node(node))
             return entire_nodes, partial_leaves
 
         next_child = List([0])
@@ -860,17 +948,19 @@ class PackedTreeNumba:
             return indices
 
         next_child = List([0])
-        while next_child:
-            child = next_child[-1]
+        next_child = node.tag.copy()  # tag is the deepest we can go
+        current_level = 0
+        while current_level >= 0:
+            child = next_child[current_level]
             while child < 8 and not _move_to_child(self.tree, node, child):
                 child = child + 1
 
             if child >= 8:
                 # no more children to visit
-                next_child.pop()
+                current_level -= 1
                 _move_to_parent(self.tree, node)
                 continue
-            next_child[-1] = child + 1
+            next_child[current_level] = child + 1
 
             # Compute node overlap
             overlap = containment_obj.check_box_overlap(node.box)
@@ -878,7 +968,8 @@ class PackedTreeNumba:
 
             if partial and not is_leaf(node):
                 # visit children
-                next_child.append(0)
+                current_level += 1
+                next_child[current_level] = 0
                 continue
 
             # for remaining cases we will move to parent regardless
@@ -1235,66 +1326,117 @@ class PackedTreeNumba:
             if something goes wrong with the search process
 
         """
-        # ensure point is in octree, project if not
         x, y, z = xyz
-        px, py, pz = self.box.project_point_on_box(xyz)
-        node = self._get_containing_node_of_point(np.array([px, py, pz]))
-        node = node if node is not None else self._make_root_node()
 
-        # because we need the kth nearest particles, make sure the node we're
-        # looking at has at least that many particles. This means it might not
-        # be a leaf, not that that should matter
-        while len(node) < k and not is_root(node):
-            _move_to_parent(self.tree, node)
+        # from starting octant, order of remaining octant traversal following
+        # Elsberg2012:
+        # 1. closest octant (already visited)
+        # 2. 3 direct neighbors
+        # 3. 3 direct neighbors of those neighbors
+        # 4. Most distant octant
+        traversal_order = np.array(
+            [
+                0b_111_110_101_011_100_010_001_000,
+                0b_110_111_100_010_101_011_000_001,
+                0b_101_111_100_001_110_011_000_010,
+                0b_100_110_101_000_111_010_001_011,
+                0b_011_111_010_001_110_101_000_100,
+                0b_010_110_011_000_111_100_001_101,
+                0b_001_101_011_000_111_100_010_110,
+                0b_000_100_010_001_110_101_011_111,
+            ],
+            dtype=np.uint32,
+        )
 
         heap = FixedDistanceHeap(k, len(data))
 
-        _process_slice_against_heap(
-            heap,
-            data,
-            xyz,
-            distance_function,
-            node.node_start,
-            node.node_end + 1,
-            use_shuffle,
+        rbox = self.box
+        d = min(distance_upper_bound, max(rbox.dx, rbox.dy, rbox.dz))
+
+        search_ball = bbox.BoundingSphere(xyz, d)
+        search_box = bbox.BoundingBox(
+            np.array(
+                [x - d, y - d, z - d, 2 * d, 2 * d, 2 * d],
+            )
         )
-
-        max_distance = heap.max_distance
-
-        if max_distance == 0 or is_root(node):
-            # We've found k particles that are as close as possible or we
-            # already looked at all particles. We're done
-            if return_sorted:
-                # heap sorting will return early if max_distance==0, so this
-                # won't do much extra work
-                heap.sorted()
+        if not search_box.clip_to_box(rbox):
+            # search volume is entirely excluded, return early
+            #  we don't need to worry about sorting, because our
+            # heap is effectively empty
             return heap.distances, heap.indices
 
-        dist = min(max_distance, distance_upper_bound)
-        search_box = bbox.BoundingBox(
-            np.array([x - dist, y - dist, z - dist, 2 * dist, 2 * dist, 2 * dist])
-        )
+        node = self._make_root_node()
 
-        # clip search box to tree bounding box
-        clip = search_box.clip_to_box(self.box)
-        if not clip:
-            raise octree.OctreeError("Search box entirely outside of tree")
-
-        box_inds = self._get_particle_indices_in_shape(search_box)
-
-        for s, e, _ in box_inds:
-            # skip slice if it's a subslice of the node we already looked at
-            if node.node_start <= s < node.node_end:
-                continue
+        if is_leaf(node):
+            # need to process leafy root separately because otherwise skipped
             _process_slice_against_heap(
-                heap, data, xyz, distance_function, s, e, use_shuffle
+                heap,
+                data,
+                xyz,
+                distance_function,
+                node.node_start,
+                node.node_end + 1,
+                use_shuffle,
             )
+            return heap.sorted() if return_sorted else (heap.distances, heap.indices)
 
-        distances, indices = heap.distances, heap.indices
-        if return_sorted:
-            distances, indices = heap.sorted()
+        # traverse the tree
+        num_found = 0
+        next_child = node.tag.copy()  # tag is the deepest we can go
+        first_nodes = node.tag.copy()
+        current_level = 0
+        while current_level >= 0:
+            child = next_child[current_level]
+            if not child:
+                first_nodes[current_level] = _compute_first_node(x, y, z, node.box)
 
-        return distances, indices
+            while child < 8 and not _move_to_child(
+                self.tree,
+                node,
+                (traversal_order[first_nodes[current_level]] & (7 << (3 * child)))
+                >> (3 * child),
+            ):
+                child = child + 1
+
+            if child >= 8:
+                # no more children to visit
+                current_level -= 1
+                # check if we can end early
+                overlap = node.box.check_box_overlap(search_box)
+                if overlap == 8 or heap.max_distance == 0:
+                    break
+                _move_to_parent(self.tree, node)
+                continue
+            next_child[current_level] = child + 1
+
+            if num_found > k and not search_ball.check_box_overlap(node.box):
+                # Only compute node overlap if we have already found sufficient
+                # potential candidates
+                _move_to_parent(self.tree, node)
+                continue
+
+            if is_leaf(node):
+                # update heap and search ball
+                _process_slice_against_heap(
+                    heap,
+                    data,
+                    xyz,
+                    distance_function,
+                    node.node_start,
+                    node.node_end + 1,
+                    use_shuffle,
+                )
+                search_ball.radius = heap.max_distance
+                _update_search_box(search_box, search_ball, rbox)
+                _move_to_parent(self.tree, node)
+                num_found += len(node)
+                continue
+
+            # move to child
+            current_level += 1
+            next_child[current_level] = 0
+
+        return heap.sorted() if return_sorted else (heap.distances, heap.indices)
 
 
 try:

@@ -27,7 +27,7 @@
 # which is checked with [Ruff](https://docs.astral.sh/ruff/), as such there may
 # be places where ruff is ignored, since the ruff rules don't apply correctly to
 # both cases.
-
+#
 #  ruff: noqa: D100
 # %% [markdown]
 # # Initial imports and setup
@@ -40,7 +40,7 @@ from time import time  # noqa: E402
 
 import numpy as np  # noqa: E402
 
-from packingcubes import Cubes, GadgetishHDF5Dataset, KDTree, PackedTree  # noqa: E402
+from packingcubes import Cubes, GadgetishHDF5Dataset, OpTree, PackedTree  # noqa: E402
 from packingcubes.bounding_box import make_bounding_sphere  # noqa: E402
 from packingcubes.configuration import get_test_data_dir_path  # noqa: E402
 
@@ -73,8 +73,7 @@ tree.get_particle_indices_in_sphere(center=center, radius=radius)
 
 # %%
 cubes = Cubes(
-    dataset=ds,
-    particle_types=["PartType0"],
+    dataset=ds.positions,
     save_dataset=False,
 )
 
@@ -82,12 +81,12 @@ cubes = Cubes(
 cubes.get_particle_indices_in_sphere(center=center, radius=radius)
 
 # %%
-kdtree = KDTree(
+optree = OpTree(
     data=ds.positions,
 )
 
 # %%
-kdtree.query_ball_point(x=center, r=radius)
+optree.query_ball_point(x=center, r=radius)
 
 # %% [markdown]
 # # Run profiling
@@ -115,12 +114,46 @@ tree = PackedTree(dataset=ds)
 center = np.array([15000, 15000, 15000])
 radius = 1000
 
+from numba import njit  # noqa: E402
+
+from packingcubes.packed_tree.packed_tree_numba import (  # noqa: E402
+    euclidean_distance_particle,
+)
+
+
+@njit()
+def _repeat_query(ntree, center, data, dist_fun, num_reps=1000):
+    xyz = center.astype(np.float64)
+    for _ in range(num_reps):
+        ntree.get_closest_particles(data, xyz, dist_fun, 1e100, 10, False, True)  # noqa: FBT003
+
+
+_repeat_query(
+    tree._tree, center, ds.data_container, euclidean_distance_particle, 10_000
+)
+
+# %% [markdown] jp-MarkdownHeadingCollapsed=true
+# ### Profile search
+
 # %%
 # %%profila
 
 start = time()
 while (time() - start) < 30:
     sph_inds = tree.get_particle_indices_in_sphere(center=center, radius=radius)
+
+# %% [markdown]
+# ### Profile query
+
+# %%
+# %%profila
+
+start = time()
+while (time() - start) < 30:
+    # dd, ii = tree.get_closest_particles(data, center, data=ds.data_container, k=10)
+    _repeat_query(
+        tree._tree, center, ds.data_container, euclidean_distance_particle, 10_000
+    )
 
 # %% [markdown] jp-MarkdownHeadingCollapsed=true
 # ## Profile cubes creation
@@ -132,7 +165,6 @@ start = time()
 while (time() - start) < 30:
     cubes = Cubes(
         dataset=ds,
-        particle_types=["PartType0"],
         save_dataset=False,
     )
 
@@ -155,15 +187,15 @@ while (time() - start) < 30:
     sph_inds = cubes.get_particle_indices_in_sphere(center=center, radius=radius)
 
 # %% [markdown]
-# ## Profile KDTree search
+# ## Profile OpTree search
 
 # %%
-kdtree = KDTree(
+optree = OpTree(
     ds.positions,
 )
 centers = np.array([[4753.7249348, 16280.23373589, 7140.8746265]])
 radius = 856.34
-ntree = kdtree._tree._tree
+ntree = optree._tree._tree
 data = ds.data_container
 
 # %%
@@ -195,15 +227,15 @@ while (time() - start) < 30:
 # # Python profiling
 
 # %% [markdown]
-# ## KDTree (python)
+# ## OpTree (python)
 
 # %%
-kdtree = KDTree(
+optree = OpTree(
     ds.positions,
 )
 centers = np.array([[4753.7249348, 16280.23373589, 7140.8746265]])
 radius = 856.34
-ntree = kdtree._tree._tree
+ntree = optree._tree._tree
 data = ds.data_container
 
 # %%
@@ -215,7 +247,7 @@ sph_box = sph.bounding_box
 
 start = time()
 while (time() - start) < 30:
-    sph_inds = kdtree.query_ball_point(
+    sph_inds = optree.query_ball_point(
         x=centers[0], r=radius, return_data_indices=True, return_lists=False
     )
 
@@ -238,6 +270,16 @@ while (time() - start) < 30:
     sph_inds = tree.get_particle_indices_in_sphere(center=center, radius=radius)
 
 # %% [markdown]
+# ### Packed query
+
+# %%
+# %%pyinstrument
+
+start = time()
+while (time() - start) < 30:
+    dd, ii = tree.get_closest_particles(xyz=center, data=ds.data_container, k=100)
+
+# %% [markdown]
 # ## Cubes
 
 # %% [markdown]
@@ -250,7 +292,6 @@ start = time()
 while (time() - start) < 30:
     cubes = Cubes(
         dataset=ds,
-        particle_types=["PartType0"],
         save_dataset=False,
     )
 

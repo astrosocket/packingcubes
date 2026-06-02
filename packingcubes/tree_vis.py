@@ -508,7 +508,7 @@ def cubify_tree_mesh(
     tree: octree.Octree | list[octree.OctreeNode],
     *,
     leaves_only: bool = True,
-    cmap: mpl.colors.Colormap | None = None,
+    cmap: str | mpl.colors.Colormap | None = None,
 ) -> dict[int, gfx.Mesh]:
     """Transform an octree into a dict of Meshes indexed by node depth
 
@@ -761,7 +761,7 @@ def plot_octree_mesh(
     tree: octree.Octree | list[octree.OctreeNode],
     *,
     canvas_scene: tuple[RenderCanvas, gfx.Scene] | None = None,
-    cmap: mpl.colors.Colormap | None = None,
+    cmap: str | mpl.colors.Colormap | None = None,
     leaves_only: bool = True,
 ) -> tuple[RenderCanvas, gfx.Scene]:
     """Plot an Octree or other list of OctreeNodes

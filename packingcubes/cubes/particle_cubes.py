@@ -10,13 +10,14 @@ from typing import Any
 import h5py  # type: ignore
 import numpy as np
 from numba.typed import List
-from numpy.typing import NDArray
+from numpy.typing import ArrayLike, NDArray
 
 import packingcubes.bounding_box as bbox
 import packingcubes.cubes.cubes_numba as cubba
 from packingcubes.bounding_box import BoundingBox
 from packingcubes.cubes.cubes_numba import (
     get_closest_particles,
+    get_packednodes_in_shape,
     get_particle_index_list_in_shape,
     get_particle_indices_in_shape,
 )
@@ -28,9 +29,8 @@ from packingcubes.data_objects import (
     MultiParticleDataset,
 )
 from packingcubes.octree import _DEFAULT_PARTICLE_THRESHOLD
-from packingcubes.packed_tree import (
-    PackedTree,
-)
+from packingcubes.packed_tree import PackedTree
+from packingcubes.packed_tree.packed_node import PackedNode
 from packingcubes.packed_tree.packed_tree_numba import (
     PackedTreeNumba,
     euclidean_distance_particle,
@@ -83,6 +83,38 @@ class ParticleCubes:
 
         self._numba_trees = List([t._tree for t in self.cube_trees])
         self._dataset = dataset
+
+    def _get_packednodes_in_shape(
+        self,
+        shape: bbox.BoundingVolume,
+    ) -> tuple[list[PackedNode], list[PackedNode]]:
+        """Return all PackedNodes overlapping the shape
+
+        This is a private version that uses a premade bounding volume
+
+        Parameters
+        ----------
+        shape: BoundingVolume
+            The shape to search in
+
+        Returns
+        -------
+        entire: list[PackedNode]
+            List of all PackedNodes entirely contained within shape
+
+        partial: list[PackedNode]
+            List of all PackedNodes that are only partially contained within
+            shape
+        """
+        entire_numba, partial_numba = get_packednodes_in_shape(
+            cubes=self.cube_boxes,
+            trees=self._numba_trees,
+            cube_offsets=self.cube_indices,
+            shape=shape,
+        )
+        entire = [PackedNode(node) for node in entire_numba]
+        partial = [PackedNode(node) for node in partial_numba]
+        return entire, partial
 
     def _get_particle_indices_in_shape(
         self,
@@ -559,7 +591,7 @@ class ParticleCubes:
 
     def Sphere(
         self,
-        center: NDArray,
+        center: ArrayLike,
         radius: float,
         *,
         dataset: Dataset | None = None,
@@ -640,6 +672,9 @@ class ParticleCubes:
 
         Parameters
         ----------
+        box: BoxLike
+            The box to search in
+
         dataset: Dataset, optional
             Dataset containing the particle positions. Defaults to self.dataset.
 

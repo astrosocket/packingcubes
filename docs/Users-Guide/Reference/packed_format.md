@@ -87,9 +87,68 @@ Size = 5 fields = 20 bytes
 | uint32         | uint32     | uint32   | uint8        | uint8    | uint8 | uint8  | uint32        |
 
 ### Example:
-![Example packed array implementation](example_packed.jpg)
-Here, $x_{s}$, $x_{e}$, and $x_{m}$ are the node_start, node_end, and metadata (child_flag, my_index, level, and empty) fields for node $x$. The starred nodes in the tree are the last sibling for each group of children.
 
+```mermaid
+graph TD
+    a --> b
+    a --> g[g*]
+    b --> c
+    b --> f[f*]
+    c --> d
+    c --> e[e*]
+    g --> h
+    g --> i[i*]
+```
+
+The packed implementation would then look like (indenting subsequent tree levels)
+
+    45, 
+    a_s, 
+    a_e, 
+    a_m,
+        25,
+        b_s,
+        b_e,
+        b_m,
+            15,
+            c_s,
+            c_e,
+            c_m,
+                5,
+                d_s,
+                d_e,
+                d_m,
+                4,
+                5,
+                e_s,
+                e_e,
+                e_m,
+                9,
+            4,
+            5, 
+            f_s, 
+            f_e, 
+            f_m, 
+            15,
+        4,
+        15, 
+        g_s,
+        g_e,
+        g_m,
+            5,
+            h_s,
+            h_e,
+            h_m,
+            4,
+            5,
+            i_s,
+            i_e,
+            i_m,
+            9,
+        25,
+    0
+
+Here, each element is a field and $x_{s}$, $x_{e}$, and $x_{m}$ are the `node_start`, `node_end`, and `metadata` (`child_flag`, `my_index`, `level`, and `empty`) fields for node $x$. The starred nodes in the tree are the last sibling for each group of children.
 
 <script id="MathJax-script" src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
 <script>

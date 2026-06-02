@@ -1,0 +1,69 @@
+name: Benchmark packingcubes
+
+on:
+  pull_request:
+    branch:
+      - main
+    paths:
+      - "packingcubes/**"
+      - "benchmarks/**"
+    types: [labeled]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  run-bench-comparison:
+    runs-on: ubuntu-latest
+    if: contains(github.event.label.name, 'benchmark') || github.event_name == 'workflow_dispatch'
+
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # Fetch full history for setuptools-scm
+          fetch-depth: 0
+          # Required for committing changes, later
+          persist-credentials: true
+          ref: ${{ github.head_ref }}
+
+      - uses: actions/setup-python@v6
+        with:
+            python-version: "3.x"
+      - name: Install pixi
+        uses: prefix-dev/setup-pixi@v0.9.5
+        with:
+          pixi-version: v0.68.1
+          cache: true
+          cache-write: ${{ github.event_name == 'push' && github.ref_name == 'main' }}
+          environments: dev
+      - name: Run Comparison Benchmarks
+        run: |
+          pixi run bench -c benchmarks/comparison.options -d 10_000 1_000 100 10
+          mv benchmarks/data/comparison.json benchmarks/data/comparison_ci.json
+          pixi run plotbench --plot-raw -p ci-comparison -s docs/benchmarks\
+            benchmarks/data/comparison_ci.json
+          pixi run plotbench --name-map benchmarks/data/names.json \
+            -p all-comparison -s docs/benchmarks benchmarks/data/comparison_*.json
+        
+      
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: comparison-benchmark
+          path: |
+            benchmarks/data/comparison_ci.json 
+            
+
+      - name: Commit changes
+        if: success()
+        uses: stefanzweifel/git-auto-commit-action@04702edda442b2e678b25b537cec683a1493fcb9 # v7.1.0
+        with:
+          commit_message: "tst: update comparison benchmarks and plots"
+
+ 

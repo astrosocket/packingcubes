@@ -9,7 +9,7 @@ import packingcubes.octree as octree
 
 def kdtree_creation(ds):
     return KDTree(
-        data=ds.positions, copy_data=True, leafsize=octree._DEFAULT_PARTICLE_THRESHOLD
+        data=ds.positions, copy_data=False, leafsize=octree._DEFAULT_PARTICLE_THRESHOLD
     )
 
 

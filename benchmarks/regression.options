@@ -1,0 +1,1 @@
+--packed --packli --packnumb --cubes --cubesli --optree --opq -v -r 10_000_000 -d 10 1 -s 1_000 10_000 -n 10 --save benchmarks/data/regression.json

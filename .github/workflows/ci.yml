@@ -5,11 +5,15 @@ on:
     paths:
       - "**"
       - "!.github/**"
+      - "!docs/**"
+      - "!benchmarks/**"
       - ".github/workflows/ci.yml"
   pull_request:
     paths:
       - "**"
       - "!.github/**"
+      - "!docs/**"
+      - "!benchmarks/**"
       - ".github/workflows/ci.yml"
   workflow_dispatch:
 
@@ -27,7 +31,7 @@ jobs:
       - name: Install pixi and run tests
         uses: prefix-dev/setup-pixi@v0.9.5
         with:
-          pixi-version: v0.66.0
+          pixi-version: v0.68.1
           cache: true
           cache-write: ${{ github.event_name == 'push' && github.ref_name == 'main' }}
           environments: test

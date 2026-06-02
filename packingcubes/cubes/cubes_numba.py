@@ -40,11 +40,13 @@ from packingcubes.data_objects import (
 )
 from packingcubes.packed_tree.fixed_distance_heap import FixedDistanceHeap
 from packingcubes.packed_tree.packed_tree_numba import (
+    PackedNodeNumba,
     PackedTreeNumba,
     _construct_tree,
     _index_tuple_type,
     _list_index_tuple,
     _process_slice_against_heap,
+    pack_node_type,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -386,6 +388,61 @@ def get_particle_indices_in_shape(
             current_index += 1
 
     return flattened_indices
+
+
+@njit()
+def get_packednodes_in_shape(
+    cubes: List[BoundingBox],
+    trees: List[PackedTreeNumba],
+    cube_offsets: NDArray,
+    shape: bbox.BoundingVolume,
+) -> tuple[List[PackedNodeNumba], List[PackedNodeNumba]]:
+    """Get the PackedNodes contained within the shape
+
+    This is not done in parallel, unlike
+    [get_particle_indices_in_shape][get_particle_indices_in_shape], and is not
+    expected to be especially performant, though is otherwise implemented
+    similarly.
+
+    Parameters
+    ----------
+    cubes:
+        List of cube bounding boxes
+    trees:
+        List of cube PackedTreeNumbas
+    cube_offsets:
+        Array of cube offset indices into the data
+    shape:
+        BoundingVolume to check
+
+    Returns
+    -------
+    entire: List[PackedNode]
+        List of PackedNodes entirely contained within shape
+
+    partial: List[PackedNode]
+        List of PackedNodes partially contained within shape
+    """
+    entire = List.empty_list(pack_node_type)
+    partial = List.empty_list(pack_node_type)
+
+    # get particle indices from each tree
+    for i in range(len(cubes)):
+        # Note: prange indices are uint64 in parallel mode but current
+        # TypedList _get_item implementation casts to intp type, which can
+        # be int64. We'll explicitly cast to avoid the warning and because
+        # len(cubes) **better** be < 2**63 !
+        li = np.int_(i)
+        overlap = shape.check_box_overlap(cubes[li])
+        if overlap:
+            subentire, subpartial = trees[li]._get_nodes_in_shape(containment_obj=shape)
+            indices = trees[li]._get_particle_indices_in_shape(containment_obj=shape)
+            num_partial = 0
+            for _, _, p in indices:
+                num_partial += p
+            entire.extend(subentire)
+            partial.extend(subpartial)
+    return entire, partial
 
 
 @njit(parallel=True)
@@ -778,6 +835,34 @@ def _get_closest_cube(
     return np.argmin(cube_dists)
 
 
+@njit()
+def _pad_heap(
+    heap: FixedDistanceHeap,
+    data: DataContainer,
+    xyz: NDArray,
+    distance_function: Callable[[float, float, float, float, float, float], float],
+    cube_start: int,
+    cube_end: int,
+    use_shuffle: bool,  # noqa: FBT001, FBT002
+):
+    # count how many we need
+    num_missing = 0
+    for d in heap.distances:
+        if np.isinf(d):
+            num_missing += 1
+    # try to evenly distribute
+    below = max(0, int(cube_start - num_missing / 2))
+    num_below = cube_start - below
+    above = min(len(data), cube_end + num_missing - num_below)
+
+    _process_slice_against_heap(
+        heap, data, xyz, distance_function, below, cube_start, use_shuffle
+    )
+    _process_slice_against_heap(
+        heap, data, xyz, distance_function, cube_end + 1, above, use_shuffle
+    )
+
+
 @njit
 def get_closest_particles(
     cubes: List[BoundingBox],
@@ -876,6 +961,15 @@ def get_closest_particles(
 
     # separate in case we allow making FDHs from arrays
     max_dist = heap.max_distance
+    # if heap is not full, pad with neighbors
+    if np.isinf(max_dist):
+        _pad_heap(heap, data, xyz, distance_function, cube_start, cube_end, use_shuffle)
+        max_dist = heap.max_distance
+
+    if np.isinf(max_dist):
+        # there are insufficient particles to fill, return what we have
+        return heap.sorted() if return_sorted else (heap.distances, heap.indices)
+
     search_box = BoundingBox(
         np.array(
             [
@@ -889,7 +983,17 @@ def get_closest_particles(
         )
     )
 
-    slices = get_particle_indices_in_shape(cubes, trees, cube_indices, search_box)
+    remaining_cubes = List([*cubes[:containing_cube], *cubes[(containing_cube + 1) :]])
+    remaining_trees = List([*trees[:containing_cube], *trees[(containing_cube + 1) :]])
+    remaining_indices = np.empty((len(cube_indices) - 1,), dtype=cube_indices.dtype)
+    ind = 0
+    for i in range(len(cube_indices)):
+        remaining_indices[ind] = cube_indices[i]
+        ind += i != containing_cube
+
+    slices = get_particle_indices_in_shape(
+        remaining_cubes, remaining_trees, remaining_indices, search_box
+    )
 
     for i in range(slices.shape[0]):
         s, e = slices[i, 0], slices[i, 1]
@@ -900,8 +1004,4 @@ def get_closest_particles(
             heap, data, xyz, distance_function, s, e, use_shuffle
         )
 
-    distances, indices = heap.distances, heap.indices
-    if return_sorted:
-        distances, indices = heap.sorted()
-
-    return distances, indices
+    return heap.sorted() if return_sorted else (heap.distances, heap.indices)

@@ -8,7 +8,7 @@
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/charliermarsh/ruff/main/assets/badge/v2.json)](https://github.com/charliermarsh/ruff)
 
 
-Compact octree implementation used for Socket
+Compact octree implementation for fast search.
 
 `packingcubes` aims to provide a fast, minimal-memory-usage octree
 implementation, specialized for use in astronomical/astrophysical contexts.
@@ -47,13 +47,7 @@ Jupyter (the `jupyter` group):
 
 * `jupyter-rfb` - for interactive octree visualization in a notebook (see the Visualization section, above)
 
-Benchmark (the `benchmark` group):
-
-* `scipy` - we benchmark against `scipy`'s `KDTree`
-* `unyt` - for unit-aware timing purposes
-* `matplotlib` - for benchmark visualization
-
-The `all` group combines all of the above.
+The `all` group combines both of the above.
 
 ## Basic Usage
 ### Installation
