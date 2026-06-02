@@ -43,7 +43,7 @@ jobs:
           environments: dev
       - name: Run Comparison Benchmarks
         run: |
-          pixi run bench -c benchmarks/comparison.options
+          pixi run bench -c benchmarks/comparison.options -d 10_000 1_000 100 10
           mv benchmarks/data/comparison.json benchmarks/data/comparison_ci.json
           pixi run plotbench --plot-raw -p ci-comparison -s docs/benchmarks\
             benchmarks/data/comparison_ci.json
