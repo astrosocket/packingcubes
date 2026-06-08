@@ -837,6 +837,79 @@ def _get_closest_cube(
     return np.argmin(cube_dists)
 
 
+@njit(parallel=True)
+def get_masked_particle_indices_in_shape(
+    cubes: List[BoundingBox],
+    trees: List[PackedTreeNumba],
+    cube_offsets: NDArray,
+    shape: bbox.BoundingVolume,
+    mask: NDArray,
+) -> NDArray[np.int_]:
+    """
+    Get the particle start-stop tuples in the specified shape, ignoring masked cubes
+
+    Parameters
+    ----------
+    cubes:
+        List of cube bounding boxes
+    trees:
+        List of cube PackedTreeNumbas
+    cube_offsets:
+        Array of cube offset indices into the data
+    shape:
+        BoundingVolume to check
+    mask:
+        Array of mask values. Skip cubes where `mask` is `False`
+
+    Returns
+    -------
+    indices: Xx3 NDArray[np.int_]
+        Array of index information. Each row describes a chunk/slice of data
+        in the form `[start, stop, partial]`, where partial is a flag - (1)
+        if the data chunk is entirely contained within `shape`, (0) otherwise.
+    """
+    indices = List.empty_list(_list_index_tuple)
+    for _ in range(len(cubes)):
+        indices.append(List.empty_list(_index_tuple_type))
+
+    # get particle indices from each tree
+    for i in prange(len(cubes)):
+        # Note: prange indices are uint64 in parallel mode but current
+        # TypedList _get_item implementation casts to intp type, which can
+        # be int64. We'll explicitly cast to avoid the warning and because
+        # len(cubes) **better** be < 2**63 !
+        if not mask[i]:
+            continue
+        li = np.int_(i)
+        overlap = shape.check_box_overlap(cubes[li])
+        if overlap:
+            indices[li] = trees[li]._get_particle_indices_in_shape(
+                containment_obj=shape
+            )
+
+    # add cube offset and flatten list of indices
+    num_indices = 0
+    for i in prange(len(indices)):
+        li = np.int_(i)
+        num_indices += len(indices[li])
+    flattened_indices = np.empty((num_indices, 3), dtype=np.int_)
+    current_index = 0
+    # doing this in parallel is probably more effort than worth it
+    for i in range(len(indices)):
+        cube_indices = indices[i]
+        cube_offset = cube_offsets[i]
+        for cube_start, cube_end, partial in cube_indices:
+            # flattened_indices.append(
+            #     (cube_start + cube_offset, cube_end + cube_offset, partial)
+            # )
+            flattened_indices[current_index, 0] = cube_start + cube_offset
+            flattened_indices[current_index, 1] = cube_end + cube_offset
+            flattened_indices[current_index, 2] = partial
+            current_index += 1
+
+    return flattened_indices
+
+
 @njit()
 def _pad_heap(
     heap: FixedDistanceHeap,
@@ -985,16 +1058,15 @@ def get_closest_particles(
         )
     )
 
-    remaining_cubes = List([*cubes[:containing_cube], *cubes[(containing_cube + 1) :]])
-    remaining_trees = List([*trees[:containing_cube], *trees[(containing_cube + 1) :]])
-    remaining_indices = np.empty((len(cube_indices) - 1,), dtype=cube_indices.dtype)
-    ind = 0
-    for i in range(len(cube_indices)):
-        remaining_indices[ind] = cube_indices[i]
-        ind += i != containing_cube
+    remaining_mask = np.full((num_cubes,), True, dtype=np.bool_)  # noqa: FBT003
+    remaining_mask[containing_cube] = False
 
-    slices = get_particle_indices_in_shape(
-        remaining_cubes, remaining_trees, remaining_indices, search_box
+    slices = get_masked_particle_indices_in_shape(
+        cubes,
+        trees,
+        cube_indices,
+        search_box,
+        remaining_mask,
     )
 
     for i in range(slices.shape[0]):
