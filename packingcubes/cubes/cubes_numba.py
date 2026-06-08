@@ -861,7 +861,7 @@ def _pad_heap(
         heap, data, xyz, distance_function, below, cube_start, use_shuffle
     )
     _process_slice_against_heap(
-        heap, data, xyz, distance_function, cube_end + 1, above, use_shuffle
+        heap, data, xyz, distance_function, cube_end, above, use_shuffle
     )
 
 
