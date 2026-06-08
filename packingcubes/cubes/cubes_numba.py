@@ -67,12 +67,14 @@ layer = threading_layer()
 LOGGER.debug(f"Running on the {layer} threading layer with {get_num_threads()} threads")
 if layer == "tbb":
     LOGGER.warning(
-        "Parallel support for cubes is known to be flaky on the tbb threading "
-        "layer. If you are having difficulties, consider switching to the omp "
-        "layer by setting the NUMBA_THREADING_LAYER environmental variable or "
-        "by setting numba.config.THREADING_LAYER. See "
-        "https://numba.readthedocs.io/en/stable/user/threading-layer.html for "
-        "more information."
+        """
+Parallel support for cubes is known to be flaky on the tbb threading layer. If
+you are having difficulties, consider switching to the omp layer by setting the
+NUMBA_THREADING_LAYER environmental variable or by setting 
+numba.config.THREADING_LAYER (*BEFORE IMPORTING PACKINGCUBES*). 
+See https://numba.readthedocs.io/en/stable/user/threading-layer.html for more
+information.
+        """
     )
 
 
