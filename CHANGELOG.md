@@ -188,6 +188,7 @@
 
 ### 🧪 Testing
 
+- Removing deadlines that are failing on CI ([033ab1c](https://github.com/astrosocket/packingcubes/commit/033ab1c758706572c4fa3d207c0c42666d256b46))
 - Fix bounding_box now method, add box version ([7efc00b](https://github.com/astrosocket/packingcubes/commit/7efc00b9420893377bf1b600e4325ba667fd7edd))
 - Fix minor issues with testing ([a0b242f](https://github.com/astrosocket/packingcubes/commit/a0b242f0bc8f53ced8f24b9a406595682d09f523))
 - Fix numba coverage report ([e3d9ecb](https://github.com/astrosocket/packingcubes/commit/e3d9ecba0bd1b268b2fdd7128c5092b70a225733))
