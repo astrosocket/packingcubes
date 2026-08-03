@@ -36,7 +36,7 @@ license-files = ["LICENSE"]
 dynamic = ["version","readme"]
 
 [project.urls]
-home = "packingcubes.readthedocs.io"
+home = "https://packingcubes.readthedocs.io"
 source = "https://github.com/astrosocket/packingcubes"
 issues = "https://github.com/astrosocket/packingcubes/issues/new"
 
