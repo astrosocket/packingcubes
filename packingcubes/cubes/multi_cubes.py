@@ -7,15 +7,20 @@ from collections.abc import Collection, Mapping
 from pathlib import Path
 from typing import cast
 
+import h5py  # type: ignore
 import numpy as np
 from numpy.typing import NDArray
 
 import packingcubes.bounding_box as bbox
-from packingcubes.cubes.particle_cubes import ParticleCubes, check_overwrite, save_cube
+from packingcubes.cubes.particle_cubes import (
+    ParticleCubes,
+    check_overwrite,
+    save_cube,
+    save_dataset_type,
+)
 from packingcubes.data_objects import (
     DataContainer,
     Dataset,
-    HDF5Dataset,
     InMemory,
 )
 from packingcubes.packed_tree import (
@@ -527,7 +532,7 @@ class MultiCubes:
 
     def save(
         self,
-        dataset: str | Path | HDF5Dataset,
+        dataset: save_dataset_type,
         *,
         force_overwrite: bool = False,
     ) -> Path:
@@ -557,4 +562,8 @@ class MultiCubes:
                 cube_boxes=cubes.cube_boxes,
                 cube_trees=cubes.cube_trees,
             )
-        return dataset.filepath if isinstance(dataset, Dataset) else Path(dataset)
+        if isinstance(dataset, Dataset):
+            return dataset.filepath
+        if isinstance(dataset, h5py.File):
+            return Path(dataset.filename)
+        return Path(dataset)

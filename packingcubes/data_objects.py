@@ -503,7 +503,7 @@ class InMemory(MultiParticleDataset):
         name: str = "",
         filepath: str = "",
         particle_type: str | None = None,
-        bounding_box: bbox.BoundingBox | None = None,
+        bounding_box: bbox.BoxLike | None = None,
         **kwargs,
     ):
         """
@@ -519,6 +519,10 @@ class InMemory(MultiParticleDataset):
 
         filepath: str, optional
             Specify a default save location if non-empty. Default is "".
+
+        bounding_box: BoxLike, optional
+            Set the bounding box for this dataset. Default is based on the data
+            extrema.
 
         **kwargs:
             Additional arguments are discarded
@@ -541,7 +545,7 @@ class InMemory(MultiParticleDataset):
         if bounding_box is None:
             self._set_bounding_box()
         else:
-            self._box = bounding_box
+            self._box = bbox.make_bounding_box(bounding_box)
         self._setup_index()
         self._particle_type = "PartTypeIM" if particle_type is None else particle_type
 
