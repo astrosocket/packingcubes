@@ -38,6 +38,8 @@ from packingcubes.packed_tree.packed_tree_numba import (
 
 LOGGER = logging.getLogger(__name__)
 
+type save_dataset_type = str | Path | HDF5Dataset | h5py.File
+
 
 class ParticleCubes:
     """The cubes for a single particle type"""
@@ -726,6 +728,7 @@ class ParticleCubes:
         dataset: str | Path | HDF5Dataset,
         *,
         force_overwrite: bool = False,
+        particle_type: str = "PartType0",
     ) -> Path:
         """Save cubes information to specified file
 
@@ -738,6 +741,9 @@ class ParticleCubes:
             If dataset already contains cubes data, overwrite if True.
             Default False
 
+        particle_type: str, optional
+            Name of the particle type to use. Default is PartType0
+
         Returns
         -------
         :
@@ -746,7 +752,7 @@ class ParticleCubes:
         dataset = check_overwrite(dataset, force_overwrite=force_overwrite)
         save_cube(
             dataset,
-            pt="PartType0",
+            pt=particle_type,
             cube_indices=self.cube_indices,
             cube_boxes=self.cube_boxes,
             cube_trees=self.cube_trees,
