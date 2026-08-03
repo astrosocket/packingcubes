@@ -725,7 +725,7 @@ class ParticleCubes:
 
     def save(
         self,
-        dataset: str | Path | HDF5Dataset,
+        dataset: save_dataset_type,
         *,
         force_overwrite: bool = False,
         particle_type: str = "PartType0",
@@ -734,7 +734,7 @@ class ParticleCubes:
 
         Parameters
         ----------
-        dataset: str | HDF5Dataset
+        dataset: str | HDF5Dataset | h5py.File
             Location to store cubes data.
 
         force_overwrite: bool, optional
@@ -757,10 +757,14 @@ class ParticleCubes:
             cube_boxes=self.cube_boxes,
             cube_trees=self.cube_trees,
         )
-        return dataset.filepath if isinstance(dataset, Dataset) else Path(dataset)
+        if isinstance(dataset, Dataset):
+            return dataset.filepath
+        if isinstance(dataset, h5py.File):
+            return Path(dataset.filename)
+        return Path(dataset)
 
 
-def has_cubes(dataset: str | Path | MultiParticleDataset | Any) -> bool:
+def has_cubes(dataset: str | Path | MultiParticleDataset | h5py.File | Any) -> bool:
     """Return true if the dataset contains a packingcubes structure"""
     # TODO: This whole function probably needs to be refactored somewhere else
     if isinstance(dataset, HDF5Dataset):
@@ -768,19 +772,22 @@ def has_cubes(dataset: str | Path | MultiParticleDataset | Any) -> bool:
     if isinstance(dataset, (str, Path)) and h5py.is_hdf5(dataset):
         with h5py.File(dataset) as file:
             return "cubes" in file
+    if isinstance(dataset, h5py.File):
+        return "cubes" in dataset
     return False
 
 
 def check_overwrite(
-    dataset: str | Path | HDF5Dataset, *, force_overwrite: bool = False
-) -> str | Path | HDF5Dataset:
+    dataset: save_dataset_type, *, force_overwrite: bool = False
+) -> save_dataset_type:
     """
      Check if it is safe to overwrite cubes structure, returning new file if not
 
-     It's safe to overwrite cubes structure in two cases:
+     It's safe to overwrite cubes structure in three cases:
 
       1. It doesn't exist
       2. It does exist and force_overwrite is True
+      3. It does exist and dataset is an h5py Files object
 
      If it's not safe to overwrite the cubes structure, return a path to a new
      file, specified as `dataset.filepath.stem+"_cubes.hdf5"`. Note that we do
@@ -789,7 +796,7 @@ def check_overwrite(
 
     Parameters
     ----------
-    dataset: str | Path | HDF5Dataset
+    dataset: str | Path | HDF5Dataset | h5py.File
         The location to check
     force_overwrite: bool, optional
         Force writing the cubes structure in the provided file, even if one
@@ -802,6 +809,8 @@ def check_overwrite(
 
     """
     if not has_cubes(dataset):
+        return dataset
+    if isinstance(dataset, h5py.File):
         return dataset
     if force_overwrite:
         LOGGER.warning(
@@ -822,19 +831,32 @@ def check_overwrite(
     return dataset
 
 
+def _save_cube(
+    file: h5py.File,
+    pt: str,
+    cube_indices: NDArray,
+    cube_boxes: list[bbox.BoundingBox],
+    cube_trees: list[PackedTree],
+):
+    cubes = file.create_group(f"cubes/{pt}")
+    cubes["indices"] = cube_indices
+    cubes["number"] = len(cube_indices)
+    for i, (box, tree) in enumerate(zip(cube_boxes, cube_trees, strict=True)):
+        cubes[f"box_{i}"] = box.box
+        cubes[f"tree_{i}"] = tree.packed_form
+
+
 def save_cube(
-    dataset: str | Path | HDF5Dataset,
+    dataset: save_dataset_type,
     pt: str,
     cube_indices: NDArray,
     cube_boxes: list[bbox.BoundingBox],
     cube_trees: list[PackedTree],
 ):
     """Save an individual cube's data to the dataset"""
-    filepath = dataset.filepath if isinstance(dataset, HDF5Dataset) else dataset
-    with h5py.File(filepath, "a") as file:
-        cubes = file.create_group(f"cubes/{pt}")
-        cubes["indices"] = cube_indices
-        cubes["number"] = len(cube_indices)
-        for i, (box, tree) in enumerate(zip(cube_boxes, cube_trees, strict=True)):
-            cubes[f"box_{i}"] = box.box
-            cubes[f"tree_{i}"] = tree.packed_form
+    if isinstance(dataset, h5py.File):
+        _save_cube(dataset, pt, cube_indices, cube_boxes, cube_trees)
+    else:
+        filepath = dataset.filepath if isinstance(dataset, HDF5Dataset) else dataset
+        with h5py.File(filepath, "a") as file:
+            _save_cube(file, pt, cube_indices, cube_boxes, cube_trees)
