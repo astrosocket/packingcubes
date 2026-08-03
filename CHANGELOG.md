@@ -1,3 +1,32 @@
+## [0.6.1] - 2026-08-03
+
+### 🚀 Features
+
+- Allow passing a h5py File object for saving ([d72584c](https://github.com/astrosocket/packingcubes/commit/d72584cbeab361d3ccb411ee7be991e3a278c9c1))
+- Allow specifying particle type ([d22c02b](https://github.com/astrosocket/packingcubes/commit/d22c02b9840657844eec69f6c76f3bdda9612af1))
+- Update InMemory bounding_box parameter ([00e8134](https://github.com/astrosocket/packingcubes/commit/00e8134069c383da33aeea94908e6505ac683c3b))
+
+### 🐛 Bug Fixes
+
+- Switch to masked get_particle_indices ([898a122](https://github.com/astrosocket/packingcubes/commit/898a122843cc4fc4e6659cc44da4ba1c0226b4df))
+- Fix off-by-one error ([9bfd551](https://github.com/astrosocket/packingcubes/commit/9bfd551ffd4be81d2f3a33bf49cc73079a7f8199))
+
+### 💼 Other
+
+- *(deps)* Bump actions/setup-python in the dependencies group ([a801404](https://github.com/astrosocket/packingcubes/commit/a8014041ebdf1f0425d07705136a37a1622983f9))
+- *(deps)* Bump the dependencies group with 3 updates ([#48](https://github.com/astrosocket/packingcubes/issues/48)) ([f6d9096](https://github.com/astrosocket/packingcubes/commit/f6d9096eebe2757e339954b821e842d62f7040c6))
+- *(deps)* Bump the dependencies group with 3 updates ([d1bbbb8](https://github.com/astrosocket/packingcubes/commit/d1bbbb88fc4740d7cba94f82cc7b7c1f7f22d190))
+- *(deps)* Bump prefix-dev/setup-pixi in the dependencies group ([1da123d](https://github.com/astrosocket/packingcubes/commit/1da123d5072bb5dcd2e3133a54fa789bd638c017))
+
+### 📚 Documentation
+
+- Fix missing commit in changelog ([3061cac](https://github.com/astrosocket/packingcubes/commit/3061cac3fe15f80eb8f7f086684d09b3c86be398))
+- Improve message formatting ([13dbaed](https://github.com/astrosocket/packingcubes/commit/13dbaedc25f9a4d5338f1e75c109c7095636b3c2))
+
+### 🛡️ Security
+
+- *(deps)* Bump actions/setup-python from 6 to 7 in the dependencies group ([#49](https://github.com/astrosocket/packingcubes/issues/49)) ([ab8bf14](https://github.com/astrosocket/packingcubes/commit/ab8bf140e5ac80ee4476fde3269f57cb21b4392f))
+- *(deps)* Bump prefix-dev/setup-pixi from 0.9.5 to 0.9.6 in the dependencies group ([#47](https://github.com/astrosocket/packingcubes/issues/47)) ([079a1c1](https://github.com/astrosocket/packingcubes/commit/079a1c1a8150cb8342d8882835187f0dfec3618f))
 ## [0.6.0] - 2026-06-02
 
 ### 🚀 Features
@@ -58,6 +87,7 @@
 
 ### 📚 Documentation
 
+- Add missing updated Stampede3 benchmarks, CHANGELOG update ([#46](https://github.com/astrosocket/packingcubes/issues/46)) ([7963513](https://github.com/astrosocket/packingcubes/commit/796351352e986217d0da74bfe6f697b4ad0d1270))
 - Update stampede3 benchmarks ([f766833](https://github.com/astrosocket/packingcubes/commit/f76683328cc3c22f430a0aaf74fddeec79108d46))
 - Add section on machines, update query description table ([82c4c9f](https://github.com/astrosocket/packingcubes/commit/82c4c9f0cecd6e0e1fc52c831289b9b3be51ed13))
 - Update devtop benchmarks ([9367a19](https://github.com/astrosocket/packingcubes/commit/9367a19f062829d19076baaaea097dfb80256838))
