@@ -165,7 +165,7 @@ def _cubify_data(
     extras["velocity"] = vxyz
     if not with_cubes:
         dataset = pc.InMemory(positions=xyz, bounding_box=box)
-        dataset.process_extra_fields(extra=extras)
+        dataset.process_extra_fields(**extras)
         return dataset, None
 
     leafsize = 10 if len(xyz) < 40_000 else pc.octree._DEFAULT_PARTICLE_THRESHOLD

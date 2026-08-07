@@ -399,7 +399,7 @@ def load_cubes(
         for pt in pts:
             cubes = cubes_group[pt]
             cube_indices = cubes["indices"]
-            number = cubes["number"]
+            number = cubes_group.attrs["NumberOfCubes"]
             cube_boxes = []
             cube_trees = []
             for i in range(number):
@@ -568,7 +568,7 @@ def Cubes(
             dataset = _handle_dataset_types(dataset, particle_type=particle_type)
             cubes = make_cubes(dataset=dataset, particle_type=particle_type, **kwargs)
             if extras:
-                dataset.process_extra_fields(extras)
+                dataset.process_extra_fields(**extras)
                 if "save_dataset" in kwargs:
                     # we skip positions and index here because they would have
                     # already been saved
@@ -604,7 +604,7 @@ def Cubes(
 
 def make_MultiCubes(
     dataset: str | NDArray | MultiParticleDataset,
-    particle_types: Collection[str] | None,
+    particle_types: Collection[str] | None = None,
     **kwargs,
 ) -> MultiCubes:
     """

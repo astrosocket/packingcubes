@@ -31,7 +31,7 @@ import contextlib
 import logging
 import warnings
 from abc import ABC, abstractmethod
-from collections.abc import Collection, Mapping, Set
+from collections.abc import Collection, Set
 from pathlib import Path
 from typing import Any
 
@@ -303,7 +303,7 @@ class Dataset:
         self.__dict__[field] = data
         self._extras.add(field)
 
-    def process_extra_fields(self, extra: Mapping[str, Any]):
+    def process_extra_fields(self, **kwargs):
         """Process extra fields
 
         How different types of extra fields are handled will depend on
@@ -313,12 +313,12 @@ class Dataset:
 
         Parameters
         ----------
-        extra: Mapping[str, Any]
+        **kwargs: Mapping[str, Any]
             A mapping of names to extra fields to attach.
 
         Examples
         --------
-        >>> dataset.process_extra_fields({"mass":"Mass"})
+        >>> dataset.process_extra_fields(mass="Mass")
         >>> dataset.mass
 
         Note
@@ -326,7 +326,7 @@ class Dataset:
         Any attributes added via this method will only be sorted now. Any
         subsequent sorting will not affect the ordering of these attributes
         """
-        for name, field in extra.items():
+        for name, field in kwargs.items():
             field_arr, is_sorted = self.make_into_array(field)
             self._add_extra_field(name, field_arr, is_sorted=is_sorted)
 
