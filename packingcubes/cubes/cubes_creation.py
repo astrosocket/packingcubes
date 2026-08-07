@@ -568,7 +568,7 @@ def Cubes(
             dataset = _handle_dataset_types(dataset, particle_type=particle_type)
             cubes = make_cubes(dataset=dataset, particle_type=particle_type, **kwargs)
             if extras:
-                dataset.process_extra_fields(extras)
+                dataset.process_extra_fields(**extras)
                 if "save_dataset" in kwargs:
                     # we skip positions and index here because they would have
                     # already been saved

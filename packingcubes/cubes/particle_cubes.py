@@ -521,7 +521,7 @@ class ParticleCubes:
         fields = set(fields)
 
         if extras:
-            dataset.process_extra_fields(extras)
+            dataset.process_extra_fields(**extras)
             fields |= extras.keys()
 
         if not fields <= dataset.extras:
