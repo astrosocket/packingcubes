@@ -604,7 +604,7 @@ def Cubes(
 
 def make_MultiCubes(
     dataset: str | NDArray | MultiParticleDataset,
-    particle_types: Collection[str] | None,
+    particle_types: Collection[str] | None = None,
     **kwargs,
 ) -> MultiCubes:
     """
