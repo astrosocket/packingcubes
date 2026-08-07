@@ -1,3 +1,19 @@
+## [0.6.3] - 2026-08-07
+
+### 🚀 Features
+
+- Change to kwargs for extra fields ([152e5e6](https://github.com/astrosocket/packingcubes/commit/152e5e68791ca8ee41cf23e0c1b7c4e9a89111d6))
+
+### 🐛 Bug Fixes
+
+- Fix missing default value ([5f046e9](https://github.com/astrosocket/packingcubes/commit/5f046e9b90d379b401242cf16dbe01c39b7c1a1c))
+- Change saved number of cubes ([6efd006](https://github.com/astrosocket/packingcubes/commit/6efd0063efe0adbb3985c4db56e072a0afd46472))
+## [0.6.2] - 2026-08-03
+
+### 🐛 Bug Fixes
+
+- Fix missing https:// in home url ([#51](https://github.com/astrosocket/packingcubes/issues/51)) ([54b1975](https://github.com/astrosocket/packingcubes/commit/54b1975f25933219e80ec359a941df10d61f9591))
+- Fix missing https:// in home url ([512820b](https://github.com/astrosocket/packingcubes/commit/512820b4fe7f8c6930da488d3ea8368431316ca5))
 ## [0.6.1] - 2026-08-03
 
 ### 🚀 Features
