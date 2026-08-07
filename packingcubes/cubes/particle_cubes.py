@@ -840,7 +840,7 @@ def _save_cube(
 ):
     cubes = file.create_group(f"cubes/{pt}")
     cubes["indices"] = cube_indices
-    cubes["number"] = len(cube_indices)
+    cubes.attrs["NumberOfCubes"] = len(cube_indices)
     for i, (box, tree) in enumerate(zip(cube_boxes, cube_trees, strict=True)):
         cubes[f"box_{i}"] = box.box
         cubes[f"tree_{i}"] = tree.packed_form

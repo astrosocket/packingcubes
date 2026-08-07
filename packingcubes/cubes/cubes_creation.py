@@ -399,7 +399,7 @@ def load_cubes(
         for pt in pts:
             cubes = cubes_group[pt]
             cube_indices = cubes["indices"]
-            number = cubes["number"]
+            number = cubes_group.attrs["NumberOfCubes"]
             cube_boxes = []
             cube_trees = []
             for i in range(number):
