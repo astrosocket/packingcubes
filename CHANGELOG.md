@@ -1,3 +1,8 @@
+## [0.6.4] - 2026-08-07
+
+### 🐛 Bug Fixes
+
+- Fix saving number to wrong group ([72da63f](https://github.com/astrosocket/packingcubes/commit/72da63f059eecacb388a6d5e45f11e4144356c15))
 ## [0.6.3] - 2026-08-07
 
 ### 🚀 Features
