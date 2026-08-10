@@ -64,10 +64,8 @@ cubes = packingcubes.Cubes(dataset)
 From above, we need the extra fields `ElectronAbundance` and `InternalEnergy`.
 ```python
 dataset.process_extra_fields(
-    {
-        "e_abun":"ElectronAbundance",
-        "u":"InternalEnergy",
-    }
+    e_abun="ElectronAbundance",
+    u="InternalEnergy",
 )
 ```
 
@@ -81,7 +79,7 @@ T = mu * (gamma-1) * dataset.u
 
 Add temperature to dataset:
 ```python
-dataset.process_extra_fields({"T":(T, True)}) # (1)!
+dataset.process_extra_fields(T=(T, True)) # (1)!
 ```
 
 1. We need to specify that T is already sorted since $\mu$ and $U$ are

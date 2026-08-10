@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Collection, Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, overload
 
 import h5py  # type: ignore
 import numpy as np
@@ -194,7 +194,13 @@ class ParticleCubes:
 
         return self._get_particle_indices_in_shape(sph)
 
-    def _needs_data(self, data: DataContainer | Dataset | None = None):
+    @overload
+    def _needs_data(self, data: DataContainer) -> DataContainer: ...
+    @overload
+    def _needs_data(self, data: Dataset | None) -> Dataset: ...
+    def _needs_data(
+        self, data: DataContainer | Dataset | None = None
+    ) -> DataContainer | Dataset:
         """Check if data is provided or attached"""
         data = self._dataset if data is None else data
         if data is None:
@@ -839,11 +845,13 @@ def _save_cube(
     cube_trees: list[PackedTree],
 ):
     cubes = file.create_group(f"cubes/{pt}")
-    cubes["indices"] = cube_indices
+    cubes.create_dataset("indices", data=cube_indices, compression="gzip", shuffle=True)
     cubes.attrs["NumberOfCubes"] = len(cube_indices)
     for i, (box, tree) in enumerate(zip(cube_boxes, cube_trees, strict=True)):
-        cubes[f"box_{i}"] = box.box
-        cubes[f"tree_{i}"] = tree.packed_form
+        cubes.create_dataset(f"box_{i}", data=box.box)
+        cubes.create_dataset(
+            f"tree_{i}", data=tree.packed_form, compression="gzip", shuffle=True
+        )
 
 
 def save_cube(

@@ -1,7 +1,28 @@
+## [0.6.5] - 2026-08-10
+
+### 🚀 Features
+
+- Compress packedtree information when saving ([45b18c7](https://github.com/astrosocket/packingcubes/commit/45b18c7be63ceb34003fcc36e9140b4cf11d1f6f))
+
+### 🐛 Bug Fixes
+
+- Convert array to first element ([ddb0c1e](https://github.com/astrosocket/packingcubes/commit/ddb0c1eb261c785728e451f3af9959ee6fafb716))
+- Fix wrong index when adding extra fields ([cb075fd](https://github.com/astrosocket/packingcubes/commit/cb075fdc0f41e0da14e64f019958c46625e58f12))
+- Convert h5py datasets to numpy arrays ([682cc2b](https://github.com/astrosocket/packingcubes/commit/682cc2b808d53af9541655b7ebbd6893b0754172))
+
+### 🚜 Refactor
+
+- Add missing type information ([bb39449](https://github.com/astrosocket/packingcubes/commit/bb394496b009525a415991c1c0166a712112e30f))
+
+### 📚 Documentation
+
+- Update figures to match corrected index sorting behavior ([d819e02](https://github.com/astrosocket/packingcubes/commit/d819e02f955bd8724136b4bc45b727aed3978fa9))
+- Update arguments to process_extra_fields ([ee2e4b8](https://github.com/astrosocket/packingcubes/commit/ee2e4b889858204efd704b87a12e8dff80e1c5b3))
 ## [0.6.4] - 2026-08-07
 
 ### 🐛 Bug Fixes
 
+- Fix saving number to wrong group ([#55](https://github.com/astrosocket/packingcubes/issues/55)) ([f062b53](https://github.com/astrosocket/packingcubes/commit/f062b53231652871b37a6234a88f4eb1b2d52a27))
 - Fix saving number to wrong group ([72da63f](https://github.com/astrosocket/packingcubes/commit/72da63f059eecacb388a6d5e45f11e4144356c15))
 ## [0.6.3] - 2026-08-07
 

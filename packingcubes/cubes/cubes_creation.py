@@ -398,13 +398,21 @@ def load_cubes(
             pts = list(particle_types)
         for pt in pts:
             cubes = cubes_group[pt]
-            cube_indices = cubes["indices"]
+            indices_ds = cubes["indices"]
+            cube_indices = np.empty(indices_ds.shape, dtype=indices_ds.dtype)
+            indices_ds.read_direct(cube_indices)
             number = cubes.attrs["NumberOfCubes"]
             cube_boxes = []
             cube_trees = []
             for i in range(number):
                 cube_boxes.append(bbox.make_bounding_box(cubes[f"box_{i}"]))
-                cube_trees.append(PackedTree(source=cubes[f"tree_{i}"]))
+                tree_ds = cubes[f"tree_{i}"]
+                tree = np.empty(
+                    tree_ds.shape,
+                    dtype=tree_ds.dtype,
+                )
+                tree_ds.read_direct(tree)
+                cube_trees.append(PackedTree(source=tree))
             cubes_dict[pt] = ParticleCubes(
                 cube_indices=cube_indices,
                 cube_boxes=cube_boxes,
