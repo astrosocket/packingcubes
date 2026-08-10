@@ -160,7 +160,7 @@ def subview(data: DataContainer, start_index: int, end_index: int) -> DataContai
 def _sort_field_in_place_1D(index, field):
     new_field = np.empty_like(field)
     for i in prange(len(field)):
-        new_field[index[i]] = field[i]
+        new_field[i] = field[index[i]]
     for i in prange(len(field)):
         field[i] = new_field[i]
 
@@ -171,7 +171,7 @@ def _sort_field_in_place_2D(index, field):
     width = field.shape[1]
     for i in prange(len(field)):
         for j in range(width):
-            new_field[index[i], j] = field[i, j]
+            new_field[i, j] = field[index[i], j]
     for i in prange(len(field)):
         for j in range(width):
             field[i, j] = new_field[i, j]
@@ -185,6 +185,15 @@ def _sort_field_in_place(index, field):
         _sort_field_in_place_2D(index, field)
     else:
         raise TypeError(f"Don't know how to sort field of type {shape}")
+
+
+@njit(parallel=True)
+def _invert_index(index):
+    """Create inverted index list. Duplicate indices will cause race conditions!"""
+    new_index = np.empty_like(index)
+    for i in prange(len(index)):
+        new_index[index[i]] = i
+    return new_index
 
 
 class Dataset:
@@ -245,6 +254,13 @@ class Dataset:
         if not hasattr(self, "_index"):
             self._setup_index()
         return self._index
+
+    @property
+    def inverted_index(self) -> NDArray:
+        """Return the inverted shuffle list, creating if necessary"""
+        if not hasattr(self, "_inverted"):
+            self._inverted = _invert_index(self.index)
+        return self._inverted
 
     def reorder(self, new_order):
         """Impose a new order on the position data and shuffle list"""
