@@ -192,7 +192,7 @@ def extract_metadata(source: Buffer) -> tuple[TreeMeta, NDArray[np.uint32]]:
         LOGGER.warning(
             f"Unknown checksum method: {checksum_method}. Expected xxh3_64_intdigest"
         )
-    checksum = int(from_field(combined[21:23], np.dtype(np.uint64)))
+    checksum = int(from_field(combined[21:23], np.dtype(np.uint64))[0])
     box_array = from_field(combined[23:35], np.dtype(np.float64))
     box = bbox.make_bounding_box(box_array)
     particle_threshold = combined[35]
