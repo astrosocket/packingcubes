@@ -845,11 +845,13 @@ def _save_cube(
     cube_trees: list[PackedTree],
 ):
     cubes = file.create_group(f"cubes/{pt}")
-    cubes["indices"] = cube_indices
+    cubes.create_dataset("indices", data=cube_indices, compression="gzip", shuffle=True)
     cubes.attrs["NumberOfCubes"] = len(cube_indices)
     for i, (box, tree) in enumerate(zip(cube_boxes, cube_trees, strict=True)):
-        cubes[f"box_{i}"] = box.box
-        cubes[f"tree_{i}"] = tree.packed_form
+        cubes.create_dataset(f"box_{i}", data=box.box)
+        cubes.create_dataset(
+            f"tree_{i}", data=tree.packed_form, compression="gzip", shuffle=True
+        )
 
 
 def save_cube(
