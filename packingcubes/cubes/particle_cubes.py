@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Collection, Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, overload
 
 import h5py  # type: ignore
 import numpy as np
@@ -194,7 +194,13 @@ class ParticleCubes:
 
         return self._get_particle_indices_in_shape(sph)
 
-    def _needs_data(self, data: DataContainer | Dataset | None = None):
+    @overload
+    def _needs_data(self, data: DataContainer) -> DataContainer: ...
+    @overload
+    def _needs_data(self, data: Dataset | None) -> Dataset: ...
+    def _needs_data(
+        self, data: DataContainer | Dataset | None = None
+    ) -> DataContainer | Dataset:
         """Check if data is provided or attached"""
         data = self._dataset if data is None else data
         if data is None:
