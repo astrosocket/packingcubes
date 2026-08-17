@@ -602,7 +602,7 @@ def Cubes(
         cubes = ParticleCubes(
             cube_indices=cube_indices,
             cube_boxes=cube_boxes,
-            cube_tree=cube_trees,
+            cube_trees=cube_trees,
             **kwargs,
         )
     # Only attach dataset if we used (converted) it
