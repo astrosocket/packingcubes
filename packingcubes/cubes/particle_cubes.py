@@ -12,6 +12,7 @@ import numpy as np
 from numba.typed import List
 from numpy.typing import ArrayLike, NDArray
 
+import packingcubes
 import packingcubes.bounding_box as bbox
 import packingcubes.cubes.cubes_numba as cubba
 from packingcubes.bounding_box import BoundingBox
@@ -845,13 +846,14 @@ def _save_cube(
     cube_trees: list[PackedTree],
 ):
     cubes = file.create_group(f"cubes/{pt}")
+    file["/cubes"].attrs["Packingcubes_version"] = packingcubes.__version__
     cubes.create_dataset("indices", data=cube_indices, compression="gzip", shuffle=True)
-    cubes.attrs["NumberOfCubes"] = len(cube_indices)
+    cubes.attrs["Number_of_cubes"] = len(cube_indices)
     for i, (box, tree) in enumerate(zip(cube_boxes, cube_trees, strict=True)):
-        cubes.create_dataset(f"box_{i}", data=box.box)
-        cubes.create_dataset(
+        tree_ds = cubes.create_dataset(
             f"tree_{i}", data=tree.packed_form, compression="gzip", shuffle=True
         )
+        tree_ds.attrs["Bounding_box"] = box.box
 
 
 def save_cube(

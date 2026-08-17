@@ -501,7 +501,7 @@ def test_project_point_on_box_valid(
             assert (
                 (pz != pzj)
                 or np.isinf(txyz[2])
-                or bounding_box.contains_point(px, pz, txyz[2])
+                or bounding_box.contains_point(px, py, txyz[2])
             )
 
             assert bounding_box.contains_point(pxj, pyj, pzj) != (jitter < 0)

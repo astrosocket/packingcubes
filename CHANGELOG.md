@@ -1,3 +1,20 @@
+## [0.6.6] - 2026-08-17
+
+### 🚀 Features
+
+- Update Cubes save format ([f5a7b04](https://github.com/astrosocket/packingcubes/commit/f5a7b045f9d27720ca4e715e64a6fc0d3793b033))
+
+### 🐛 Bug Fixes
+
+- Fix typo ([91ebfa8](https://github.com/astrosocket/packingcubes/commit/91ebfa857257f69d0869c14b9b80133af6a9be94))
+
+### 📚 Documentation
+
+- Fix typo ([da753b8](https://github.com/astrosocket/packingcubes/commit/da753b887b288d2cf4b9e6404224a7257741d516))
+
+### 🧪 Testing
+
+- Fix typo in test ([635c878](https://github.com/astrosocket/packingcubes/commit/635c878a153e1e29ab6e70f527dd16705c83a8bc))
 ## [0.6.5] - 2026-08-10
 
 ### 🚀 Features

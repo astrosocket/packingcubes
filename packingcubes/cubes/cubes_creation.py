@@ -401,12 +401,12 @@ def load_cubes(
             indices_ds = cubes["indices"]
             cube_indices = np.empty(indices_ds.shape, dtype=indices_ds.dtype)
             indices_ds.read_direct(cube_indices)
-            number = cubes.attrs["NumberOfCubes"]
+            number = cubes.attrs["Number_of_cubes"]
             cube_boxes = []
             cube_trees = []
             for i in range(number):
-                cube_boxes.append(bbox.make_bounding_box(cubes[f"box_{i}"]))
                 tree_ds = cubes[f"tree_{i}"]
+                cube_boxes.append(bbox.make_bounding_box(tree_ds.attrs["Bounding_box"]))
                 tree = np.empty(
                     tree_ds.shape,
                     dtype=tree_ds.dtype,
@@ -602,7 +602,7 @@ def Cubes(
         cubes = ParticleCubes(
             cube_indices=cube_indices,
             cube_boxes=cube_boxes,
-            cube_tree=cube_trees,
+            cube_trees=cube_trees,
             **kwargs,
         )
     # Only attach dataset if we used (converted) it
