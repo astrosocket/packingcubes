@@ -34,6 +34,10 @@ icon: lucide/box
 - **Pure Python**: There's no C/Rust/etc. extensions and we're available on
   PyPI -> we're extendable and portable!
 
+### Acknowledgements
+
+This work is supported by the National Science Foundation through [Award 2513426](https://www.nsf.gov/awardsearch/show-award/?AWD_ID=2513426).
+
 
 ## Site Navigation
 
