@@ -17,6 +17,8 @@ acceleration of the critical code paths.
 
 View the documentation at [packingcubes.readthedocs.io](https://packingcubes.readthedocs.io)!
 
+Supported by the National Science Foundation through [Award 2513426](https://www.nsf.gov/awardsearch/show-award/?AWD_ID=2513426).
+
 ## Requirements
 [![Supported Python Versions](https://img.shields.io/pypi/pyversions/packingcubes)](https://pypi.org/project/packingcubes/) 
 is required. Python versions outside this range may work, but their usage is
