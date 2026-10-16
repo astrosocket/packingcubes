@@ -71,15 +71,15 @@ dataset.process_extra_fields(
 
 Compute temperature:
 ```python
-gamma = 5/3
+gamma = 5 / 3
 x_H = 0.76
-mu = 4/(1 + 3*x_H + 4*x_H*dataset.e_abun)
-T = mu * (gamma-1) * dataset.u
+mu = 4 / (1 + 3 * x_H + 4 * x_H * dataset.e_abun)
+T = mu * (gamma - 1) * dataset.u
 ```
 
 Add temperature to dataset:
 ```python
-dataset.process_extra_fields(T=(T, True)) # (1)!
+dataset.process_extra_fields(T=(T, True))  # (1)!
 ```
 
 1. We need to specify that T is already sorted since $\mu$ and $U$ are
@@ -106,7 +106,7 @@ radius = 745 * 2
 ```python
 chunks = cubes.get_particle_indices_in_sphere(center, radius)
 
-num_found = np.sum(chunks[:,1]-chunks[:,0])
+num_found = np.sum(chunks[:, 1] - chunks[:, 0])
 ```
 
 ### Get Radii/Temperature
@@ -118,23 +118,23 @@ positions = np.empty_like(dataset.positions, shape=(num_found, 3))
 offset = 0
 for chunk in chunks:
     size = chunk[1] - chunk[0]
-    positions[offset:offset + size, :] = dataset.positions[chunk[0]:chunk[1], :]
+    positions[offset : offset + size, :] = dataset.positions[chunk[0] : chunk[1], :]
     offset += size
 ```
 
 #### Compute radii
 ```python
-radii = np.sqrt(np.sum((positions - center)**2, axis=1))
+radii = np.sqrt(np.sum((positions - center) ** 2, axis=1))
 ```
 
 #### Get Temperatures
 ```python
-T = np.empty_like(dataset.T, shape=(num_found, )) # (1)!
+T = np.empty_like(dataset.T, shape=(num_found,))  # (1)!
 
 offset = 0
 for chunk in chunks:
     size = chunk[1] - chunk[0]
-    T[offset:offset + size] = dataset.T[chunk[0]:chunk[1]]
+    T[offset : offset + size] = dataset.T[chunk[0] : chunk[1]]
     offset += size
 ```
 
@@ -155,12 +155,12 @@ bindices = np.digitize(logradii, bins=bins)
 Tbins = np.empty_like(T, shape=(num_bins,))
 
 for i in range(num_bins):
-    match = T[bindices==i]
-    Tbins[i] = np.mean(match) if match.size>100 else 0
+    match = T[bindices == i]
+    Tbins[i] = np.mean(match) if match.size > 100 else 0
 
-bin_centers = 10**(bins[:-1] + np.diff(bins)/2)
+bin_centers = 10 ** (bins[:-1] + np.diff(bins) / 2)
 
-plt.loglog(bin_centers, Tbins, 's')
+plt.loglog(bin_centers, Tbins, "s")
 plt.xlabel("r [Arbitrary Length Units]")
 plt.ylabel("T [Arbitrary Energy Units]")
 plt.savefig("figures/TVR_direct.svg", bbox_inches="tight")

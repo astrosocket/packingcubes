@@ -58,18 +58,18 @@ cubes = packingcubes.Cubes(
     "snapshot_090.hdf5",
     particle_type="PartType0",
     extras={
-        "e_abun":"ElectronAbundance",
-        "u":"InternalEnergy",
-    }
+        "e_abun": "ElectronAbundance",
+        "u": "InternalEnergy",
+    },
 )
 ```
 
 ### Compute temperature
 ```python
-gamma = 5/3
+gamma = 5 / 3
 x_H = 0.76
-mu = 4/(1 + 3*x_H + 4*x_H * cubes.dataset.e_abun)
-T = mu * (gamma-1) * cubes.dataset.u
+mu = 4 / (1 + 3 * x_H + 4 * x_H * cubes.dataset.e_abun)
+T = mu * (gamma - 1) * cubes.dataset.u
 ```
 
 ??? note
@@ -93,10 +93,11 @@ slightly different results from the [Direct Search](TempVsRadii_Direct) recipe.
 
 ```python
 sphere = cubes.Sphere(
-    center, radius,
+    center,
+    radius,
     strict=True,
-    extras = {"T":(T, True)} # (1)!
-) #(2)!
+    extras={"T": (T, True)},  # (1)!
+)  # (2)!
 ```
 
 1. We need to specify that T is already sorted since $\mu$ and $U$ are
@@ -113,7 +114,7 @@ Extract the temperature of all particles in our halo[^1].
 
 #### Compute radii
 ```python
-radii = np.sqrt(np.sum((sphere.positions - center)**2, axis=1))
+radii = np.sqrt(np.sum((sphere.positions - center) ** 2, axis=1))
 ```
 
 ## Plot
@@ -130,12 +131,12 @@ bindices = np.digitize(logradii, bins=bins)
 Tbins = np.empty_like(sphere.T, shape=(num_bins,))
 
 for i in range(num_bins):
-    match = sphere.T[bindices==i]
-    Tbins[i] = np.mean(match) if match.size>100 else 0
+    match = sphere.T[bindices == i]
+    Tbins[i] = np.mean(match) if match.size > 100 else 0
 
-bin_centers = 10**(bins[:-1] + np.diff(bins)/2)
+bin_centers = 10 ** (bins[:-1] + np.diff(bins) / 2)
 
-plt.loglog(bin_centers, Tbins, 's')
+plt.loglog(bin_centers, Tbins, "s")
 plt.xlabel("r [Arbitrary Length Units]")
 plt.ylabel("T [Arbitrary Energy Units]")
 plt.savefig("figures/TVR_search.svg", bbox_inches="tight")

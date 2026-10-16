@@ -13,10 +13,7 @@ pass it to the creation method. Psuedocode:
 ```python
 dataset = InMemory(positions=random_positions)
 for name, creation_method in creation_dict.items():
-    search_objects[name], bench[name] = benchmark(
-        creation_method,
-        dataset.copy()
-    )
+    search_objects[name], bench[name] = benchmark(creation_method, dataset.copy())
 ```
 Since the `packingcubes` versions actually sort the data, we reset the dataset
 before each timing run. This is excluded from the results.
@@ -35,8 +32,7 @@ search balls:
 ```python
 for name, (so_name, search_method) in search_dict.items():
     search_results, bench[name] = benchmark(
-        search_objects[so_name].search_method, 
-        (centers, radii)
+        search_objects[so_name].search_method, (centers, radii)
     )
     if can_verify(search_method):
         verify_search(search_results, actual_numbers)
