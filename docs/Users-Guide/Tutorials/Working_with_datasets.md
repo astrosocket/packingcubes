@@ -58,7 +58,7 @@ we'll need:
 Now import the modules we need
 
 ```python
-import numpy as np 
+import numpy as np
 
 import packingcubes
 ```
@@ -86,7 +86,7 @@ dataset = packingcubes.GadgetishHDF5Dataset(filepath="./snapshot_090.hdf5")
 We need to choose which particles we want to look at
 
 ```python
-dataset.particle_type = "PartType0" # the gas particles
+dataset.particle_type = "PartType0"  # the gas particles
 ```
 
 Then we can check the particle positions are loaded:
@@ -113,7 +113,7 @@ We'll start by generating some random data. We'll make 1000 particles with
 coordinates ranging from 0 to 100.
 
 ```python
-positions = np.random.uniform(size=(1000,3)) * 100
+positions = np.random.uniform(size=(1000, 3)) * 100
 ```
 
 Then to create a dataset, just use
@@ -151,13 +151,15 @@ These cubes are ready for searching!
 
 ```python
 cubes.get_particle_indices_in_sphere(
-    center=[13548,23147,1684], radius=1000,
+    center=[13548, 23147, 1684],
+    radius=1000,
 )
 ```
 
 ```python
 inmem_cubes.get_particle_indices_in_sphere(
-    center=[64,73,15], radius=20,
+    center=[64, 73, 15],
+    radius=20,
 )
 ```
 
@@ -225,7 +227,7 @@ the particles. The process takes two steps:
    Example:
    ```python
    calculated_field = calculation()
-   extra_fields = {"Mass":"Mass", "vx":"Velocity_x", "cf":calculated_field}
+   extra_fields = {"Mass": "Mass", "vx": "Velocity_x", "cf": calculated_field}
    ```
 2. Provide the mapping to the dataset. This will sort the data using the shuffle
    list in a one-time pass. Note that this means this step must be done
@@ -253,9 +255,9 @@ dcf = dataset.cf
     ```python
     dataset.process_extra_fields(
         {
-            "sf":(already_sorted, True),
-            "sdf":("already_sorted_on_disk",True),
-            "nsf":"not_sorted",
+            "sf": (already_sorted, True),
+            "sdf": ("already_sorted_on_disk", True),
+            "nsf": "not_sorted",
         }
     )
     ```
@@ -276,11 +278,11 @@ dataset saving and extra fields in the initial `Cubes` call via the
 
 ```python
 cubes = packingcubes.Cubes(
-    "./snapshot_090.hdf5", 
+    "./snapshot_090.hdf5",
     particle_type="PartType0",
     sorted_filepath="sorted_positions.hdf5",
     save_dataset=True,
-    extras={"Mass":"Mass","vx":"Velocity_x"},
+    extras={"Mass": "Mass", "vx": "Velocity_x"},
 )
 ```
 

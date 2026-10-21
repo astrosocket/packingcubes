@@ -101,9 +101,7 @@ cubes.save("path/to/output.hdf5")
 # sorted positions/indices are stored in snapshot_sorted.hdf5 by default
 # to save elsewhere, use
 cubes = packingcubes.Cubes(
-    "path/to/snapshot.hdf5", 
-    save_dataset=True,
-    sorted_filepath="path/to/output.hdf5"
+    "path/to/snapshot.hdf5", save_dataset=True, sorted_filepath="path/to/output.hdf5"
 )
 ```
 <!-- --8<-- [end:basic-const-snap-disk] -->
@@ -125,7 +123,7 @@ cubes = packingcubes.Cubes(
     positions_data,
     sorted_filepath="path/to/dataset_output.hdf5",
     # filepath would also work
-    save_dataset=True
+    save_dataset=True,
 )
 ```
 
@@ -157,7 +155,7 @@ or
 indices = cubes.get_index_list_in_box(box)
 # box is anything that can be converted by numpy's array method to an (6,)
 #   float array where the first 3 elements are the front-left-bottom corner,
-#   and the second 3 elements are the box width, depth, and height 
+#   and the second 3 elements are the box width, depth, and height
 #   (aka [x, y, z, dx, dy, dz])
 ```
 
@@ -183,11 +181,7 @@ So the search pipeline might go something like:
 
 ```python
 dataset = packingcubes.GadgetishHDF5Dataset(orig_dataset_file)
-cubes = packingcubes.Cubes(
-    dataset,
-    particle_type="PartType0",
-    extras={"v":"Velocity"}
-)
+cubes = packingcubes.Cubes(dataset, particle_type="PartType0", extras={"v": "Velocity"})
 
 sphere = cubes.Sphere(center, radius, fields="all")
 
@@ -196,11 +190,13 @@ velocities = sphere.v
 
 or as a "one-liner"[^1]:
 ```python
-velocities = packingcubes.Cubes(
-    orig_dataset_file,
-    particle_type="PartType0",
-    extras={"v":"Velocity"}
-).Sphere(center, radius, fields="all").v
+velocities = (
+    packingcubes.Cubes(
+        orig_dataset_file, particle_type="PartType0", extras={"v": "Velocity"}
+    )
+    .Sphere(center, radius, fields="all")
+    .v
+)
 ```
 
 [^1]: Okay, it's _technically_ 5 lines. But only because it's broken up for clarity!

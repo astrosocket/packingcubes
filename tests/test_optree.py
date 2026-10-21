@@ -106,6 +106,38 @@ def test_query_ball_point_example2(scipy_query_ball_point_example):
             assert r == rt
 
 
+def test_query_ball_point_r_list(scipy_query_ball_point_example):
+    # Added because I forgot to include support for lists of rs
+    tree = scipy_query_ball_point_example
+
+    qbp = tree.query_ball_point(
+        ([2, 0], [3, 3]),
+        [
+            1,
+            1,
+        ],
+        return_lists=True,
+    )
+
+    assert qbp.shape == (2,)
+    assert qbp.dtype == np.dtype("O")
+
+    result1 = [5, 10, 11, 15]
+    result2 = [13, 17, 18, 19, 23]
+    for result, true in zip(qbp, [result1, result2], strict=True):
+        assert isinstance(result, list)
+        for r, rt in zip(result, true, strict=True):
+            assert r == rt
+
+
+def test_query_ball_point_r_list_nonbroadcastable(scipy_query_ball_point_example):
+    # Added because I forgot to include support for lists of rs
+    tree = scipy_query_ball_point_example
+
+    with pytest.raises(ValueError, match="could not be broadcast together"):
+        tree.query_ball_point(([2, 0], [3, 3]), [1, 1, 1], return_lists=True)
+
+
 # The following are modified from the scipy.KDTree.query_ball_tree example
 def scipy_query_ball_tree_example_unwrapped():
     rng = np.random.default_rng()

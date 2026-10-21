@@ -47,7 +47,7 @@ datetime.datetime.fromtimestamp(t, tz=datetime.UTC)
 For the checksum, use [xxhash's xxh3](https://pypi.org/project/xxhash/) (not part of the standard library):
 
 ```python
-from xxhash import xxh3_64_intdigest 
+from xxhash import xxh3_64_intdigest
 
 checksum = xxh3_64_intdigest(packed_tree)
 ```

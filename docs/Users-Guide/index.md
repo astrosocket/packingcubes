@@ -18,10 +18,14 @@ of your dataset, the simplest way to do it is the following "one-liner":
 ```python
 import packingcubes
 
-field_in_sph = packingcubes.Cubes(
-    positions_array, # (1)!
-    extras={"field_name":field_array} # (2)!
-).Sphere(center, radius, fields="all").field_name
+field_in_sph = (
+    packingcubes.Cubes(
+        positions_array,  # (1)!
+        extras={"field_name": field_array},  # (2)!
+    )
+    .Sphere(center, radius, fields="all")
+    .field_name
+)
 ```
 
 1. `positions_array` is a 3D array of particle position data
@@ -118,7 +122,7 @@ the object pipeline:
 ```python
 dataset = packingcubes.InMemory(positions=positions_array)
 cubes = packingcubes.Cubes(dataset)
-dataset.process_extra_fields({"field_name":field_array})
+dataset.process_extra_fields({"field_name": field_array})
 sphere = cubes.Sphere(center, radius, fields="field_name")
 field_in_sph = sphere.field_name
 ```
@@ -129,14 +133,15 @@ Saving is simple, though it does break up the "one-liner":
 ``` python
 cubes = packingcubes.Cubes(
     positions_array,
-    save_dataset=True, # (1)!
+    save_dataset=True,  # (1)!
     sorted_filepath="path/to/output.hdf5",
-    extras={"field_name":field_array}
+    extras={"field_name": field_array},
 )
-cubes.save("cubes_output.hdf5") # (2)!
+cubes.save("cubes_output.hdf5")  # (2)!
 sphere = cubes.Sphere(
-    center, radius,
-    save_filepath="sphere_output.hdf5", # (3)!
+    center,
+    radius,
+    save_filepath="sphere_output.hdf5",  # (3)!
     fields="all",
 )
 ```

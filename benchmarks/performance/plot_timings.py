@@ -377,7 +377,7 @@ def plot_parallel_scaling(sims: TSims, **kwargs) -> TPlots:
     return fig, axs
 
 
-def parse_arguments(argv=None) -> dict:
+def parse_arguments(argv=None) -> argparse.Namespace:
     """Parse CLI arguments using argparse"""
     if argv is None:
         # need to skip caller or it's picked up as the snapshot file
