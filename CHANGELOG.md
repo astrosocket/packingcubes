@@ -1,3 +1,28 @@
+## [0.6.7] - 2026-10-21
+
+### 🐛 Bug Fixes
+
+- Query_ball_point can't run on list of r ([0e6d369](https://github.com/astrosocket/packingcubes/commit/0e6d36948ca651af6709759947b96855410fe583))
+- Fix typing of parse_arguments ([a2ee677](https://github.com/astrosocket/packingcubes/commit/a2ee677fb4e3e139d8cfa00804ff31a2c16b145e))
+- Add missing py.typed file ([edc7852](https://github.com/astrosocket/packingcubes/commit/edc785247f81678624fab44e29e0f0aac48057b9))
+
+### 💼 Other
+
+- *(deps)* Bump prefix-dev/setup-pixi in the dependencies group ([11e4e78](https://github.com/astrosocket/packingcubes/commit/11e4e788f65858c1cfc94c111a09d9ee805d92b3))
+
+### 📚 Documentation
+
+- Include ruff doc linting ([a32c85f](https://github.com/astrosocket/packingcubes/commit/a32c85f2a3c89c8420e9b2963dc5590c308aa0db))
+
+### ⚙️ Miscellaneous Tasks
+
+- Update pixi version ([09af412](https://github.com/astrosocket/packingcubes/commit/09af412253b7392288343fb098424e0a4a7eb01a))
+- Add .vscode folder to gitignore ([4ce98be](https://github.com/astrosocket/packingcubes/commit/4ce98be6bc6c5d9c1519141bd0330379b47d3e16))
+- Rearrange blocks and update zensical ([b38cc67](https://github.com/astrosocket/packingcubes/commit/b38cc672bd27c5afa4105ea95fb92226dfa7a857))
+
+### 🛡️ Security
+
+- *(deps)* Bump prefix-dev/setup-pixi from 0.10.0 to 0.10.2 in the dependencies group ([#59](https://github.com/astrosocket/packingcubes/issues/59)) ([18c6310](https://github.com/astrosocket/packingcubes/commit/18c63103a5809845d362ce61ce272da9044c7794))
 ## [0.6.6] - 2026-08-17
 
 ### 🚀 Features
