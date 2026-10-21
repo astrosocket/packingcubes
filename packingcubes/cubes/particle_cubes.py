@@ -845,12 +845,20 @@ def _save_cube(
     cube_boxes: list[bbox.BoundingBox],
     cube_trees: list[PackedTree],
 ):
-    cubes = file.create_group(f"cubes/{pt}")
-    file["/cubes"].attrs["Packingcubes_version"] = packingcubes.__version__
-    cubes.create_dataset("indices", data=cube_indices, compression="gzip", shuffle=True)
-    cubes.attrs["Number_of_cubes"] = len(cube_indices)
+    trees_grp = file.require_group("/Cells/Trees")
+    trees_grp.attrs["Description"] = (
+        "The Trees subgroup stores the PackedTree data for each cell."
+    )
+    pt_grp = trees_grp.require_group(pt)
+    indices_grp = file.require_group("/Cells/Indices")
+    indices_grp.attrs["Description"] = (
+        "The overall cell index into the virtual dataset."
+    )
+    trees_grp.attrs["Packingcubes_version"] = packingcubes.__version__
+    indices_grp.create_dataset(pt, data=cube_indices, compression="gzip", shuffle=True)
+    pt_grp.attrs["Number_of_cubes"] = len(cube_indices)
     for i, (box, tree) in enumerate(zip(cube_boxes, cube_trees, strict=True)):
-        tree_ds = cubes.create_dataset(
+        tree_ds = pt_grp.create_dataset(
             f"tree_{i}", data=tree.packed_form, compression="gzip", shuffle=True
         )
         tree_ds.attrs["Bounding_box"] = box.box
