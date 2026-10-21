@@ -473,7 +473,7 @@ class OpTree:
         self,
         *,
         centers: NDArray,
-        radius: float,
+        radii: NDArray,
         return_length: bool,
         return_sorted: bool,
         return_lists: bool,
@@ -483,7 +483,7 @@ class OpTree:
         """Private method to actually compute the query after inputs validated"""
         if return_length:
             # psuedocode:
-            # for center in centers:
+            # for center, radius in centers, radii:
             #     sph = sphere(center, radius)
             #     nodes = list of tree nodes that overlap sph
             #     sum = 0
@@ -498,7 +498,7 @@ class OpTree:
                         radius=radius,
                     )
                 )
-                for center in centers
+                for center, radius in zip(centers, radii, strict=True)
             ]
             return lengths[0] if len(lengths) == 1 else lengths
 
@@ -510,7 +510,7 @@ class OpTree:
                 strict=strict,
                 use_data_indices=return_data_indices,
             )
-            for center in centers
+            for center, radius in zip(centers, radii, strict=True)
         ]
         #  results is now list of list of (unsorted) indices
         if return_sorted:
@@ -527,7 +527,7 @@ class OpTree:
     def query_ball_point(
         self,
         x: ArrayLike,
-        r: float,
+        r: ArrayLike | float,
         p: float | None = 2.0,
         eps: float | None = None,
         workers: int = -1,
@@ -628,6 +628,8 @@ class OpTree:
         """
         x, _ = _check_data_shape(data=x, copy_data=False)
 
+        r = np.broadcast_to(np.squeeze(r), (x.shape[0]))
+
         p = 2 if p is None else p
         if p != 2:
             warnings.warn(
@@ -683,7 +685,7 @@ class OpTree:
 
         return self._query_ball_point(
             centers=x,
-            radius=r,
+            radii=r,
             return_length=return_length,
             return_sorted=return_sorted,
             return_lists=return_lists,
