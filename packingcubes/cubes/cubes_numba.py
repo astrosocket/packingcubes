@@ -761,7 +761,68 @@ def get_particle_index_list_in_shape(
     return _parallel_expand_all_array(slices, data._index)
 
 
-@njit
+@njit(parallel=True)
+def get_particle_index_list_in_shapes(
+    cubes: List[BoundingBox],
+    trees: List[PackedTreeNumba],
+    cube_offsets: NDArray,
+    shapes: List[bbox.BoundingVolume],
+    data: DataContainer,
+    strict: bool,  # noqa: FBT001, FBT002
+    use_data_indices: bool,  # noqa: FBT001, FBT002
+) -> List[NDArray[np.int_]]:
+    """Get the array of particle indices in the specified shape
+
+    If the data argument is specified, will do additional
+    containment-checks at the particle level
+
+    Parameters
+    ----------
+    cubes:
+        List of cube bounding boxes
+
+    trees:
+        List of cube PackedTreeNumbas
+
+    cube_offsets:
+        Array of cube offset indices into the data
+
+    shape:
+        BoundingVolume to check
+
+    data: DataContainer
+        Particle positions information. If data is not available and you want
+        non-strict data indices, consider calling
+        [_parallel_expand_all_data_indices][_parallel_expand_all_data_indices]
+        directly.
+
+    strict: bool
+        If `False`, only check whether node is within shape, which is
+        equivalent to expanding the node start/stops from
+        `_get_particle_indices_in_shape`. Default `True`.
+
+    use_data_indices: bool
+        Return shuffle indices if `False`. Default `True`.
+
+    Returns
+    -------
+    indices: List[NDArray[int]]]
+        List of lists of particle indices contained within shape. Will contain
+        any additional particles that can be found in the same nodes if
+        data is not provided
+    """
+    num_shapes = len(shapes)
+    results = List([np.empty(0, dtype=np.int_) for _ in range(num_shapes)])
+
+    for i in prange(num_shapes):
+        results[i] = get_particle_index_list_in_shape(
+            cubes, trees, cube_offsets, shapes[i], data, strict, use_data_indices
+        )
+
+    return results
+
+
+@njit(cache=True)
 def get_array_in_shape(
     cubes: List[BoundingBox],
     trees: List[PackedTreeNumba],

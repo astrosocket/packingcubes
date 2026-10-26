@@ -95,8 +95,7 @@ def test_query_ball_point_example2(scipy_query_ball_point_example):
     # We have changed the default
     qbp = tree.query_ball_point(([2, 0], [3, 3]), 1, return_lists=True)
 
-    assert qbp.shape == (2,)
-    assert qbp.dtype == np.dtype("O")
+    assert len(qbp) == 2
 
     result1 = [5, 10, 11, 15]
     result2 = [13, 17, 18, 19, 23]
@@ -119,8 +118,7 @@ def test_query_ball_point_r_list(scipy_query_ball_point_example):
         return_lists=True,
     )
 
-    assert qbp.shape == (2,)
-    assert qbp.dtype == np.dtype("O")
+    assert len(qbp) == 2
 
     result1 = [5, 10, 11, 15]
     result2 = [13, 17, 18, 19, 23]
