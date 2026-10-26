@@ -306,7 +306,7 @@ class OpTree:
                 OpTreeWarning,
                 stacklevel=1,
             )
-            return np.arange(len(self.dataset))
+            return np.arange(len(self._dataset))
         index = self._dataset.index.view()
         index.flags.writeable = False
         return index
