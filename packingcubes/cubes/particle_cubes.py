@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Collection, Mapping
+from collections.abc import Collection, Iterable, Mapping
 from pathlib import Path
 from typing import Any, overload
 
@@ -20,6 +20,7 @@ from packingcubes.cubes.cubes_numba import (
     get_closest_particles,
     get_packednodes_in_shape,
     get_particle_index_list_in_shape,
+    get_particle_index_list_in_shapes,
     get_particle_indices_in_shape,
 )
 from packingcubes.data_objects import (
@@ -226,7 +227,7 @@ class ParticleCubes:
             Dataset containing the particle positions. Pass a DataContainer
             object for a slight performance increase. Defaults to self.dataset.
 
-        box: BoundingBox
+        shape: BoundingBox
             The bounding box of the shape
 
         use_data_indices: bool, optional
@@ -254,6 +255,57 @@ class ParticleCubes:
             trees=self._numba_trees,
             cube_offsets=self.cube_indices,
             shape=shape,
+            data=data.data_container if isinstance(data, Dataset) else data,
+            strict=strict,
+            use_data_indices=use_data_indices,
+        )
+
+    def _get_particle_index_list_in_shapes(
+        self,
+        *,
+        shapes: List[bbox.BoundingVolume],
+        data: DataContainer | Dataset | None = None,
+        use_data_indices: bool = True,
+        strict: bool = False,
+    ) -> List[NDArray[np.int_]]:
+        """Return all particle indices contained within the shapes
+
+         This is a private version that uses premade bounding volumes
+
+        Parameters
+        ----------
+        data: DataContainer | Dataset, optional
+            Dataset containing the particle positions. Pass a DataContainer
+            object for a slight performance increase. Defaults to self.dataset.
+
+        shapes: List[BoundingBox]
+            The bounding boxes of the shapes
+
+        use_data_indices: bool, optional
+            Flag to return indices into the sorted dataset (True, default) or
+            into the shuffle list (False)
+
+        strict: bool, optional
+            Flag to specify whether only particles inside the shape will
+            be returned. If False (default), additional nearby particles may be
+            included for signficantly increased performance
+
+        Returns
+        -------
+        indices: List[Array[int]]
+            Arrays of particle indices contained within shapes
+
+        Raises
+        ------
+        ValueError
+            If `data` is `None` and `self.dataset` is `None`
+        """
+        data = self._needs_data(data)
+        return get_particle_index_list_in_shapes(
+            cubes=self.cube_boxes,
+            trees=self._numba_trees,
+            cube_offsets=self.cube_indices,
+            shapes=shapes,
             data=data.data_container if isinstance(data, Dataset) else data,
             strict=strict,
             use_data_indices=use_data_indices,
@@ -305,6 +357,52 @@ class ParticleCubes:
             strict=strict,
         )
 
+    def get_particle_index_list_in_boxes(
+        self,
+        boxes: Iterable[bbox.BoxLike],
+        *,
+        data: DataContainer | Dataset | None = None,
+        use_data_indices: bool = True,
+        strict: bool = False,
+    ) -> List[NDArray[np.int_]]:
+        """Return all particle indices contained within the box
+
+        Parameters
+        ----------
+        box: List[BoxLike]
+            The boxes to search in
+
+        data: DataContainer | Dataset, optional
+            Dataset containing the particle positions. Pass a DataContainer
+            object for a slight performance increase. Defaults to self.dataset.
+
+        use_data_indices: bool, optional
+            Flag to return indices into the sorted dataset (True, default) or
+            into the shuffle list (False)
+
+        strict: bool, optional
+            Flag to specify whether only particles inside the shape will
+            be returned. If False (default), additional nearby particles may be
+            included for signficantly increased performance
+
+        Returns
+        -------
+        indices: List[Array[int]]
+            Arrays of particle indices contained within shape
+
+        Raises
+        ------
+        ValueError
+            If `data` is `None` and `self.dataset` is `None`
+        """
+        numba_boxes = List(bbox.make_bounding_box(box) for box in boxes)
+        return self._get_particle_index_list_in_shapes(
+            data=data,
+            shapes=numba_boxes,
+            use_data_indices=use_data_indices,
+            strict=strict,
+        )
+
     def get_particle_index_list_in_sphere(
         self,
         center: NDArray,
@@ -351,6 +449,61 @@ class ParticleCubes:
         return self._get_particle_index_list_in_shape(
             data=data,
             shape=sph,
+            use_data_indices=use_data_indices,
+            strict=strict,
+        )
+
+    def get_particle_index_list_in_spheres(
+        self,
+        centers: Iterable[NDArray],
+        radii: Iterable[float],
+        *,
+        data: DataContainer | Dataset | None = None,
+        use_data_indices: bool = True,
+        strict: bool = False,
+    ) -> List[NDArray[np.int_]]:
+        """Return all particle indices contained within the spheres
+
+        Parameters
+        ----------
+        center: Iterable[NDArray]
+            Center point of the spheres
+
+        radii: Iterable[float]
+            Radius of the spheres
+
+        data: DataContainer | Dataset, optional
+            Dataset containing the particle positions. Pass a DataContainer
+            object for a slight performance increase. Defaults to self.dataset.
+
+        use_data_indices: bool, optional
+            Flag to return indices into the sorted dataset (True, default) or
+            into the shuffle list (False)
+
+        strict: bool, optional
+            Flag to specify whether only particles inside the shape will
+            be returned. If False (default), additional nearby particles may be
+            included for signficantly increased performance
+
+        Returns
+        -------
+        indices: List[NDArray[int]]
+            Arrays of particle indices contained within the spheres
+
+        Raises
+        ------
+        ValueError
+            If `data` is `None` and `self.dataset` is `None`
+        """
+        spheres = List(
+            [
+                bbox.make_bounding_sphere(radius, center=center, unsafe=True)
+                for radius, center in zip(radii, centers, strict=True)
+            ]
+        )
+        return self._get_particle_index_list_in_shapes(
+            data=data,
+            shapes=spheres,
             use_data_indices=use_data_indices,
             strict=strict,
         )
