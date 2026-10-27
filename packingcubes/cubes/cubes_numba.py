@@ -317,7 +317,7 @@ def make_trees(
 
     if particle_overflow:
         with objmode():
-            LOGGER.warn(
+            LOGGER.warning(
                 "Requested cubes bounding box is too small. Leftovers box has "
                 "more than 2**32 particles and likely will be invalid."
             )
