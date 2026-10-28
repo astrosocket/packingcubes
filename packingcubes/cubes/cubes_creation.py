@@ -36,7 +36,7 @@ from packingcubes.cubes.cubes_numba import _prune_empty, cube, make_trees
 from packingcubes.cubes.multi_cubes import MultiCubes
 from packingcubes.cubes.particle_cubes import (
     ParticleCubes,
-    has_cubes,
+    has_cells,
 )
 from packingcubes.data_objects import (
     DataContainer,
@@ -370,53 +370,78 @@ def make_cubes(
 def load_cubes(
     dataset: str | NDArray | MultiParticleDataset,
     particle_types: str | Collection[str] | None = None,
+    *,
+    generate_cubes: bool = False,
     **kwargs,
 ) -> Mapping[str, ParticleCubes]:
     """Load cubes data from a dataset. See make_cubes for a description of the output"""
-    cubes_dict = {}
     if isinstance(dataset, np.ndarray) or (
         isinstance(dataset, Dataset) and not isinstance(dataset, HDF5Dataset)
     ):
         raise NotImplementedError("We can only load Cubes from HDF5 datasets")
-    if not has_cubes(dataset):
+    if not has_cells(dataset):
         raise ValueError("No cubes in provided dataset")
+    cubes_dict = {}
     filepath = dataset.filepath if isinstance(dataset, HDF5Dataset) else dataset
     with h5py.File(
         filepath,
     ) as file:
-        cubes_group = file["cubes"]
-        pts = list(cubes_group.keys())
+        cells = file["Cells"]
+        indices_group = cells["Indices"]
+
+        pts = set(indices_group.keys())
         if particle_types is not None:
             particle_types = (
                 [particle_types] if isinstance(particle_types, str) else particle_types
             )
-            for pt in particle_types:
-                if pt not in pts:
-                    raise ValueError(
-                        f"{pt} is not contained in {filepath}. Only {pts} are present."
-                    )
-            pts = list(particle_types)
+            particle_types = set(particle_types)
+            if len(particle_types - pts):
+                raise ValueError(
+                    f"{particle_types - pts} not contained in {filepath}."
+                    f" Only {pts} are present"
+                )
+            pts = particle_types
+        if "Trees" not in cells and not generate_cubes:
+            raise ValueError("No trees in provided dataset and generate_cubes is False")
+        data = _handle_dataset_types(dataset)
+        trees_group = cells.require_group("Trees")
+        bbox_ds = cells["BoundingBoxes"]
+        cube_box_arr = np.empty(bbox_ds.shape, dtype=bbox_ds.dtype)
+        bbox_ds.read_direct(cube_box_arr)
+        cube_boxes = [bbox.make_bounding_box(box) for box in cube_box_arr]
         for pt in pts:
-            cubes = cubes_group[pt]
-            indices_ds = cubes["indices"]
+            indices_ds = indices_group[pt]
             cube_indices = np.empty(indices_ds.shape, dtype=indices_ds.dtype)
             indices_ds.read_direct(cube_indices)
-            number = cubes.attrs["Number_of_cubes"]
-            cube_boxes = []
-            cube_trees = []
-            for i in range(number):
-                tree_ds = cubes[f"tree_{i}"]
-                cube_boxes.append(bbox.make_bounding_box(tree_ds.attrs["Bounding_box"]))
-                tree = np.empty(
-                    tree_ds.shape,
-                    dtype=tree_ds.dtype,
+            if pt in trees_group:
+                trees = trees_group[pt]
+                number = trees.attrs["Number_of_cubes"]
+                cube_trees = []
+                LOGGER.debug(f"Loading cells+trees for {pt}")
+                for i in range(number):
+                    tree_ds = trees[f"tree_{i}"]
+                    tree = np.empty(
+                        tree_ds.shape,
+                        dtype=tree_ds.dtype,
+                    )
+                    tree_ds.read_direct(tree)
+                    cube_trees.append(PackedTree(source=tree))
+            else:
+                data.particle_type = pt
+                LOGGER.debug(f"Loaded cells, making trees for {pt}")
+                cube_trees = make_trees(
+                    data=data.data_container,
+                    cube_indices=cube_indices,
+                    cube_boxes=cube_boxes,
+                    particle_threshold=kwargs.get(
+                        "particle_threshold", _DEFAULT_PARTICLE_THRESHOLD
+                    ),
                 )
-                tree_ds.read_direct(tree)
-                cube_trees.append(PackedTree(source=tree))
             cubes_dict[pt] = ParticleCubes(
                 cube_indices=cube_indices,
                 cube_boxes=cube_boxes,
                 cube_trees=cube_trees,
+                dataset=data,
             )
     return cubes_dict
 
@@ -631,7 +656,7 @@ def make_MultiCubes(
         Refer to [Cubes][Cubes] documentation for a list of all posssible
         arguments
     """
-    if has_cubes(dataset):
+    if has_cells(dataset):
         cubes_dict = load_cubes(dataset, particle_types=particle_types, **kwargs)
         return MultiCubes(cubes_dict=cubes_dict)
     mpdataset = _handle_dataset_types(dataset)
@@ -651,7 +676,7 @@ def cli():
     """Run the CLI for cubes generation"""
     logging.basicConfig()
     args = _process_args()
-    if args.output and has_cubes(args.output) and not args.force_overwrite:
+    if args.output and has_cells(args.output) and not args.force_overwrite:
         sys.exit(
             "Provided output file already contains cubes data and"
             " you did not specify --force-overwrite"

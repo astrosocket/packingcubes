@@ -23,7 +23,7 @@ and internally is stored as a numpy array of such.
 | ----- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 0     | 0-3     | Size of header in bytes (=144).<br>Note this also sets endianness                                                                                      |
 | 1     | 4       | Field size in bytes as an int8. Currently set to 4, representing a uint32.<br> A negative value would represent a _signed_ integer (i.e. -4 <=> int32) |
-| 1     | 5-7     | Packed specification version as major - minor - patch<br>following semantic versioning (see [semver.org](semver.org)), stored as 3 uint8s              |
+| 1     | 5-7     | Packed specification version as major - minor - patch<br>following semantic versioning (see [semver.org](https://semver.org)), stored as 3 uint8s              |
 | 2-3   | 8-15    | Creation time as a UTC timestamp                                                                                                                       |
 | 4-20  | 16-83   | Checksum method as a string: `'xxh3_64_intdigest'`                                                                                                     |
 | 21-22 | 84-91   | Tree checksum computed via xxhash's xxh3_64_intdigest                                                                                                  |
@@ -100,54 +100,26 @@ graph TD
     g --> i[i*]
 ```
 
-The packed implementation would then look like (indenting subsequent tree levels)
-
-    45, 
-    a_s, 
-    a_e, 
-    a_m,
-        25,
-        b_s,
-        b_e,
-        b_m,
-            15,
-            c_s,
-            c_e,
-            c_m,
-                5,
-                d_s,
-                d_e,
-                d_m,
-                4,
-                5,
-                e_s,
-                e_e,
-                e_m,
-                9,
-            4,
-            5, 
-            f_s, 
-            f_e, 
-            f_m, 
-            15,
-        4,
-        15, 
-        g_s,
-        g_e,
-        g_m,
-            5,
-            h_s,
-            h_e,
-            h_m,
-            4,
-            5,
-            i_s,
-            i_e,
-            i_m,
-            9,
-        25,
-    0
-
+The packed implementation would then look like (indenting and newlining subsequent tree levels)
+<!-- fmt: off -->
+```python
+[
+  45, a_s, a_e, a_m,
+    25, b_s, b_e, b_m,
+      15, c_s, c_e, c_m, 
+        5, d_s, d_e, d_m, 4,
+        5, e_s, e_e, e_m, 9,
+      4,
+      5, f_s, f_e, f_m, 15,
+    4,
+    15, g_s, g_e, g_m, 
+      5, h_s, h_e, h_m, 4,
+      5, i_s, i_e, i_m, 9,
+    25,
+  0,
+]
+```
+<!-- fmt: on -->
 Here, each element is a field and $x_{s}$, $x_{e}$, and $x_{m}$ are the `node_start`, `node_end`, and `metadata` (`child_flag`, `my_index`, `level`, and `empty`) fields for node $x$. The starred nodes in the tree are the last sibling for each group of children.
 
 <script id="MathJax-script" src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>

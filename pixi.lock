@@ -590,7 +590,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-64/xorg-libxrender-0.9.12-hb9d3cd8_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/xxhash-0.8.3-hec8ed23_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/yaml-0.2.5-h280c20c_3.conda
-      - conda: https://conda.anaconda.org/conda-forge/linux-64/zensical-0.0.70-py311h7b25dd4_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/zensical-0.0.73-py311h7b25dd4_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/zeromq-4.3.5-h41580af_10.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/zlib-ng-2.3.3-hceb46e0_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/zstd-1.5.7-hb78ec9c_6.conda
@@ -1898,7 +1898,7 @@ packages:
   license: MPL-2.0
   license_family: MOZILLA
   purls:
-  - pkg:pypi/hypothesis?source=compressed-mapping
+  - pkg:pypi/hypothesis?source=hash-mapping
   run_exports: {}
   size: 645655
   timestamp: 1792098720460
@@ -4000,10 +4000,10 @@ packages:
   run_exports: {}
   size: 7318676
   timestamp: 1791533812824
-- conda: https://conda.anaconda.org/conda-forge/linux-64/zensical-0.0.70-py311h7b25dd4_0.conda
+- conda: https://conda.anaconda.org/conda-forge/linux-64/zensical-0.0.73-py311h7b25dd4_0.conda
   noarch: python
-  sha256: 78b13eba85ebf81883217a31cd28d72892e87e0eb3995f389025f8a71f158d39
-  md5: 970705d5d0e9b7d9d7454d1d7b91c935
+  sha256: 07803ef4898e511bde7c44b00680b073e8c374208a4edd39a1dc446cd5351865
+  md5: 7a7efcabb39aee342cab5f3d1202e66e
   depends:
   - python
   - click >=8.1.8
@@ -4015,8 +4015,8 @@ packages:
   - tomli >=2.4.0
   - jinja2 >=3.1
   - pathspec >=1.0.4
-  - libgcc >=15
   - __glibc >=2.17,<3.0.a0
+  - libgcc >=15
   - _python_abi3_support 1.*
   - cpython >=3.11
   constrains:
@@ -4026,8 +4026,8 @@ packages:
   purls:
   - pkg:pypi/zensical?source=hash-mapping
   run_exports: {}
-  size: 11910537
-  timestamp: 1791840818660
+  size: 12088928
+  timestamp: 1793034604582
 - conda: https://conda.anaconda.org/conda-forge/linux-64/zeromq-4.3.5-h41580af_10.conda
   sha256: 325d370b28e2b9cc1f765c5b4cdb394c91a5d958fbd15da1a14607a28fee09f6
   md5: 755b096086851e1193f3b10347415d7c

@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Collection, Mapping
+from collections.abc import Collection, Iterable, Mapping
 from pathlib import Path
-from typing import Any, overload
+from typing import Any, cast, overload
 
 import h5py  # type: ignore
 import numpy as np
@@ -20,6 +20,7 @@ from packingcubes.cubes.cubes_numba import (
     get_closest_particles,
     get_packednodes_in_shape,
     get_particle_index_list_in_shape,
+    get_particle_index_list_in_shapes,
     get_particle_indices_in_shape,
 )
 from packingcubes.data_objects import (
@@ -226,7 +227,7 @@ class ParticleCubes:
             Dataset containing the particle positions. Pass a DataContainer
             object for a slight performance increase. Defaults to self.dataset.
 
-        box: BoundingBox
+        shape: BoundingBox
             The bounding box of the shape
 
         use_data_indices: bool, optional
@@ -254,6 +255,57 @@ class ParticleCubes:
             trees=self._numba_trees,
             cube_offsets=self.cube_indices,
             shape=shape,
+            data=data.data_container if isinstance(data, Dataset) else data,
+            strict=strict,
+            use_data_indices=use_data_indices,
+        )
+
+    def _get_particle_index_list_in_shapes(
+        self,
+        *,
+        shapes: List[bbox.BoundingVolume],
+        data: DataContainer | Dataset | None = None,
+        use_data_indices: bool = True,
+        strict: bool = False,
+    ) -> List[NDArray[np.int_]]:
+        """Return all particle indices contained within the shapes
+
+         This is a private version that uses premade bounding volumes
+
+        Parameters
+        ----------
+        data: DataContainer | Dataset, optional
+            Dataset containing the particle positions. Pass a DataContainer
+            object for a slight performance increase. Defaults to self.dataset.
+
+        shapes: List[BoundingBox]
+            The bounding boxes of the shapes
+
+        use_data_indices: bool, optional
+            Flag to return indices into the sorted dataset (True, default) or
+            into the shuffle list (False)
+
+        strict: bool, optional
+            Flag to specify whether only particles inside the shape will
+            be returned. If False (default), additional nearby particles may be
+            included for signficantly increased performance
+
+        Returns
+        -------
+        indices: List[Array[int]]
+            Arrays of particle indices contained within shapes
+
+        Raises
+        ------
+        ValueError
+            If `data` is `None` and `self.dataset` is `None`
+        """
+        data = self._needs_data(data)
+        return get_particle_index_list_in_shapes(
+            cubes=self.cube_boxes,
+            trees=self._numba_trees,
+            cube_offsets=self.cube_indices,
+            shapes=shapes,
             data=data.data_container if isinstance(data, Dataset) else data,
             strict=strict,
             use_data_indices=use_data_indices,
@@ -305,6 +357,52 @@ class ParticleCubes:
             strict=strict,
         )
 
+    def get_particle_index_list_in_boxes(
+        self,
+        boxes: Iterable[bbox.BoxLike],
+        *,
+        data: DataContainer | Dataset | None = None,
+        use_data_indices: bool = True,
+        strict: bool = False,
+    ) -> List[NDArray[np.int_]]:
+        """Return all particle indices contained within the box
+
+        Parameters
+        ----------
+        box: List[BoxLike]
+            The boxes to search in
+
+        data: DataContainer | Dataset, optional
+            Dataset containing the particle positions. Pass a DataContainer
+            object for a slight performance increase. Defaults to self.dataset.
+
+        use_data_indices: bool, optional
+            Flag to return indices into the sorted dataset (True, default) or
+            into the shuffle list (False)
+
+        strict: bool, optional
+            Flag to specify whether only particles inside the shape will
+            be returned. If False (default), additional nearby particles may be
+            included for signficantly increased performance
+
+        Returns
+        -------
+        indices: List[Array[int]]
+            Arrays of particle indices contained within shape
+
+        Raises
+        ------
+        ValueError
+            If `data` is `None` and `self.dataset` is `None`
+        """
+        numba_boxes = List(bbox.make_bounding_box(box) for box in boxes)
+        return self._get_particle_index_list_in_shapes(
+            data=data,
+            shapes=numba_boxes,
+            use_data_indices=use_data_indices,
+            strict=strict,
+        )
+
     def get_particle_index_list_in_sphere(
         self,
         center: NDArray,
@@ -351,6 +449,61 @@ class ParticleCubes:
         return self._get_particle_index_list_in_shape(
             data=data,
             shape=sph,
+            use_data_indices=use_data_indices,
+            strict=strict,
+        )
+
+    def get_particle_index_list_in_spheres(
+        self,
+        centers: Iterable[NDArray],
+        radii: Iterable[float],
+        *,
+        data: DataContainer | Dataset | None = None,
+        use_data_indices: bool = True,
+        strict: bool = False,
+    ) -> List[NDArray[np.int_]]:
+        """Return all particle indices contained within the spheres
+
+        Parameters
+        ----------
+        center: Iterable[NDArray]
+            Center point of the spheres
+
+        radii: Iterable[float]
+            Radius of the spheres
+
+        data: DataContainer | Dataset, optional
+            Dataset containing the particle positions. Pass a DataContainer
+            object for a slight performance increase. Defaults to self.dataset.
+
+        use_data_indices: bool, optional
+            Flag to return indices into the sorted dataset (True, default) or
+            into the shuffle list (False)
+
+        strict: bool, optional
+            Flag to specify whether only particles inside the shape will
+            be returned. If False (default), additional nearby particles may be
+            included for signficantly increased performance
+
+        Returns
+        -------
+        indices: List[NDArray[int]]
+            Arrays of particle indices contained within the spheres
+
+        Raises
+        ------
+        ValueError
+            If `data` is `None` and `self.dataset` is `None`
+        """
+        spheres = List(
+            [
+                bbox.make_bounding_sphere(radius, center=center, unsafe=True)
+                for radius, center in zip(radii, centers, strict=True)
+            ]
+        )
+        return self._get_particle_index_list_in_shapes(
+            data=data,
+            shapes=spheres,
             use_data_indices=use_data_indices,
             strict=strict,
         )
@@ -771,17 +924,36 @@ class ParticleCubes:
         return Path(dataset)
 
 
-def has_cubes(dataset: str | Path | MultiParticleDataset | h5py.File | Any) -> bool:
-    """Return true if the dataset contains a packingcubes structure"""
+def _can_load(
+    dataset: str | Path | MultiParticleDataset | h5py.File | Any,
+) -> Path | None:
+    dataset_file = None
+    if isinstance(dataset, HDF5Dataset) and "Cells" in dataset._top_level_groups:
+        dataset_file = dataset.sorted_filepath
+    elif isinstance(dataset, h5py.File):
+        dataset_file = dataset.filename
+    elif isinstance(dataset, (str, Path)) and h5py.is_hdf5(dataset):
+        dataset_file = Path(dataset)
+    return dataset_file
+
+
+def has_cells(dataset: str | Path | MultiParticleDataset | h5py.File | Any) -> bool:
+    """Return true if the dataset contains a cells structure"""
     # TODO: This whole function probably needs to be refactored somewhere else
-    if isinstance(dataset, HDF5Dataset):
-        return "cubes" in dataset._top_level_groups
-    if isinstance(dataset, (str, Path)) and h5py.is_hdf5(dataset):
-        with h5py.File(dataset) as file:
-            return "cubes" in file
-    if isinstance(dataset, h5py.File):
-        return "cubes" in dataset
-    return False
+    dataset_file = _can_load(dataset)
+    if dataset_file is None:
+        return False
+    with h5py.File(dataset_file) as file:
+        return "Cells" in file and "Indices" in file["Cells"]
+
+
+def has_trees(dataset: str | Path | MultiParticleDataset | h5py.File | Any) -> bool:
+    """Return true if the dataset contains trees in it's cells structure"""
+    if not has_cells(dataset):
+        return False
+    dataset_file = cast(Path, _can_load(dataset))
+    with h5py.File(dataset_file) as file:
+        return "Trees" in file["Cells"]
 
 
 def check_overwrite(
@@ -815,7 +987,7 @@ def check_overwrite(
         The location to write the cubes structure to
 
     """
-    if not has_cubes(dataset):
+    if not has_cells(dataset):
         return dataset
     if isinstance(dataset, h5py.File):
         return dataset
@@ -845,12 +1017,20 @@ def _save_cube(
     cube_boxes: list[bbox.BoundingBox],
     cube_trees: list[PackedTree],
 ):
-    cubes = file.create_group(f"cubes/{pt}")
-    file["/cubes"].attrs["Packingcubes_version"] = packingcubes.__version__
-    cubes.create_dataset("indices", data=cube_indices, compression="gzip", shuffle=True)
-    cubes.attrs["Number_of_cubes"] = len(cube_indices)
+    trees_grp = file.require_group("/Cells/Trees")
+    trees_grp.attrs["Description"] = (
+        "The Trees subgroup stores the PackedTree data for each cell."
+    )
+    pt_grp = trees_grp.require_group(pt)
+    indices_grp = file.require_group("/Cells/Indices")
+    indices_grp.attrs["Description"] = (
+        "The overall cell index into the virtual dataset."
+    )
+    trees_grp.attrs["Packingcubes_version"] = packingcubes.__version__
+    indices_grp.create_dataset(pt, data=cube_indices, compression="gzip", shuffle=True)
+    pt_grp.attrs["Number_of_cubes"] = len(cube_indices)
     for i, (box, tree) in enumerate(zip(cube_boxes, cube_trees, strict=True)):
-        tree_ds = cubes.create_dataset(
+        tree_ds = pt_grp.create_dataset(
             f"tree_{i}", data=tree.packed_form, compression="gzip", shuffle=True
         )
         tree_ds.attrs["Bounding_box"] = box.box

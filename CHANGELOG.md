@@ -1,3 +1,27 @@
+## [0.7.0] - 2026-10-28
+
+### 🚀 Features
+
+- Change cube loading format ([f1657b7](https://github.com/astrosocket/packingcubes/commit/f1657b7a765e9c3037cdc6a4afc2ca3388ebf47c))
+- Update cells save output to better match GUSTEAU ([190721e](https://github.com/astrosocket/packingcubes/commit/190721e1dfbc5a9e199a9e1b6dc8d92f86dd83de))
+
+### 🐛 Bug Fixes
+
+- Make explicit cast to int_ ([104427d](https://github.com/astrosocket/packingcubes/commit/104427dc912ed23225c5ef48459b39ff261d1764))
+- Use non-deprecated warning ([6fd430a](https://github.com/astrosocket/packingcubes/commit/6fd430adbd1a9bc731d6f2eaf13b2515c559fa63))
+- Fix name typo ([ab27a27](https://github.com/astrosocket/packingcubes/commit/ab27a27ef63f0895c6ab2e00b5cf2241a0f8ea65))
+
+### 📚 Documentation
+
+- Improve readability and fix link ([939e5e7](https://github.com/astrosocket/packingcubes/commit/939e5e74628c45dc8af63563d9e728f1bcfdb61a))
+
+### ⚡ Performance
+
+- Use jitted approach for multiple query points ([9d04a13](https://github.com/astrosocket/packingcubes/commit/9d04a13ddffee9647bc36b1747c97d4f9d4ab9de))
+
+### ⚙️ Miscellaneous Tasks
+
+- Update pixi version for emudhra ([c938b07](https://github.com/astrosocket/packingcubes/commit/c938b07327e3430dbf6dee9fdbe2ffae88765075))
 ## [0.6.7] - 2026-10-21
 
 ### 🐛 Bug Fixes

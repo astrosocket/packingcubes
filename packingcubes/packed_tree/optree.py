@@ -306,7 +306,7 @@ class OpTree:
                 OpTreeWarning,
                 stacklevel=1,
             )
-            return np.arange(len(self.dataset))
+            return np.arange(len(self._dataset))
         index = self._dataset.index.view()
         index.flags.writeable = False
         return index
@@ -502,27 +502,33 @@ class OpTree:
             ]
             return lengths[0] if len(lengths) == 1 else lengths
 
-        results = [
-            self._cubes.get_particle_index_list_in_sphere(
-                data=self._data_container,
-                center=center,
-                radius=radius,
+        if len(centers) > 1:
+            result_list = self._cubes.get_particle_index_list_in_spheres(
+                centers=centers,
+                radii=radii,
                 strict=strict,
                 use_data_indices=return_data_indices,
             )
-            for center, radius in zip(centers, radii, strict=True)
-        ]
+            if return_sorted:
+                for list_ in result_list:
+                    for r in list_:
+                        r.sort()
+            if return_lists:
+                return [r.tolist() for r in result_list]
+            return result_list
+        results = self._cubes.get_particle_index_list_in_sphere(
+            data=self._data_container,
+            center=centers[0],
+            radius=float(radii[0]),
+            strict=strict,
+            use_data_indices=return_data_indices,
+        )
         #  results is now list of list of (unsorted) indices
         if return_sorted:
             for r in results:
                 r.sort()
 
-        if return_lists:
-            results = [r.tolist() for r in results]
-
-        if len(centers) > 1:
-            return np.fromiter(results, dtype=np.object_)
-        return results[0]
+        return results.tolist() if return_lists else results
 
     def query_ball_point(
         self,
