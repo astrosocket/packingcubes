@@ -815,8 +815,13 @@ def get_particle_index_list_in_shapes(
     results = List([np.empty(0, dtype=np.int_) for _ in range(num_shapes)])
 
     for i in prange(num_shapes):
-        results[i] = get_particle_index_list_in_shape(
-            cubes, trees, cube_offsets, shapes[i], data, strict, use_data_indices
+        # Note: prange indices are uint64 in parallel mode but current
+        # TypedList _get_item implementation casts to intp type, which can
+        # be int64. We'll explicitly cast to avoid the warning and because
+        # len(shapes) **better** be < 2**63 !
+        li = np.int_(i)
+        results[li] = get_particle_index_list_in_shape(
+            cubes, trees, cube_offsets, shapes[li], data, strict, use_data_indices
         )
 
     return results
