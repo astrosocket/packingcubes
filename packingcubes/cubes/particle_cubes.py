@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Collection, Iterable, Mapping
 from pathlib import Path
-from typing import Any, overload
+from typing import Any, cast, overload
 
 import h5py  # type: ignore
 import numpy as np
@@ -924,17 +924,36 @@ class ParticleCubes:
         return Path(dataset)
 
 
-def has_cubes(dataset: str | Path | MultiParticleDataset | h5py.File | Any) -> bool:
-    """Return true if the dataset contains a packingcubes structure"""
+def _can_load(
+    dataset: str | Path | MultiParticleDataset | h5py.File | Any,
+) -> Path | None:
+    dataset_file = None
+    if isinstance(dataset, HDF5Dataset) and "Cells" in dataset._top_level_groups:
+        dataset_file = dataset.sorted_filepath
+    elif isinstance(dataset, h5py.File):
+        dataset_file = dataset.filename
+    elif isinstance(dataset, (str, Path)) and h5py.is_hdf5(dataset):
+        dataset_file = Path(dataset)
+    return dataset_file
+
+
+def has_cells(dataset: str | Path | MultiParticleDataset | h5py.File | Any) -> bool:
+    """Return true if the dataset contains a cells structure"""
     # TODO: This whole function probably needs to be refactored somewhere else
-    if isinstance(dataset, HDF5Dataset):
-        return "cubes" in dataset._top_level_groups
-    if isinstance(dataset, (str, Path)) and h5py.is_hdf5(dataset):
-        with h5py.File(dataset) as file:
-            return "cubes" in file
-    if isinstance(dataset, h5py.File):
-        return "cubes" in dataset
-    return False
+    dataset_file = _can_load(dataset)
+    if dataset_file is None:
+        return False
+    with h5py.File(dataset_file) as file:
+        return "Cells" in file and "Indices" in file["Cells"]
+
+
+def has_trees(dataset: str | Path | MultiParticleDataset | h5py.File | Any) -> bool:
+    """Return true if the dataset contains trees in it's cells structure"""
+    if not has_cells(dataset):
+        return False
+    dataset_file = cast(Path, _can_load(dataset))
+    with h5py.File(dataset_file) as file:
+        return "Trees" in file["Cells"]
 
 
 def check_overwrite(
@@ -968,7 +987,7 @@ def check_overwrite(
         The location to write the cubes structure to
 
     """
-    if not has_cubes(dataset):
+    if not has_cells(dataset):
         return dataset
     if isinstance(dataset, h5py.File):
         return dataset
