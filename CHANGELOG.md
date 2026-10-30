@@ -1,3 +1,8 @@
+## [0.7.1] - 2026-10-30
+
+### 🚀 Features
+
+- Pad tree index when saving ([ce62fda](https://github.com/astrosocket/packingcubes/commit/ce62fda378d4df95fc706ef0af26ef6151684203))
 ## [0.7.0] - 2026-10-28
 
 ### 🚀 Features
@@ -18,6 +23,10 @@
 ### ⚡ Performance
 
 - Use jitted approach for multiple query points ([9d04a13](https://github.com/astrosocket/packingcubes/commit/9d04a13ddffee9647bc36b1747c97d4f9d4ab9de))
+
+### 🧪 Testing
+
+- Update comparison benchmarks and plots ([be54637](https://github.com/astrosocket/packingcubes/commit/be546374f0b67531e86b1629389f52346b1026dc))
 
 ### ⚙️ Miscellaneous Tasks
 
