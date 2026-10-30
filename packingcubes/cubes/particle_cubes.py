@@ -43,6 +43,27 @@ LOGGER = logging.getLogger(__name__)
 type save_dataset_type = str | Path | HDF5Dataset | h5py.File
 
 
+def pad_index(index: int, total: int) -> str:
+    """
+    Pad index with appropriate number of zeros
+
+    Parameters
+    ----------
+    index: int
+        The index to pad
+
+    total: int
+        The total number of indices
+
+    Returns
+    -------
+    :
+        The padded index as a string
+
+    """
+    return f"{index}".zfill(int(np.ceil(np.log10(total))))
+
+
 class ParticleCubes:
     """The cubes for a single particle type"""
 
@@ -1029,9 +1050,13 @@ def _save_cube(
     trees_grp.attrs["Packingcubes_version"] = packingcubes.__version__
     indices_grp.create_dataset(pt, data=cube_indices, compression="gzip", shuffle=True)
     pt_grp.attrs["Number_of_cubes"] = len(cube_indices)
+    number_cubes = len(cube_boxes)
     for i, (box, tree) in enumerate(zip(cube_boxes, cube_trees, strict=True)):
         tree_ds = pt_grp.create_dataset(
-            f"tree_{i}", data=tree.packed_form, compression="gzip", shuffle=True
+            f"tree_{pad_index(i, number_cubes)}",
+            data=tree.packed_form,
+            compression="gzip",
+            shuffle=True,
         )
         tree_ds.attrs["Bounding_box"] = box.box
 
